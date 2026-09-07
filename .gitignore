@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+complete_project_code.txt
+src_code.txt
+*.log
+cbo_session.json
+.wrangler/
+.cloudflare_key
+__pycache__/
+*.pyc

@@ -1,0 +1,572 @@
+import React, { useState, useMemo } from 'react';
+import { 
+  HeartPulse, Search, Save, Download, Check, Plus, Trash2, 
+  RefreshCw, X, Stethoscope, CheckCircle2, Filter, Calendar, ShieldAlert
+} from 'lucide-react';
+import { memoryStore, MslDoctor } from '../../data/memoryStore';
+import { MASTER_123_MSL_DOCTORS } from './MslSheet';
+
+const STORAGE_KEY = 'dios_wcfyh_campaign_permanent_v2';
+
+export interface WcfyhRow {
+  id: string;
+  sn: number;
+  brand: string;
+  drName: string;
+  speciality: string;
+  dateOfCampaign: string;
+  campaignDoneOn: string;
+  rxGenerated: string;
+  apr: string; may: string; jun: string; jul: string; aug: string; sept: string;
+  oct: string; nov: string; dec: string; jan: string; feb: string; mar: string;
+}
+
+const MONTH_KEYS = [
+  { key: 'apr', label: 'APRIL' }, { key: 'may', label: 'MAY' }, { key: 'jun', label: 'JUNE' },
+  { key: 'jul', label: 'JULY' }, { key: 'aug', label: 'AUG' }, { key: 'sept', label: 'SEP' },
+  { key: 'oct', label: 'OCT' }, { key: 'nov', label: 'NOV' }, { key: 'dec', label: 'DEC' },
+  { key: 'jan', label: 'JAN' }, { key: 'feb', label: 'FEB' }, { key: 'mar', label: 'MAR' }
+];
+
+const SYNC_MONTH_OPTIONS = [
+  { label: 'All 12 Months', key: 'ALL' },
+  { label: 'Apr-2026', key: 'apr' },
+  { label: 'May-2026', key: 'may' },
+  { label: 'Jun-2026', key: 'jun' },
+  { label: 'Jul-2026', key: 'jul' },
+  { label: 'Aug-2026', key: 'aug' },
+  { label: 'Sep-2026', key: 'sept' },
+  { label: 'Oct-2026', key: 'oct' },
+  { label: 'Nov-2026', key: 'nov' },
+  { label: 'Dec-2026', key: 'dec' },
+  { label: 'Jan-2027', key: 'jan' },
+  { label: 'Feb-2027', key: 'feb' },
+  { label: 'Mar-2027', key: 'mar' },
+];
+
+const INITIAL_WCFYH_SEED: WcfyhRow[] = [
+  { id: 'w1', sn: 1, brand: 'VINTEL', drName: 'PRIYANKA MINOCHA', speciality: 'MD MBBS, NEUROLOGY', dateOfCampaign: '10TH OF EVERY MONTH', campaignDoneOn: 'na', rxGenerated: '', apr: '3,17,24', may: '8,19,29', jun: '12', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { id: 'w2', sn: 2, brand: 'VINTEL', drName: 'Mona dingra', speciality: 'DM ENDOCRINOLOGIST', dateOfCampaign: '10TH OF EVERY MONTH', campaignDoneOn: '10-Jul', rxGenerated: '', apr: '18,23', may: '21,28', jun: '22', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { id: 'w3', sn: 3, brand: 'VINTEL', drName: 'UDAY BHOMIK', speciality: 'MCH NEUROSURGERY', dateOfCampaign: '10TH OF EVERY MONTH', campaignDoneOn: '17-Jul', rxGenerated: '', apr: '30', may: '15', jun: '12', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { id: 'w4', sn: 1, brand: 'VALROS', drName: 'DEEPAK AAMETHA', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH', campaignDoneOn: '22-Jul', rxGenerated: '', apr: '7,10,17', may: '12,19,26', jun: '16,19', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { id: 'w5', sn: 2, brand: 'VALROS', drName: 'MUKESH SHARMA', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH', campaignDoneOn: '22-Jul', rxGenerated: '', apr: '2,21,29', may: '12,19', jun: '3,24', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { id: 'w6', sn: 3, brand: 'VALROS', drName: 'CPPUROHIT', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH', campaignDoneOn: '22-Jul', rxGenerated: '', apr: '4,14,21,28', may: '12,18', jun: '20', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { id: 'w7', sn: 4, brand: 'VALROS', drName: 'RAMESH PATEL', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH', campaignDoneOn: '22-Jul', rxGenerated: '', apr: '1,17,22', may: '8,15,18,19,29', jun: '12,19,24', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { id: 'w8', sn: 5, brand: 'VALROS', drName: 'Sanjay Gandhi', speciality: 'MS, MCH, CARDIOLOGY', dateOfCampaign: '20TH OF EVERY MONTH', campaignDoneOn: '', rxGenerated: '', apr: '', may: '', jun: '13', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { id: 'w9', sn: 6, brand: 'VALROS', drName: 'RAVIRAJ SINGH AHADA', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH', campaignDoneOn: '22-Jul', rxGenerated: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { id: 'w10', sn: 7, brand: 'VALROS', drName: 'Dilip jain', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH', campaignDoneOn: '23-Jul', rxGenerated: '', apr: '4,13,17,21,27', may: '18,26,29', jun: '9,19,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' }
+];
+
+const cleanStr = (s: string) => (s || '').toLowerCase().replace(/^(dr\\.?|dr\\s+)/i, '').replace(/[^a-z0-9]/g, '').trim();
+
+export const WcfyhSheet: React.FC = () => {
+  const [selectedSyncMonth, setSelectedSyncMonth] = useState('ALL');
+  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  // Modals
+  const [showAddMslModal, setShowAddMslModal] = useState(false);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [mslSearchQuery, setMslSearchQuery] = useState('');
+  const [selectedMslDoc, setSelectedMslDoc] = useState<MslDoctor | null>(null);
+
+  const [newDocForm, setNewDocForm] = useState({
+    brand: 'VINTEL',
+    speciality: 'MD MBBS, NEUROLOGY',
+    dateOfCampaign: '10TH OF EVERY MONTH',
+    campaignDoneOn: 'na',
+    rxGenerated: ''
+  });
+
+  const [rows, setRows] = useState<WcfyhRow[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_WCFYH_SEED;
+  });
+
+  const persistRows = (updated: WcfyhRow[]) => {
+    setRows(updated);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+  };
+
+  // 🌟 3-Layer Guaranteed MSL Doctors Loader
+  const allMslDoctors: MslDoctor[] = useMemo(() => {
+    if (memoryStore.mslData && memoryStore.mslData.length > 0) return memoryStore.mslData;
+    try {
+      const saved = localStorage.getItem('dios_msl_schedule_permanent_v5');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return MASTER_123_MSL_DOCTORS || [];
+  }, [showAddMslModal]);
+
+  const filteredMslDocs = allMslDoctors.filter(d => {
+    const q = mslSearchQuery.toLowerCase();
+    return !q || d.doctorName.toLowerCase().includes(q) || (d.speciality || '').toLowerCase().includes(q) || String(d.srNo).includes(q);
+  });
+
+  const handleFieldChange = (id: string, field: keyof WcfyhRow, val: any) => {
+    const updated = rows.map(r => r.id === id ? { ...r, [field]: val } : r);
+    persistRows(updated);
+  };
+
+  const handleAutoSyncFromMsl = () => {
+    let updatedCount = 0;
+    const updated = rows.map(row => {
+      const docClean = cleanStr(row.drName);
+      const match = allMslDoctors.find(d => cleanStr(d.doctorName) === docClean || cleanStr(d.doctorName).includes(docClean) || docClean.includes(cleanStr(d.doctorName)));
+      if (!match) return row;
+
+      const copy: any = { ...row };
+      if (selectedSyncMonth === 'ALL') {
+        MONTH_KEYS.forEach(m => {
+          copy[m.key] = (match as any)[m.key] || copy[m.key] || '';
+        });
+        updatedCount++;
+      } else {
+        copy[selectedSyncMonth] = (match as any)[selectedSyncMonth] || copy[selectedSyncMonth] || '';
+        updatedCount++;
+      }
+      return copy;
+    });
+
+    persistRows(updated);
+    const mLabel = SYNC_MONTH_OPTIONS.find(o => o.key === selectedSyncMonth)?.label || selectedSyncMonth;
+    setStatusMsg(`🎉 SUCCESS: [${mLabel}] ki Visit Dates MSL Schedule se WCFYH me auto-sync ho gayi!`);
+    setTimeout(() => setStatusMsg(null), 3000);
+  };
+
+  const handleSave = () => {
+    persistRows(rows);
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2000);
+  };
+
+  const handleSelectMslDoctor = (doc: MslDoctor) => {
+    setSelectedMslDoc(doc);
+    setNewDocForm(prev => ({
+      ...prev,
+      speciality: doc.speciality || 'DM CARD.'
+    }));
+  };
+
+  const handleBrandSelectionChange = (newBrand: string) => {
+    setNewDocForm(prev => ({
+      ...prev,
+      brand: newBrand,
+      dateOfCampaign: newBrand === 'VINTEL' ? '10TH OF EVERY MONTH' : '20TH OF EVERY MONTH'
+    }));
+  };
+
+  const handleConfirmAddMslDoctor = () => {
+    if (!selectedMslDoc) {
+      alert("Kripya MSL se Doctor select karein!");
+      return;
+    }
+
+    const sameBrandRows = rows.filter(r => r.brand === newDocForm.brand);
+    const nextSn = sameBrandRows.length > 0 ? Math.max(...sameBrandRows.map(r => r.sn)) + 1 : 1;
+
+    const newRow: any = {
+      id: 'w_' + Date.now(),
+      sn: nextSn,
+      brand: newDocForm.brand,
+      drName: selectedMslDoc.doctorName,
+      speciality: selectedMslDoc.speciality || newDocForm.speciality,
+      dateOfCampaign: newDocForm.dateOfCampaign,
+      campaignDoneOn: newDocForm.campaignDoneOn,
+      rxGenerated: newDocForm.rxGenerated,
+      apr: '', may: '', jun: '', jul: '', aug: '', sept: '',
+      oct: '', nov: '', dec: '', jan: '', feb: '', mar: ''
+    };
+
+    // Pre-fill visit dates from MSL
+    MONTH_KEYS.forEach(m => {
+      newRow[m.key] = (selectedMslDoc as any)[m.key] || '';
+    });
+
+    persistRows([...rows, newRow]);
+    setShowAddMslModal(false);
+    setSelectedMslDoc(null);
+    setMslSearchQuery('');
+    setStatusMsg(`🎉 Dr. ${newRow.drName} WCFYH (${newRow.brand}) me add ho gaye!`);
+    setTimeout(() => setStatusMsg(null), 3000);
+  };
+
+  const handleRemoveDoctorDirect = (id: string, name: string) => {
+    if (window.confirm(`⚠️ Kya aap Dr. ${name} ko WCFYH list se delete karna chahte hain?`)) {
+      persistRows(rows.filter(r => r.id !== id));
+      setStatusMsg(`🗑️ Dr. ${name} list se remove ho gaye.`);
+      setTimeout(() => setStatusMsg(null), 2500);
+    }
+  };
+
+  const handleExportCSV = () => {
+    const lines: string[] = [];
+    lines.push('WE CARE FOR YOUR HEALTH CAMPAIGN,,,,,,,VISIT DATES,,,,,,,,,,,');
+    lines.push('S.NO.,BRAND,NAME OF THE DR.,SPECIALITY,DATE OF CAMPAIGN,CAMPAIGN DONE ON,RX GENERATED, APRIL,MAY,JUNE,JULY,AUG,SEP,OCT,NOV,DEC,JAN,FEB,MAR');
+
+    rows.forEach(r => {
+      const q = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
+      const row = [
+        r.sn, q(r.brand), q(r.drName), q(r.speciality), q(r.dateOfCampaign),
+        q(r.campaignDoneOn), q(r.rxGenerated),
+        q(r.apr), q(r.may), q(r.jun), q(r.jul), q(r.aug), q(r.sept),
+        q(r.oct), q(r.nov), q(r.dec), q(r.jan), q(r.feb), q(r.mar)
+      ];
+      lines.push(row.join(','));
+    });
+
+    const csvContent = lines.join('\\r\\n');
+    const blob = new Blob(['\\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', '7_WCFYH.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const filtered = useMemo(() => {
+    return rows.filter(r => 
+      !search || r.drName.toLowerCase().includes(search.toLowerCase()) || r.speciality.toLowerCase().includes(search.toLowerCase()) || r.brand.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [rows, search]);
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-5">
+      {/* Top Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+        <div className="flex items-center gap-2">
+          <span className="p-2 bg-rose-500/20 text-rose-400 rounded-lg"><HeartPulse size={18} /></span>
+          <div>
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              7. WE CARE FOR YOUR HEALTH (WCFYH) CAMPAIGN
+              <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
+                Doctor Name Frozen &amp; MSL Tools
+              </span>
+            </h2>
+            <p className="text-xs text-slate-400">BRANDS: VINTEL &amp; VALROS • Doctor Name Panes Frozen • Add/Remove from MSL</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-36">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input 
+              type="text" 
+              placeholder="Search..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-cyan-500/50">
+            <select
+              value={selectedSyncMonth}
+              onChange={e => setSelectedSyncMonth(e.target.value)}
+              className="bg-transparent text-xs font-bold text-cyan-400 px-2 py-1 focus:outline-none cursor-pointer"
+            >
+              {SYNC_MONTH_OPTIONS.map(opt => (
+                <option key={opt.key} value={opt.key} className="bg-slate-900 text-white">{opt.label}</option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleAutoSyncFromMsl}
+              className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white rounded-lg text-xs font-bold shadow transition cursor-pointer"
+              title="Sync visit dates from MSL Schedule"
+            >
+              <RefreshCw size={12} className="text-yellow-300" /> ⚡ Sync MSL Dates
+            </button>
+          </div>
+
+          {/* 🌟 ADD DOCTOR (FROM MSL) */}
+          <button
+            onClick={() => setShowAddMslModal(true)}
+            className="flex items-center gap-1 px-3.5 py-1.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+          >
+            <Plus size={14} /> + Add Doctor (From MSL)
+          </button>
+
+          {/* 🌟 SAFE REMOVE DOCTOR BUTTON */}
+          <button
+            onClick={() => setShowRemoveModal(true)}
+            className="flex items-center gap-1 px-3 py-1.5 bg-rose-950/70 hover:bg-rose-900 text-rose-300 border border-rose-800/80 rounded-xl text-xs font-bold transition cursor-pointer"
+          >
+            <Trash2 size={13} /> Remove Doctor
+          </button>
+
+          <button
+            onClick={handleSave}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+          >
+            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
+            {savedSuccess ? 'Saved' : 'Save Data'}
+          </button>
+
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
+          >
+            <Download size={14} /> Export CSV
+          </button>
+        </div>
+      </div>
+
+      {statusMsg && (
+        <div className="p-3 bg-cyan-950/80 border border-cyan-500/60 text-cyan-200 rounded-xl text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Check size={16} className="text-emerald-400" />
+            <span className="font-semibold">{statusMsg}</span>
+          </div>
+          <button onClick={() => setStatusMsg(null)} className="p-1 hover:text-white cursor-pointer"><X size={15} /></button>
+        </div>
+      )}
+
+      {/* 🌟 1. ADD DOCTOR FROM MSL MODAL */}
+      {showAddMslModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-rose-500/60 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/40"><Stethoscope size={20} /></span>
+                <div>
+                  <h3 className="text-base font-bold text-white">Select Doctor from MSL Schedule</h3>
+                  <p className="text-xs text-slate-400">Search doctor from MSL &amp; assign campaign brand</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAddMslModal(false)} className="text-slate-400 hover:text-white p-1"><X size={20} /></button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span>1. Search MSL Doctor:</span>
+                {selectedMslDoc && <span className="text-rose-400 font-bold flex items-center gap-1"><CheckCircle2 size={13} /> Selected: #{selectedMslDoc.srNo} {selectedMslDoc.doctorName}</span>}
+              </label>
+              
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Type doctor name..."
+                  value={mslSearchQuery}
+                  onChange={e => setMslSearchQuery(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-xs text-white rounded-xl pl-9 pr-3 py-2 focus:border-rose-500 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+
+              <div className="overflow-y-auto max-h-[140px] border border-slate-800 rounded-2xl p-1.5 space-y-1 bg-slate-950/80">
+                {filteredMslDocs.map(doc => {
+                  const isSelected = selectedMslDoc?.srNo === doc.srNo;
+                  return (
+                    <div
+                      key={doc.srNo}
+                      onClick={() => handleSelectMslDoctor(doc)}
+                      className={`flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer transition ${
+                        isSelected ? 'bg-rose-950 border border-rose-500 text-white font-bold' : 'bg-slate-900/60 hover:bg-slate-800 border border-slate-800/80 text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-slate-400 text-[10px] w-8">#{doc.srNo}</span>
+                        <span className="font-semibold text-white">{doc.doctorName}</span>
+                        {doc.speciality && <span className="text-[10px] text-blue-300 bg-blue-950/60 px-1.5 py-0.2 rounded border border-blue-500/30">{doc.speciality}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-3 text-xs">
+              <div className="text-xs font-bold text-rose-400">2. Campaign Details:</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Campaign Brand</label>
+                  <select value={newDocForm.brand} onChange={e => handleBrandSelectionChange(e.target.value)} className="w-full bg-slate-900 border border-slate-700 text-cyan-300 font-bold rounded-xl px-3 py-1.5 cursor-pointer">
+                    <option value="VINTEL">VINTEL (10th of Month)</option>
+                    <option value="VALROS">VALROS (20th of Month)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Date of Campaign</label>
+                  <input type="text" value={newDocForm.dateOfCampaign} onChange={e => setNewDocForm({ ...newDocForm, dateOfCampaign: e.target.value })} className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-semibold rounded-xl px-3 py-1.5" />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setShowAddMslModal(false)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl">Cancel</button>
+              <button type="button" onClick={handleConfirmAddMslDoctor} disabled={!selectedMslDoc} className="flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 text-white text-xs font-bold rounded-xl shadow-lg cursor-pointer">
+                <Check size={15} /> Add to WCFYH
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 2. SAFE REMOVE DOCTOR MODAL */}
+      {showRemoveModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-rose-500/60 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/40"><ShieldAlert size={20} /></span>
+                <div>
+                  <h3 className="text-base font-bold text-white">Remove Doctor</h3>
+                  <p className="text-xs text-slate-400">Select doctor to delete from WCFYH list</p>
+                </div>
+              </div>
+              <button onClick={() => setShowRemoveModal(false)} className="text-slate-400 hover:text-white p-1"><X size={20} /></button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 border border-slate-800 rounded-2xl p-2 space-y-1.5 bg-slate-950/80 max-h-[300px]">
+              {rows.map(doc => (
+                <div key={doc.id} className="flex items-center justify-between p-2 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-cyan-300 text-[10px] w-12">{doc.brand}</span>
+                    <span className="font-bold text-white">{doc.drName || '(Unnamed)'}</span>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveDoctorDirect(doc.id, doc.drName)}
+                    className="flex items-center gap-1 px-3 py-1 bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800/80 rounded-lg text-xs font-bold transition cursor-pointer"
+                  >
+                    <Trash2 size={12} /> Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button onClick={() => setShowRemoveModal(false)} className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl cursor-pointer">Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main 2-Tier Table (Frozen Panes up to Doctor Name) */}
+      <div className="overflow-x-auto max-h-[640px] border border-slate-800 rounded-2xl relative shadow-2xl">
+        <table className="w-full text-left text-xs border-separate border-spacing-0">
+          <thead className="sticky top-0 z-40 bg-slate-950">
+            {/* Tier 1 Header */}
+            <tr>
+              <th colSpan={7} className="p-2.5 bg-slate-900 border-b border-r-4 border-cyan-500 shadow-[4px_0_12px_rgba(0,0,0,0.6)] text-rose-300 font-extrabold uppercase tracking-wider sticky left-0 z-50">
+                WE CARE FOR YOUR HEALTH CAMPAIGN
+              </th>
+              <th colSpan={12} className="p-2.5 text-center bg-cyan-950/70 border-b border-r border-slate-800 text-cyan-300 font-extrabold uppercase tracking-wider">
+                VISIT DATES (2026-2027)
+              </th>
+              <th className="p-2.5 text-center bg-slate-900 border-b border-slate-800 text-slate-400 font-bold uppercase w-12">
+                Action
+              </th>
+            </tr>
+
+            {/* Tier 2 Header */}
+            <tr>
+              <th style={{ width: '42px', minWidth: '42px', left: 0 }} className="p-2 text-center bg-slate-950 border-b border-r border-slate-800 text-slate-400 font-bold uppercase sticky z-50">
+                S.NO.
+              </th>
+              <th style={{ width: '85px', minWidth: '85px', left: '42px' }} className="p-2 bg-slate-950 border-b border-r border-slate-800 text-cyan-400 font-bold uppercase sticky z-50">
+                BRAND
+              </th>
+              <th style={{ width: '180px', minWidth: '180px', left: '127px' }} className="p-2 bg-slate-950 border-b border-r-4 border-cyan-500 shadow-[4px_0_12px_rgba(0,0,0,0.6)] text-white font-bold uppercase sticky z-50">
+                NAME OF THE DR.
+              </th>
+
+              <th className="p-2 min-w-[150px] bg-slate-950 border-b border-r border-slate-800 text-slate-300 font-bold uppercase">SPECIALITY</th>
+              <th className="p-2 min-w-[160px] bg-slate-950 border-b border-r border-slate-800 text-amber-400 font-bold uppercase">DATE OF CAMPAIGN</th>
+              <th className="p-2 text-center min-w-[130px] bg-slate-950 border-b border-r border-slate-800 text-emerald-400 font-bold uppercase">CAMPAIGN DONE ON</th>
+              <th className="p-2 text-center min-w-[110px] bg-slate-950 border-b border-r border-slate-800 text-purple-300 font-bold uppercase">RX GENERATED</th>
+
+              {MONTH_KEYS.map(m => (
+                <th key={m.key} className="p-2 text-center bg-slate-950 text-[11px] text-cyan-300 border-b border-r border-slate-800 font-black w-[120px] min-w-[120px]">
+                  {m.label}
+                </th>
+              ))}
+
+              <th className="p-2 text-center bg-slate-950 border-b border-slate-800 text-slate-400 font-bold uppercase w-12">Action</th>
+            </tr>
+          </thead>
+
+          <tbody className="bg-slate-900 divide-y divide-slate-800/60">
+            {filtered.map(row => (
+              <tr key={row.id} className="hover:bg-slate-800/60 transition group">
+                <td style={{ width: '42px', minWidth: '42px', left: 0 }} className="p-2 text-center font-mono text-slate-400 border-b border-r border-slate-800/80 sticky bg-slate-900 group-hover:bg-slate-800 z-20">
+                  {row.sn}
+                </td>
+
+                <td style={{ width: '85px', minWidth: '85px', left: '42px' }} className="p-1 border-b border-r border-slate-800/80 sticky bg-slate-900 group-hover:bg-slate-800 z-20">
+                  <span className={`px-2 py-1 rounded font-bold text-[10px] font-mono ${row.brand === 'VINTEL' ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40' : 'bg-rose-950 text-rose-300 border border-rose-500/40'}`}>
+                    {row.brand}
+                  </span>
+                </td>
+
+                {/* 🌟 NAME OF THE DR. FROZEN WITH CYAN DIVIDER */}
+                <td style={{ width: '180px', minWidth: '180px', left: '127px' }} className="p-1 border-b border-r-4 border-cyan-500 shadow-[4px_0_12px_rgba(0,0,0,0.6)] sticky bg-slate-900 group-hover:bg-slate-800 z-20">
+                  <input
+                    type="text"
+                    value={row.drName}
+                    onChange={e => handleFieldChange(row.id, 'drName', e.target.value)}
+                    placeholder="Doctor Name"
+                    className="w-full py-1.5 px-2 bg-slate-950 rounded-md font-bold text-white text-xs border border-slate-800 focus:border-rose-500 focus:outline-none"
+                  />
+                </td>
+
+                <td className="p-1 border-b border-r border-slate-800/80">
+                  <input type="text" value={row.speciality} onChange={e => handleFieldChange(row.id, 'speciality', e.target.value)} className="w-full py-1.5 px-2 bg-slate-950 border border-slate-800 text-slate-300 rounded text-xs" />
+                </td>
+
+                <td className="p-1 border-b border-r border-slate-800/80">
+                  <input type="text" value={row.dateOfCampaign} onChange={e => handleFieldChange(row.id, 'dateOfCampaign', e.target.value)} className="w-full py-1.5 px-2 bg-slate-950 border border-slate-800 text-amber-300 text-xs font-semibold" />
+                </td>
+
+                <td className="p-1 text-center border-b border-r border-slate-800/80">
+                  <input type="text" value={row.campaignDoneOn} onChange={e => handleFieldChange(row.id, 'campaignDoneOn', e.target.value)} placeholder="e.g. 22-Jul" className="w-full py-1.5 bg-slate-950 border border-slate-800 text-center font-mono font-bold text-emerald-400 rounded text-xs" />
+                </td>
+
+                <td className="p-1 text-center border-b border-r border-slate-800/80">
+                  <input type="text" value={row.rxGenerated} onChange={e => handleFieldChange(row.id, 'rxGenerated', e.target.value)} placeholder="-" className="w-full py-1.5 bg-slate-950 border border-slate-800 text-center font-mono font-bold text-purple-300 rounded text-xs" />
+                </td>
+
+                {MONTH_KEYS.map(m => (
+                  <td key={m.key} className="p-1 text-center border-b border-r border-slate-800/60 w-[120px] min-w-[120px]">
+                    <input
+                      type="text"
+                      value={(row as any)[m.key] || ''}
+                      onChange={e => handleFieldChange(row.id, m.key as any, e.target.value)}
+                      placeholder="-"
+                      className="w-full py-1.5 px-1 bg-slate-950 rounded-md font-mono font-bold text-center text-xs text-cyan-300 border border-slate-800 focus:border-cyan-500 focus:outline-none"
+                    />
+                  </td>
+                ))}
+
+                <td className="p-1 text-center border-b border-slate-800">
+                  <button
+                    onClick={() => handleRemoveDoctorDirect(row.id, row.drName)}
+                    className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition cursor-pointer"
+                    title="Delete Row"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
