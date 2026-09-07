@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Activity, Save, Download, Check, User, MapPin, Zap } from 'lucide-react';
+import { Activity, Download, Zap, Check } from 'lucide-react';
 import { memoryStore, FwDayEntry } from '../../data/memoryStore';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const MONTHS = ['APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR'];
 
@@ -96,6 +97,13 @@ export const EffortLevelSheet: React.FC = () => {
   const [hqName, setHqName] = useState(() => memoryStore.hqName || 'UDAIPUR');
   
   const [formData, setFormData] = useState<Record<string, Record<string, string>>>(() => {
+    try {
+      const draft = localStorage.getItem('dios_draft_sheet_01_effort_level');
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed && parsed.formData) return parsed.formData;
+      }
+    } catch (e) {}
     return memoryStore.effortLevelData || INITIAL_BASE;
   });
 
@@ -117,7 +125,7 @@ export const EffortLevelSheet: React.FC = () => {
     });
   };
 
-  // 1️⃣ NO. OF AVAILABLE F.W. DAYS = Total Days - Sundays - Holidays (ONLY Sunday & Holiday minus)
+  // 1️⃣ NO. OF AVAILABLE F.W. DAYS = Total Days - Sundays - Holidays
   const getAvailFwDaysNum = (month: string): number => {
     const totalDays = parseFloat(formData.days_in_month?.[month] || '') || (MONTH_METADATA[month]?.days || 30);
     const sundays = getSundaysCount(month);
@@ -214,7 +222,7 @@ export const EffortLevelSheet: React.FC = () => {
     return hasNumeric ? String(sum) : '-';
   };
 
-  // 🧠 1000 IQ: Auto-Fill strictly the matching month column from FW Progress
+  // 🧠 Auto-Fill from FW Progress
   const handleAutoFillFromFwProgress = () => {
     const fwEntries: FwDayEntry[] = memoryStore.dcrDataByMonth[targetMonth];
 
@@ -238,7 +246,7 @@ export const EffortLevelSheet: React.FC = () => {
       const wt = String(entry.workType || '').toUpperCase();
 
       if (entry.day === 'SUNDAY') {
-        // Handled automatically by calendar formula
+        // Handled automatically
       } else if (wt.includes('HOLIDAY') || area.includes('HOLIDAY') || area.includes('DAY') || area.includes('BANDHAN')) {
         holidays++;
       } else if (wt.includes('LEAVE') || area.includes('LEAVE')) {
@@ -276,10 +284,11 @@ export const EffortLevelSheet: React.FC = () => {
     const avail = totalDays - getSundaysCount(targetMonth) - holidays;
     const actual = avail - leaves - (meetings + admin + transit);
 
-    setSyncedAlert(`🎉 SUCCESS! '${targetMonth}' Auto-Filled: Available = ${avail} (Sundays & Holidays deducted), Actual = ${actual} (Leaves & Meetings deducted)!`);
+    setSyncedAlert(`🎉 SUCCESS! '${targetMonth}' Auto-Filled: Available = ${avail}, Actual = ${actual}!`);
     setTimeout(() => setSyncedAlert(null), 3500);
   };
 
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     let csv = `BE Name - ,${beName},FIELD WORK ACTIVITY,,,,,,,,,,,,\n`;
     csv += `H.Q- ,${hqName},,,,,,,,,,,,,,\n`;
@@ -305,6 +314,8 @@ export const EffortLevelSheet: React.FC = () => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
+      
+      {/* Top Header Bar */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
           <span className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
@@ -314,7 +325,7 @@ export const EffortLevelSheet: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               1. EFFORT LEVEL (Field Work Activity)
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-mono">
-                Formula Verified
+                Cloud Sync Ready
               </span>
             </h2>
             <p className="text-xs text-slate-400">BE: {beName} • HQ: {hqName}</p>
@@ -349,6 +360,7 @@ export const EffortLevelSheet: React.FC = () => {
             </button>
           </div>
 
+          {/* 100% Untouched Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer"
@@ -357,6 +369,34 @@ export const EffortLevelSheet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR (Draft, Update to Cloud, Pull Cloud, History) */}
+      <CloudSyncBar
+        storageKey="review/sheet_01_effort_level"
+        sheetTitle="1. Effort Level (Field Work Activity)"
+        getData={() => ({ beName, hqName, formData })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.formData) {
+            setFormData(cloudData.formData);
+            memoryStore.effortLevelData = cloudData.formData;
+          }
+          if (cloudData.beName) {
+            setBeName(cloudData.beName);
+            memoryStore.beName = cloudData.beName;
+          }
+          if (cloudData.hqName) {
+            setHqName(cloudData.hqName);
+            memoryStore.hqName = cloudData.hqName;
+          }
+        }}
+        onSaveLocal={() => {
+          memoryStore.effortLevelData = formData;
+          try {
+            localStorage.setItem('dios_draft_sheet_01_effort_level', JSON.stringify({ beName, hqName, formData }));
+          } catch (e) {}
+        }}
+      />
 
       {syncedAlert && (
         <div className="p-3 bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 rounded-xl text-xs flex items-center gap-2">

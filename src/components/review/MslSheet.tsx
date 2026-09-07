@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
-  Calendar, Search, Save, Download, Check, Plus, Trash2, 
+  Calendar, Search, Download, Check, Plus, Trash2, 
   Eye, EyeOff, Sparkles, Filter, RefreshCw, AlertTriangle, 
-  X, RotateCcw, Link2, UserPlus, ArrowUpDown, Settings2, Info,
-  SlidersHorizontal, Tag, Layers, CheckCircle2, Edit3, ArrowUp, ArrowDown, ListOrdered
+  X, RotateCcw, Link2, UserPlus, SlidersHorizontal, Tag, 
+  CheckCircle2, Edit3, ArrowUp, ArrowDown, ListOrdered
 } from 'lucide-react';
 import { memoryStore, MslDoctor } from '../../data/memoryStore';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const MSL_STORAGE_KEY = 'dios_msl_schedule_permanent_v5';
 const MSL_ALIASES_KEY = 'dios_msl_aliases_mapping_v5';
@@ -32,26 +33,10 @@ const DEFAULT_ACTIVITY_MASTER = [
 ];
 
 const DEFAULT_SPECIALITY_MASTER = [
-  'MD MED',
-  'DM CARDIO',
-  'CARDIOLOGY',
-  'DM ENDO',
-  'ENDO',
-  'DM NEURO',
-  'DNB NEFRO',
-  'NEPHROLOGIST',
-  'MBBS MD',
-  'PHY',
-  'GENERAL PHYSICIAN',
-  'GP',
-  'CVTS',
-  'MD PSY',
-  'MS ORTHO',
-  'SURJAN',
-  'C.PHY',
-  'CONSULTANT PHYSICIAN',
-  'CONSPHYS',
-  'M B B S PHY'
+  'MD MED', 'DM CARDIO', 'CARDIOLOGY', 'DM ENDO', 'ENDO', 'DM NEURO',
+  'DNB NEFRO', 'NEPHROLOGIST', 'MBBS MD', 'PHY', 'GENERAL PHYSICIAN',
+  'GP', 'CVTS', 'MD PSY', 'MS ORTHO', 'SURJAN', 'C.PHY',
+  'CONSULTANT PHYSICIAN', 'CONSPHYS', 'M B B S PHY'
 ];
 
 export const MASTER_123_MSL_DOCTORS: MslDoctor[] = [
@@ -247,7 +232,7 @@ export const MslSheet: React.FC = () => {
     return DEFAULT_CUSTOM_RULES;
   });
 
-    const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
+  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
   const [newDocForm, setNewDocForm] = useState({
     doctorName: '',
     activityType: '',
@@ -293,7 +278,6 @@ export const MslSheet: React.FC = () => {
 
   const [selectedResetMonth, setSelectedResetMonth] = useState<string>('ALL');
   const [syncAlert, setSyncAlert] = useState<{ type: 'success' | 'warning'; msg: string } | null>(null);
-  const [savedSuccess, setSavedSuccess] = useState(false);
 
   const [showMappingModal, setShowMappingModal] = useState(false);
   const [pendingUnmatchedCboDocs, setPendingUnmatchedCboDocs] = useState<Array<{
@@ -340,15 +324,6 @@ export const MslSheet: React.FC = () => {
     setCustomPriorityRules(rules);
     try {
       localStorage.setItem(MSL_CUSTOM_RULES_KEY, JSON.stringify(rules));
-    } catch (e) {}
-  };
-
-  const handleSaveFilterView = () => {
-    try {
-      const viewState = { activityFilter, specialityFilter, docTypeFilter, sortMode };
-      localStorage.setItem(MSL_SAVED_VIEW_KEY, JSON.stringify(viewState));
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 2000);
     } catch (e) {}
   };
 
@@ -598,7 +573,7 @@ export const MslSheet: React.FC = () => {
     }
   };
 
-    const handleRestoreDefaultMasters = () => {
+  const handleRestoreDefaultMasters = () => {
     if (window.confirm("Kya aap Activity & Speciality Masters ko Company Default List par Reset karna chahte hain?")) {
       persistActivityMaster(DEFAULT_ACTIVITY_MASTER);
       persistSpecialityMaster(DEFAULT_SPECIALITY_MASTER);
@@ -678,7 +653,6 @@ export const MslSheet: React.FC = () => {
     persistDoctors(updated);
   };
 
-    // 🧹 Remove all empty/blank doctor rows in 1-click
   const handleRemoveBlankDoctors = () => {
     const validDocs = doctors.filter(d => (d.doctorName || '').trim().length > 0);
     const removedCount = doctors.length - validDocs.length;
@@ -692,7 +666,7 @@ export const MslSheet: React.FC = () => {
     }
   };
 
-    const handleConfirmAddDoctor = () => {
+  const handleConfirmAddDoctor = () => {
     if (!newDocForm.doctorName.trim()) {
       alert("Kripya Doctor ka naam zaroor likhein!");
       return;
@@ -718,35 +692,18 @@ export const MslSheet: React.FC = () => {
   const handleAddDoctor = () => {
     setShowAddDoctorModal(true);
   };
-  const handleAddDoctorOld = () => {
-    const nextSr = doctors.length > 0 ? Math.max(...doctors.map(p => p.srNo)) + 1 : 1;
-    const updated: MslDoctor[] = [
-      ...doctors,
-      { srNo: nextSr, doctorName: '', activityType: '', speciality: '', dob: '', doa: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '', isNewDoctor: true }
-    ];
-    persistDoctors(updated);
-  };
 
   const handleDeleteDoctor = (srNo: number) => {
     const updated = doctors.filter(d => d.srNo !== srNo);
     persistDoctors(updated);
   };
 
-  const handleSave = () => {
-    persistDoctors(doctors);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
-  };
-
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     const lines: string[] = [];
-    
-    // Header Row 1 matching csv_output/14_MSL.csv
     lines.push(',,,,,,VISIT DATES,,,,,,,,,,,');
-    // Header Row 2
     lines.push('SrNo,Doctor Name,Activity Type,Speciality,DOB,DOA,APR,MAY,JUN,JUL,AUG,SEPT,OCT,NOV,DEC,JAN,FEB,MAR');
 
-    // Data rows
     filtered.forEach(d => {
       const q = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
       const row = [
@@ -792,7 +749,6 @@ export const MslSheet: React.FC = () => {
       const matchesType = docTypeFilter === 'ALL' || (docTypeFilter === 'MASTER' ? !d.isNewDoctor : !!d.isNewDoctor);
       return matchesSearch && matchesActivity && matchesSpeciality && matchesType;
     }).sort((a, b) => {
-      // 🌟 RULE: Empty/Blank names ALWAYS go to the absolute bottom in all sort modes!
       const nameA = (a.doctorName || '').trim();
       const nameB = (b.doctorName || '').trim();
       if (!nameA && nameB) return 1;
@@ -833,7 +789,7 @@ export const MslSheet: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               14. MSL (Master Specialty List &amp; Visit Dates)
               <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
-                Custom Hierarchy &amp; Master Dropdown
+                Cloud Sync Ready
               </span>
             </h2>
             <p className="text-xs text-slate-400">123 Master Doctors Protected • Custom Priority Builder • Master Dropdowns</p>
@@ -906,14 +862,7 @@ export const MslSheet: React.FC = () => {
             <Plus size={14} /> Add Doctor
           </button>
 
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save'}
-          </button>
-
+          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer"
@@ -922,6 +871,52 @@ export const MslSheet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="review/sheet_14_msl_schedule"
+        sheetTitle="14. MSL Schedule (Master Specialty List)"
+        getData={() => ({
+          doctors,
+          activityMaster,
+          specialityMaster,
+          customPriorityRules,
+          aliasMap,
+          sortMode,
+          activityFilter,
+          specialityFilter,
+          docTypeFilter
+        })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.doctors && Array.isArray(cloudData.doctors)) {
+            persistDoctors(cloudData.doctors);
+          }
+          if (cloudData.activityMaster && Array.isArray(cloudData.activityMaster)) {
+            persistActivityMaster(cloudData.activityMaster);
+          }
+          if (cloudData.specialityMaster && Array.isArray(cloudData.specialityMaster)) {
+            persistSpecialityMaster(cloudData.specialityMaster);
+          }
+          if (cloudData.customPriorityRules && Array.isArray(cloudData.customPriorityRules)) {
+            persistCustomRules(cloudData.customPriorityRules);
+          }
+          if (cloudData.aliasMap) {
+            persistAliases(cloudData.aliasMap);
+          }
+          if (cloudData.sortMode) setSortMode(cloudData.sortMode);
+          if (cloudData.activityFilter) setActivityFilter(cloudData.activityFilter);
+          if (cloudData.specialityFilter) setSpecialityFilter(cloudData.specialityFilter);
+          if (cloudData.docTypeFilter) setDocTypeFilter(cloudData.docTypeFilter);
+        }}
+        onSaveLocal={() => {
+          persistDoctors(doctors);
+          persistAliases(aliasMap);
+          persistActivityMaster(activityMaster);
+          persistSpecialityMaster(specialityMaster);
+          persistCustomRules(customPriorityRules);
+        }}
+      />
 
       {syncAlert && (
         <div className={`p-3 rounded-xl text-xs flex items-center justify-between border ${
@@ -998,20 +993,12 @@ export const MslSheet: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSaveFilterView}
-              className="flex items-center gap-1 px-3 py-1 bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/50 rounded-xl font-bold transition cursor-pointer shadow-sm"
-            >
-              <Save size={12} /> Save View
-            </button>
-            <button
-              onClick={handleResetFilters}
-              className="px-2.5 py-1 text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition cursor-pointer"
-            >
-              Clear
-            </button>
-          </div>
+          <button
+            onClick={handleResetFilters}
+            className="px-2.5 py-1 text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition cursor-pointer"
+          >
+            Clear
+          </button>
         </div>
 
         {/* Column Toggles */}
@@ -1074,7 +1061,7 @@ export const MslSheet: React.FC = () => {
         </div>
       </div>
 
-            {/* 🌟 ADD NEW DOCTOR DIALOG POPUP */}
+      {/* ADD NEW DOCTOR DIALOG */}
       {showAddDoctorModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/50 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
@@ -1257,7 +1244,7 @@ export const MslSheet: React.FC = () => {
         </div>
       )}
 
-      {/* Manage Masters Modal with Edit & Warning Delete */}
+      {/* Manage Masters Modal */}
       {showMasterManager && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-amber-500/50 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
@@ -1494,7 +1481,6 @@ export const MslSheet: React.FC = () => {
                     </div>
                   </td>
 
-                  {/* 🌟 3. ACTIVITY DROPDOWN (Strict select from Master) */}
                   {showActivity && (
                     <td style={{ width: `${W_ACT}px`, minWidth: `${W_ACT}px`, left: `${offsetAct}px` }} className={`p-1 border-b border-slate-800/80 sticky z-20 ${isNew ? 'bg-cyan-950' : 'bg-slate-900 group-hover:bg-slate-800'} ${lastLeftCol === 'activity' ? 'border-r-4 border-cyan-500 shadow-[4px_0_12px_rgba(0,0,0,0.6)]' : 'border-r'}`}>
                       <select
@@ -1513,7 +1499,6 @@ export const MslSheet: React.FC = () => {
                     </td>
                   )}
 
-                  {/* 4. Speciality Dropdown */}
                   {showSpeciality && (
                     <td style={{ width: `${W_SPEC}px`, minWidth: `${W_SPEC}px`, left: `${offsetSpec}px` }} className={`p-1 border-b border-slate-800/80 sticky z-20 ${isNew ? 'bg-cyan-950' : 'bg-slate-900 group-hover:bg-slate-800'} ${lastLeftCol === 'speciality' ? 'border-r-4 border-cyan-500 shadow-[4px_0_12px_rgba(0,0,0,0.6)]' : 'border-r'}`}>
                       <select
@@ -1532,7 +1517,6 @@ export const MslSheet: React.FC = () => {
                     </td>
                   )}
 
-                  {/* 5. DOB */}
                   {showDob && (
                     <td style={{ width: `${W_DOB}px`, minWidth: `${W_DOB}px`, left: `${offsetDob}px` }} className={`p-1 border-b border-slate-800/80 sticky z-20 ${isNew ? 'bg-cyan-950' : 'bg-slate-900 group-hover:bg-slate-800'} ${lastLeftCol === 'dob' ? 'border-r-4 border-cyan-500 shadow-[4px_0_12px_rgba(0,0,0,0.6)]' : 'border-r'}`}>
                       <input
@@ -1545,7 +1529,6 @@ export const MslSheet: React.FC = () => {
                     </td>
                   )}
 
-                  {/* 6. DOA */}
                   {showDoa && (
                     <td style={{ width: `${W_DOA}px`, minWidth: `${W_DOA}px`, left: `${offsetDoa}px` }} className={`p-1 border-b border-r-4 border-cyan-500 shadow-[4px_0_12px_rgba(0,0,0,0.6)] sticky z-20 ${isNew ? 'bg-cyan-950' : 'bg-slate-900 group-hover:bg-slate-800'}`}>
                       <input
@@ -1558,7 +1541,6 @@ export const MslSheet: React.FC = () => {
                     </td>
                   )}
 
-                  {/* 12 Months */}
                   {['apr', 'may', 'jun', 'jul', 'aug', 'sept', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar'].map(monthKey => {
                     const cellVal = (doc as any)[monthKey] || '';
                     const hasDates = cellVal.trim().length > 0;

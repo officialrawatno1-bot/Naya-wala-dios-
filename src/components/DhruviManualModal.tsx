@@ -3,6 +3,7 @@ import { Calculator, Search, X, Check, Trash2, Edit3, Settings2 } from 'lucide-r
 import { MASTER_PRODUCTS } from '../data/masterProducts';
 import { PartyParseSummary } from '../parsers/common';
 import { memoryStore, DhruviProductEntry, DhruviValuationMode } from '../data/memoryStore';
+import { CloudSyncBar } from './CloudSyncBar';
 
 export function evalExcelFormula(input: string): number {
   if (!input) return 0;
@@ -164,7 +165,6 @@ export const DhruviManualModal: React.FC<Props> = ({ isOpen, onClose, onSave, on
             </div>
           </div>
 
-          {/* 🌟 EXCEL VALUATION MODE SELECTION DROPDOWN */}
           <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-2xl border-2 border-amber-500/50 shadow-md">
             <span className="text-[11px] text-amber-300 font-bold uppercase flex items-center gap-1">
               <Settings2 size={13} /> Excel Value Mode:
@@ -186,10 +186,47 @@ export const DhruviManualModal: React.FC<Props> = ({ isOpen, onClose, onSave, on
           </button>
         </div>
 
-        {/* 🌟 4 TOP CARDS: SUMMARY & DUAL MANUAL TARGET BOXES */}
+        {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+        <div className="mb-3">
+          <CloudSyncBar
+            storageKey="aggregator/dhruvi_manual_math"
+            sheetTitle="Dhruvi Manual Formula Sheet"
+            getData={() => ({
+              draft,
+              manualPtsTotal,
+              manualPtrTotal,
+              valuationMode
+            })}
+            onLoadData={(cloudData: any) => {
+              if (!cloudData) return;
+              if (cloudData.draft) {
+                setDraft(cloudData.draft);
+                memoryStore.dhruviEntries = cloudData.draft;
+              }
+              if (cloudData.manualPtsTotal !== undefined) {
+                setManualPtsTotal(cloudData.manualPtsTotal);
+                memoryStore.dhruviManualPtsTotal = cloudData.manualPtsTotal;
+              }
+              if (cloudData.manualPtrTotal !== undefined) {
+                setManualPtrTotal(cloudData.manualPtrTotal);
+                memoryStore.dhruviManualPtrTotal = cloudData.manualPtrTotal;
+              }
+              if (cloudData.valuationMode) {
+                setValuationMode(cloudData.valuationMode);
+                memoryStore.dhruviValuationMode = cloudData.valuationMode;
+              }
+            }}
+            onSaveLocal={() => {
+              memoryStore.dhruviEntries = draft;
+              memoryStore.dhruviManualPtsTotal = manualPtsTotal;
+              memoryStore.dhruviManualPtrTotal = manualPtrTotal;
+              memoryStore.dhruviValuationMode = valuationMode;
+            }}
+          />
+        </div>
+
+        {/* 4 TOP CARDS */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-          
-          {/* Card 1: Sales Secondary Summary */}
           <div className="p-3 bg-slate-950 rounded-2xl border border-cyan-500/30 space-y-1">
             <div className="text-[10px] text-slate-400 uppercase font-semibold flex items-center justify-between">
               <span>Sales Units (SEC)</span>
@@ -205,7 +242,6 @@ export const DhruviManualModal: React.FC<Props> = ({ isOpen, onClose, onSave, on
             </div>
           </div>
 
-          {/* Card 2: Closing Stock Summary */}
           <div className="p-3 bg-slate-950 rounded-2xl border border-emerald-500/30 space-y-1">
             <div className="text-[10px] text-slate-400 uppercase font-semibold flex items-center justify-between">
               <span>Closing Stock (CL)</span>
@@ -221,7 +257,6 @@ export const DhruviManualModal: React.FC<Props> = ({ isOpen, onClose, onSave, on
             </div>
           </div>
 
-          {/* Card 3: 🟡 USER MANUAL PTS TARGET INPUT BOX */}
           <div className="p-3 bg-slate-950 rounded-2xl border-2 border-cyan-500/60 shadow-lg shadow-cyan-950/30 flex flex-col justify-between">
             <div>
               <div className="text-[11px] text-cyan-300 uppercase font-bold flex items-center justify-between">
@@ -243,7 +278,6 @@ export const DhruviManualModal: React.FC<Props> = ({ isOpen, onClose, onSave, on
             />
           </div>
 
-          {/* Card 4: 🟠 USER MANUAL PTR TARGET INPUT BOX */}
           <div className="p-3 bg-slate-950 rounded-2xl border-2 border-amber-500/60 shadow-lg shadow-amber-950/30 flex flex-col justify-between">
             <div>
               <div className="text-[11px] text-amber-300 uppercase font-bold flex items-center justify-between">
@@ -264,7 +298,6 @@ export const DhruviManualModal: React.FC<Props> = ({ isOpen, onClose, onSave, on
               className="w-full bg-slate-900 border border-amber-500/50 text-amber-300 font-mono font-bold text-sm rounded-xl px-3 py-1.5 mt-1.5 focus:outline-none focus:border-amber-400"
             />
           </div>
-
         </div>
 
         {/* Search */}
@@ -321,7 +354,6 @@ export const DhruviManualModal: React.FC<Props> = ({ isOpen, onClose, onSave, on
                       <td className="p-2 text-right font-mono text-slate-300">{p.pts.toFixed(2)}</td>
                       <td className="p-2 text-right font-mono text-amber-300 font-bold">{p.ptr.toFixed(2)}</td>
 
-                      {/* Sales Formula Cell */}
                       <td className="p-1 text-center bg-cyan-950/10">
                         <div className="flex items-center gap-1">
                           <input
@@ -339,7 +371,6 @@ export const DhruviManualModal: React.FC<Props> = ({ isOpen, onClose, onSave, on
                         </div>
                       </td>
 
-                      {/* Sales Values (PTS & PTR) */}
                       <td className="p-1.5 text-right font-mono bg-cyan-950/5">
                         {entry.salesQty > 0 ? (
                           <div className="leading-tight">
@@ -349,7 +380,6 @@ export const DhruviManualModal: React.FC<Props> = ({ isOpen, onClose, onSave, on
                         ) : '-'}
                       </td>
 
-                      {/* Closing Formula Cell */}
                       <td className="p-1 text-center bg-emerald-950/10">
                         <div className="flex items-center gap-1">
                           <input
@@ -367,7 +397,6 @@ export const DhruviManualModal: React.FC<Props> = ({ isOpen, onClose, onSave, on
                         </div>
                       </td>
 
-                      {/* Closing Values (PTS & PTR) */}
                       <td className="p-1.5 text-right font-mono bg-emerald-950/5">
                         {entry.closingQty > 0 ? (
                           <div className="leading-tight">
@@ -383,7 +412,7 @@ export const DhruviManualModal: React.FC<Props> = ({ isOpen, onClose, onSave, on
           </table>
         </div>
 
-        {/* Footer Summary & Action Buttons */}
+        {/* Footer */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-800 mt-2">
           <button
             type="button"

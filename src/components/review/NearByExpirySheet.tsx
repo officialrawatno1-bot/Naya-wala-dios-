@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Save, Download, Check, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Download } from 'lucide-react';
 import { memoryStore } from '../../data/memoryStore';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const EXPIRY_PRODUCTS_LIST = [
   "CALGYM 60K CAP", "CALGYM TAB", "VALROS TAB", "CITICURE 500 TAB", "CITICURE PLUS TAB",
@@ -27,6 +28,15 @@ interface ExpiryRow {
 
 export const NearByExpirySheet: React.FC = () => {
   const [rows, setRows] = useState<ExpiryRow[]>(() => {
+    try {
+      const draft = localStorage.getItem('dios_draft_sheet_05_expiry');
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed.rows && Array.isArray(parsed.rows) && parsed.rows.length > 0) {
+          return parsed.rows;
+        }
+      }
+    } catch (e) {}
     if (memoryStore.expiryData) {
       return Object.values(memoryStore.expiryData);
     }
@@ -41,8 +51,6 @@ export const NearByExpirySheet: React.FC = () => {
     }));
   });
 
-  const [savedSuccess, setSavedSuccess] = useState(false);
-
   const handleFieldChange = (sn: number, field: keyof ExpiryRow, val: string) => {
     setRows(prev => {
       const updated = prev.map(r => r.sn === sn ? { ...r, [field]: val } : r);
@@ -53,14 +61,7 @@ export const NearByExpirySheet: React.FC = () => {
     });
   };
 
-  const handleSave = () => {
-    const mapObj: Record<number, ExpiryRow> = {};
-    rows.forEach(item => { mapObj[item.sn] = item; });
-    memoryStore.expiryData = mapObj;
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
-  };
-
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     let csv = `DETAILS OF PRODUCTS HAVING LESS THAN 8 MONTHS EXPIRY,,,,,,\n`;
     csv += `S. NO,PRODUCT,HQ,STOCKIST NAME,QUANTITY,MONTH OF EXPIRY,PLAN OF LIQUIDATION\n`;
@@ -81,6 +82,8 @@ export const NearByExpirySheet: React.FC = () => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+      
+      {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div className="flex items-center gap-2">
           <span className="p-2 bg-amber-500/20 text-amber-400 rounded-lg"><AlertTriangle size={18} /></span>
@@ -90,23 +93,41 @@ export const NearByExpirySheet: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save'}
-          </button>
-
-          <button
-            onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition cursor-pointer"
-          >
-            <Download size={14} /> Export CSV
-          </button>
-        </div>
+        {/* 100% UNTOUCHED Export CSV */}
+        <button
+          onClick={handleExportCSV}
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition cursor-pointer"
+        >
+          <Download size={14} /> Export CSV
+        </button>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="review/sheet_05_near_by_expiry"
+        sheetTitle="5. Near By Expiry (< 8 Months)"
+        getData={() => ({ rows })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.rows && Array.isArray(cloudData.rows)) {
+            setRows(cloudData.rows);
+            const mapObj: Record<number, ExpiryRow> = {};
+            cloudData.rows.forEach((item: ExpiryRow) => { mapObj[item.sn] = item; });
+            memoryStore.expiryData = mapObj;
+            try {
+              localStorage.setItem('dios_draft_sheet_05_expiry', JSON.stringify({ rows: cloudData.rows }));
+            } catch (e) {}
+          }
+        }}
+        onSaveLocal={() => {
+          const mapObj: Record<number, ExpiryRow> = {};
+          rows.forEach(item => { mapObj[item.sn] = item; });
+          memoryStore.expiryData = mapObj;
+          try {
+            localStorage.setItem('dios_draft_sheet_05_expiry', JSON.stringify({ rows }));
+          } catch (e) {}
+        }}
+      />
 
       <div className="overflow-x-auto max-h-[600px] border border-slate-800 rounded-xl">
         <table className="w-full text-left text-xs border-collapse">

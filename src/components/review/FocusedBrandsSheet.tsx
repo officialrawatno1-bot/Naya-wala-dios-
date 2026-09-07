@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Target, Search, Save, Download, Check, Plus, Trash2, 
-  RefreshCw, X, Stethoscope, CheckCircle2, Filter, 
-  Sparkles, Dices, ArrowRight, Layers
+  Target, Search, Download, Check, Plus, Trash2, 
+  RefreshCw, X, Stethoscope, CheckCircle2, 
+  Dices
 } from 'lucide-react';
 import { memoryStore, MslDoctor } from '../../data/memoryStore';
 import { MASTER_123_MSL_DOCTORS } from './MslSheet';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const STORAGE_KEY = 'dios_focused_brands_permanent_v3';
 
@@ -40,7 +41,6 @@ const FOCUSED_PRODUCTS_MASTER = [
   'CITICURE PLUS'
 ];
 
-// Clean 15 Doctors Seed from csv_output/12_FOCUSED BRANDS.csv (Monthly strips & Rx kept blank for manual entry)
 const INITIAL_FOCUSED_SEED: FocusedBrandItem[] = [
   { id: 'f1', sn: 1, drName: 'ABHIJEET BASU', productName: 'CALGYM 60K', speciality: 'GP', activityDone: '7,9,11,17,24', prescriberType: 'PRESCRIBER', rxGenerated: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { id: 'f2', sn: 2, drName: 'AMIT MEHTA', productName: 'CALGYM 60K', speciality: 'GP', activityDone: '3,13,17,24,27', prescriberType: 'PRESCRIBER', rxGenerated: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
@@ -64,10 +64,8 @@ const cleanStr = (s: string) => (s || '').toLowerCase().replace(/^(dr\\.?|dr\\s+
 export const FocusedBrandsSheet: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedProductFilter, setSelectedProductFilter] = useState('ALL');
-  const [savedSuccess, setSavedSuccess] = useState(false);
   const [alertMsg, setAlertMsg] = useState<string | null>(null);
 
-  // Add Doctor Modal
   const [showAddMslModal, setShowAddMslModal] = useState(false);
   const [mslSearchQuery, setMslSearchQuery] = useState('');
   const [selectedMslDoc, setSelectedMslDoc] = useState<MslDoctor | null>(null);
@@ -103,7 +101,6 @@ export const FocusedBrandsSheet: React.FC = () => {
     persistItems(updated);
   };
 
-  // 🌟 Helper: Extract visit dates from MSL Schedule for a doctor
   const getMslVisitDates = (drName: string): string => {
     const mslDocs: MslDoctor[] = (memoryStore.mslData && memoryStore.mslData.length > 0) 
       ? memoryStore.mslData 
@@ -113,7 +110,6 @@ export const FocusedBrandsSheet: React.FC = () => {
     const found = mslDocs.find(d => cleanStr(d.doctorName) === docClean);
     if (!found) return '';
 
-    // Collect non-empty visit dates
     const dateParts: string[] = [];
     ['apr', 'may', 'jun', 'jul', 'aug', 'sept'].forEach(mKey => {
       const dVal = (found as any)[mKey];
@@ -125,7 +121,6 @@ export const FocusedBrandsSheet: React.FC = () => {
     return dateParts.length > 0 ? dateParts[dateParts.length - 1] : '';
   };
 
-  // 🌟 1. AUTO-FILL VISIT DATES FROM MSL (Top Button 1)
   const handleAutoFillFromMsl = () => {
     let filledCount = 0;
     const updated = items.map(it => {
@@ -134,7 +129,7 @@ export const FocusedBrandsSheet: React.FC = () => {
         filledCount++;
         return { ...it, activityDone: mslDate };
       }
-      return it; // If not in MSL, leave as is
+      return it;
     });
 
     persistItems(updated);
@@ -142,7 +137,6 @@ export const FocusedBrandsSheet: React.FC = () => {
     setTimeout(() => setAlertMsg(null), 3500);
   };
 
-  // 🌟 2. RANDOM VISIT DATES GENERATOR (Top Button 2)
   const handleRandomizeDates = () => {
     const sampleDates = ['7,17', '12,24', '5,19', '10,22', '14,28', '8,20', '3,15', '9,23', '6,18'];
     const updated = items.map((it, idx) => ({
@@ -157,12 +151,6 @@ export const FocusedBrandsSheet: React.FC = () => {
   const calculateRowTotal = (it: FocusedBrandItem): number => {
     const months = [it.apr, it.may, it.jun, it.jul, it.aug, it.sept, it.oct, it.nov, it.dec, it.jan, it.feb, it.mar];
     return months.reduce((acc, m) => acc + (parseFloat(String(m || '0')) || 0), 0);
-  };
-
-  const handleSave = () => {
-    persistItems(items);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
   };
 
   const handleDeleteItem = (id: string, name: string) => {
@@ -209,7 +197,7 @@ export const FocusedBrandsSheet: React.FC = () => {
     setTimeout(() => setAlertMsg(null), 3000);
   };
 
-  // 📥 Export Exact 2-Tier CSV matching csv_output/12_FOCUSED BRANDS.csv
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     const lines: string[] = [];
     lines.push('HQ,UDAIPUR,,,,,,,,,,,,,,,,,');
@@ -274,6 +262,7 @@ export const FocusedBrandsSheet: React.FC = () => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-4">
+      
       {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div className="flex items-center gap-2">
@@ -282,7 +271,7 @@ export const FocusedBrandsSheet: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               12. FOCUSED BRANDS (Doctor-wise Rx &amp; Secondary in Strips)
               <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
-                MSL Visit Dates &amp; Manual Strips
+                Cloud Sync Ready
               </span>
             </h2>
             <p className="text-xs text-slate-400">HQ: UDAIPUR • Visit Dates Auto-Synced from MSL • Editable Strips &amp; Prescriptions</p>
@@ -322,14 +311,7 @@ export const FocusedBrandsSheet: React.FC = () => {
             <Plus size={14} /> + Add Doctor
           </button>
 
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save Data'}
-          </button>
-
+          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
@@ -338,6 +320,28 @@ export const FocusedBrandsSheet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="review/sheet_12_focused_brands"
+        sheetTitle="12. Focused Brands"
+        getData={() => ({
+          items,
+          selectedProductFilter
+        })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.items && Array.isArray(cloudData.items)) {
+            persistItems(cloudData.items);
+          }
+          if (cloudData.selectedProductFilter) {
+            setSelectedProductFilter(cloudData.selectedProductFilter);
+          }
+        }}
+        onSaveLocal={() => {
+          persistItems(items);
+        }}
+      />
 
       {alertMsg && (
         <div className="p-3 bg-indigo-950/80 border border-indigo-500/60 text-indigo-200 rounded-xl text-xs flex items-center justify-between">
@@ -349,12 +353,11 @@ export const FocusedBrandsSheet: React.FC = () => {
         </div>
       )}
 
-      {/* 🌟 2 TOP BULK ACTION BUTTONS (MSL Auto-Fill & Random Dates) */}
+      {/* 2 TOP BULK ACTION BUTTONS */}
       <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Activity / Visit Date Tools:</span>
 
-          {/* Option 1: Auto-Fill from MSL */}
           <button
             onClick={handleAutoFillFromMsl}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 rounded-xl font-bold transition cursor-pointer shadow-sm"
@@ -363,7 +366,6 @@ export const FocusedBrandsSheet: React.FC = () => {
             <RefreshCw size={13} className="text-yellow-300" /> ⚡ Visit Date Auto-Fill from MSL
           </button>
 
-          {/* Option 2: Random Dates */}
           <button
             onClick={handleRandomizeDates}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 rounded-xl font-bold transition cursor-pointer"
@@ -459,18 +461,16 @@ export const FocusedBrandsSheet: React.FC = () => {
         </div>
       )}
 
-      {/* Main 2-Tier Table with Editable Activity/Date & Blank Strip Inputs */}
+      {/* Main 2-Tier Table */}
       <div className="overflow-x-auto max-h-[640px] border border-slate-800 rounded-2xl relative shadow-2xl">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
           <thead className="sticky top-0 z-40 bg-slate-950">
-            {/* Tier 1 Header */}
             <tr>
               <th rowSpan={2} className="p-2 text-center bg-slate-950 border-b border-r border-slate-800 sticky left-0 z-50 text-slate-400 font-bold uppercase w-10">S.N.</th>
               <th rowSpan={2} className="p-2 bg-slate-950 border-b border-r border-slate-800 sticky left-10 z-50 text-slate-400 font-bold uppercase min-w-[170px]">DR NAME</th>
               <th rowSpan={2} className="p-2 bg-slate-950 border-b border-r border-slate-800 text-cyan-400 font-bold uppercase min-w-[130px]">PRODUCT NAME</th>
               <th rowSpan={2} className="p-2 bg-slate-950 border-b border-r border-slate-800 text-slate-400 font-bold uppercase min-w-[110px]">SPECIALITY</th>
               
-              {/* 🌟 ACTIVITY DONE / VISIT DATE */}
               <th rowSpan={2} className="p-2 text-center bg-slate-950 border-b border-r border-slate-800 text-amber-400 font-bold uppercase min-w-[130px]">
                 ACTIVITY DONE/NOT (VISIT DATE)
               </th>
@@ -483,7 +483,6 @@ export const FocusedBrandsSheet: React.FC = () => {
                 NO. OF Rx
               </th>
 
-              {/* 12 Months Header */}
               <th colSpan={12} className="p-2 text-center bg-indigo-950/70 border-b border-r border-slate-800 text-indigo-200 font-black uppercase">
                 SECONDARY IN STRIPS (2026-2027)
               </th>
@@ -492,7 +491,6 @@ export const FocusedBrandsSheet: React.FC = () => {
               <th rowSpan={2} className="p-2 text-center bg-slate-950 border-b border-slate-800 text-slate-400 font-bold uppercase w-12">Action</th>
             </tr>
 
-            {/* Tier 2 Header (12 Months) */}
             <tr>
               {MONTH_KEYS.map(m => (
                 <th key={m.key} className="p-1 text-center bg-slate-950 text-[10px] text-indigo-300 border-b border-r border-slate-800 font-bold w-16 min-w-[55px]">
@@ -521,7 +519,6 @@ export const FocusedBrandsSheet: React.FC = () => {
                     />
                   </td>
 
-                  {/* Product Name */}
                   <td className="p-1 border-b border-r border-slate-800/80">
                     <select
                       value={item.productName}
@@ -541,7 +538,6 @@ export const FocusedBrandsSheet: React.FC = () => {
                     />
                   </td>
 
-                  {/* 🌟 EDITABLE ACTIVITY DONE / VISIT DATE */}
                   <td className="p-1 border-b border-r border-slate-800/80 text-center">
                     <input
                       type="text"
@@ -552,7 +548,6 @@ export const FocusedBrandsSheet: React.FC = () => {
                     />
                   </td>
 
-                  {/* Prescriber Dropdown */}
                   <td className="p-1 border-b border-r border-slate-800/80 text-center">
                     <select
                       value={item.prescriberType || '-'}
@@ -565,7 +560,6 @@ export const FocusedBrandsSheet: React.FC = () => {
                     </select>
                   </td>
 
-                  {/* 🌟 BLANK EDITABLE INPUT FOR NO. OF RX */}
                   <td className="p-1 border-b border-r border-slate-800/80 text-center">
                     <input
                       type="text"
@@ -576,7 +570,6 @@ export const FocusedBrandsSheet: React.FC = () => {
                     />
                   </td>
 
-                  {/* 🌟 12 MONTHS BLANK EDITABLE STRIP INPUTS */}
                   {MONTH_KEYS.map(m => (
                     <td key={m.key} className="p-1 border-b border-r border-slate-800/60 text-center">
                       <input
@@ -589,12 +582,10 @@ export const FocusedBrandsSheet: React.FC = () => {
                     </td>
                   ))}
 
-                  {/* Row Total */}
                   <td className="p-2 text-right font-mono font-black text-emerald-400 bg-emerald-950/20 border-b border-r border-slate-800">
                     {rowTotal > 0 ? rowTotal.toLocaleString() : '-'}
                   </td>
 
-                  {/* Delete Action */}
                   <td className="p-1 text-center border-b border-slate-800">
                     <button
                       onClick={() => handleDeleteItem(item.id, item.drName)}
@@ -609,7 +600,6 @@ export const FocusedBrandsSheet: React.FC = () => {
             })}
           </tbody>
 
-          {/* Grand Total Footer */}
           <tfoot className="sticky bottom-0 bg-slate-950 border-t-2 border-indigo-500/40 font-bold z-30 shadow-2xl text-xs">
             <tr>
               <td colSpan={7} className="p-3 text-white font-extrabold uppercase border-r border-slate-800">

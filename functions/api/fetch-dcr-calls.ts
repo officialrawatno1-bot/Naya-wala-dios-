@@ -12,7 +12,7 @@ export async function onRequest(context: any) {
 
   try {
     const body = await context.request.json().catch(() => ({}));
-    const apiRes = await fetch("https://redesigned-winner-gx7rv659g97vhp7r9-8000.app.github.dev/api/fetch-dcr-calls", {
+    const apiRes = await fetch("https://supreme-happiness-gx7vj4pgpwj42wpv7-8000.app.github.dev/api/fetch-dcr-calls", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify(body),

@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, Component, ErrorInfo, ReactNode } from 'react';
 import { 
-  TrendingUp, Bot, Loader2, Save, Download, Check, AlertTriangle, 
+  TrendingUp, Bot, Loader2, Download, Check, AlertTriangle, 
   MessageSquare, Plus, Trash2, X, Info, UploadCloud, RefreshCw
 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
@@ -8,6 +8,7 @@ import { memoryStore, PartyBreakdownItem, DEFAULT_STOCKISTS } from '../../data/m
 import { unProgressionStore } from '../../data/unProgressionStore';
 import { MASTER_PRODUCTS } from '../../data/masterProducts';
 import '../../data/seedRemarks';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const MONTHS = ['APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR'];
 
@@ -64,9 +65,6 @@ const INITIAL_BASE: Record<string, Record<string, string>> = {
   investment: { APR: '12.5k', MAY: '150k', JUN: '0', JUL: '', AUG: '', SEP: '', OCT: '', NOV: '', DEC: '', JAN: '', FEB: '', MAR: '' },
 };
 
-
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-
 class SalesPerformanceErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean, error: any}> {
   state = { hasError: false, error: null };
   static getDerivedStateFromError(error: any) {
@@ -109,22 +107,32 @@ export const SalesPerformanceSheet: React.FC = () => {
 };
 
 const SalesPerformanceContent: React.FC = () => {
-
   const [selectedMonth, setSelectedMonth] = useState('Aug-2026');
+  
   const [formData, setFormData] = useState<Record<string, Record<string, string>>>(() => {
-  if (!memoryStore.salesPerformanceData) {
-    memoryStore.salesPerformanceData = INITIAL_BASE;
-  }
-  return memoryStore.salesPerformanceData;
-});
+    try {
+      const draft = localStorage.getItem('dios_draft_sheet_03_sales_perf');
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed.salesBreakdown) {
+          memoryStore.salesBreakdown = { ...memoryStore.salesBreakdown, ...parsed.salesBreakdown };
+        }
+        if (parsed.formData) return parsed.formData;
+      }
+    } catch (e) {}
+    if (!memoryStore.salesPerformanceData) {
+      memoryStore.salesPerformanceData = INITIAL_BASE;
+    }
+    return memoryStore.salesPerformanceData;
+  });
+
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [savedSuccess, setSavedSuccess] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 📝 Modal State for Remarks / Party Breakdown
+  // Modal State for Remarks / Party Breakdown
   const [activeModal, setActiveModal] = useState<{
     rowId: string;
     rowName: string;
@@ -169,7 +177,6 @@ const SalesPerformanceContent: React.FC = () => {
     const key = `${activeModal.rowId}_${activeModal.month}`;
     memoryStore.salesBreakdown[key] = modalItems;
 
-    // Auto calculate total and update ONLY this specific month cell value
     const total = modalItems.reduce((sum, it) => sum + (parseFloat(String(it.amount)) || 0), 0);
     setFormData(prev => ({
       ...prev,
@@ -196,7 +203,7 @@ const SalesPerformanceContent: React.FC = () => {
     });
   };
 
-    const handleAutoSyncFromDataHub = () => {
+  const handleAutoSyncFromDataHub = () => {
     const gridData = unProgressionStore.getData();
     const newSecCurr: Record<string, string> = { ...(formData.sec_curr || {}) };
     const newClosingStock: Record<string, string> = { ...(formData.closing_stock || {}) };
@@ -233,7 +240,7 @@ const SalesPerformanceContent: React.FC = () => {
     });
 
     setStatusMsg('🎉 Successfully auto-synced Secondary 26-27 & Closing Stock from Data Hub!');
-    setTimeout(() => setStatusMsg(null), 3500);
+    setTimeout(() => setStatusMsg(''), 3500);
   };
 
   const calculateCell = (rowId: string, month: string): string => {
@@ -304,7 +311,6 @@ const SalesPerformanceContent: React.FC = () => {
     return hasNumeric ? (sum > 1000 ? Math.round(sum).toLocaleString() : sum.toFixed(2)) : '-';
   };
 
-  // 🤖 1. AUTO-FETCH CBO SALES (Multi-Month safe)
   const handleFetchFromCbo = async () => {
     setLoading(true);
     setErrorMsg(null);
@@ -353,7 +359,6 @@ const SalesPerformanceContent: React.FC = () => {
     }
   };
 
-  // 📂 2. DIRECT UPLOAD & PARSE SPO EXCEL (Instant In-Browser Processing)
   const handleUploadSpoExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -426,7 +431,6 @@ const SalesPerformanceContent: React.FC = () => {
 
       const netSalesLacs = (totalNetSales / 100000).toFixed(2);
 
-      // Update targeted month cleanly in React state
       setFormData(prev => ({
         ...prev,
         primary_curr: { ...prev.primary_curr, [targetCode]: netSalesLacs },
@@ -434,7 +438,6 @@ const SalesPerformanceContent: React.FC = () => {
         expiry: { ...prev.expiry, [targetCode]: String(Math.round(totalBreakageExpiry)) }
       }));
 
-      // Store remarks breakdown in memoryStore
       memoryStore.salesBreakdown[`sales_returns_${targetCode}`] = returnBreakdown;
       memoryStore.salesBreakdown[`expiry_${targetCode}`] = expiryBreakdown;
 
@@ -448,7 +451,7 @@ const SalesPerformanceContent: React.FC = () => {
     }
   };
 
-  // 📊 3. EXPORT EXCEL WITH NATIVE HOVER COMMENTS
+  // 100% UNTOUCHED Export Excel with Comments
   const handleExportExcelWithComments = () => {
     const wb = XLSX.utils.book_new();
     const headers = ['S.N.', 'PARTICULARS', ...MONTHS, 'CUMM'];
@@ -489,7 +492,7 @@ const SalesPerformanceContent: React.FC = () => {
                 t: `Party-wise Breakdown (${row.name} - ${m}):\n${commentLines.join('\n')}\nTotal: ₹${Number(val).toLocaleString()}`
               }
             ];
-            cellObj.s.fill = { fgColor: { rgb: 'FEF3C7' } }; // Yellow tint
+            cellObj.s.fill = { fgColor: { rgb: 'FEF3C7' } };
           }
         }
 
@@ -511,12 +514,6 @@ const SalesPerformanceContent: React.FC = () => {
     XLSX.writeFile(wb, `Sales_Performance_Review_${selectedMonth}.xlsx`);
   };
 
-  const handleSave = () => {
-    memoryStore.salesPerformanceData = formData;
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
-  };
-
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-4 border-b border-slate-800">
@@ -528,7 +525,7 @@ const SalesPerformanceContent: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               3. SALES PERFORMANCE
               <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
-                <MessageSquare size={10} /> Dual Mode (Fetch + Upload)
+                <MessageSquare size={10} /> Dual Mode + Cloud Sync
               </span>
             </h2>
             <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA • HQ: UDAIPUR • Net Primary Engine</p>
@@ -552,16 +549,15 @@ const SalesPerformanceContent: React.FC = () => {
             </select>
           </div>
 
-          {/* 📂 Option 1: Direct File Upload */}
           <button
-        onClick={handleAutoSyncFromDataHub}
-        className="flex items-center gap-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold shadow-md shadow-cyan-600/20 transition cursor-pointer"
-        title="Auto-sync Secondary 26-27 & Closing Stock from Data Hub"
-      >
-        <RefreshCw size={14} /> Auto-Sync Sec &amp; Stock
-      </button>
+            onClick={handleAutoSyncFromDataHub}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold shadow-md shadow-cyan-600/20 transition cursor-pointer"
+            title="Auto-sync Secondary 26-27 & Closing Stock from Data Hub"
+          >
+            <RefreshCw size={14} /> Auto-Sync Sec &amp; Stock
+          </button>
 
-      <label className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition cursor-pointer">
+          <label className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition cursor-pointer">
             <UploadCloud size={14} />
             Upload SPO Excel
             <input
@@ -573,7 +569,6 @@ const SalesPerformanceContent: React.FC = () => {
             />
           </label>
 
-          {/* ⚡ Option 2: Live Auto-Fetch */}
           <button
             onClick={handleFetchFromCbo}
             disabled={loading}
@@ -583,7 +578,7 @@ const SalesPerformanceContent: React.FC = () => {
             Auto-Fetch {selectedMonth}
           </button>
 
-          {/* 📊 Option 3: Export with Comments */}
+          {/* 100% UNTOUCHED Export Excel */}
           <button
             onClick={handleExportExcelWithComments}
             className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition cursor-pointer"
@@ -591,16 +586,42 @@ const SalesPerformanceContent: React.FC = () => {
           >
             <Download size={14} /> Export Excel
           </button>
-
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer border border-slate-700"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save'}
-          </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="review/sheet_03_sales_performance"
+        sheetTitle="3. Sales Performance"
+        getData={() => ({
+          formData,
+          salesBreakdown: memoryStore.salesBreakdown,
+          selectedMonth
+        })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.formData) {
+            setFormData(cloudData.formData);
+            memoryStore.salesPerformanceData = cloudData.formData;
+          }
+          if (cloudData.salesBreakdown) {
+            memoryStore.salesBreakdown = cloudData.salesBreakdown;
+          }
+          if (cloudData.selectedMonth) {
+            setSelectedMonth(cloudData.selectedMonth);
+          }
+        }}
+        onSaveLocal={() => {
+          memoryStore.salesPerformanceData = formData;
+          try {
+            localStorage.setItem('dios_draft_sheet_03_sales_perf', JSON.stringify({
+              formData,
+              salesBreakdown: memoryStore.salesBreakdown,
+              selectedMonth
+            }));
+          } catch (e) {}
+        }}
+      />
 
       {statusMsg && !errorMsg && (
         <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs flex items-center gap-2">
@@ -710,7 +731,7 @@ const SalesPerformanceContent: React.FC = () => {
         </table>
       </div>
 
-      {/* 📝 STOCKIST REMARKS & BREAKDOWN MODAL */}
+      {/* Stockist Remarks Modal */}
       {activeModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-amber-500/40 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4">

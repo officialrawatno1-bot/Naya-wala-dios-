@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Layers, Search, Save, Download, Check, Plus, Trash2, 
-  RefreshCw, X, Stethoscope, Sparkles, Filter, Calendar, 
-  CheckCircle2, ShieldAlert 
+  Layers, Search, Download, Check, Plus, Trash2, 
+  RefreshCw, X, Stethoscope, CheckCircle2, ShieldAlert 
 } from 'lucide-react';
 import { memoryStore, MslDoctor } from '../../data/memoryStore';
 import { MASTER_123_MSL_DOCTORS } from './MslSheet';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const STORAGE_KEY = 'dios_a2_ghee_valros_permanent_v2';
 
@@ -53,10 +53,8 @@ const cleanStr = (s: string) => (s || '').toLowerCase().replace(/^(dr\\.?|dr\\s+
 
 export const A2GheeValrosSheet: React.FC = () => {
   const [selectedSyncMonth, setSelectedSyncMonth] = useState('ALL');
-  const [savedSuccess, setSavedSuccess] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  // Modals State
   const [showAddMslModal, setShowAddMslModal] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [mslSearchQuery, setMslSearchQuery] = useState('');
@@ -161,7 +159,6 @@ export const A2GheeValrosSheet: React.FC = () => {
       oct: '', nov: '', dec: '', jan: '', feb: '', mar: ''
     };
 
-    // Copy visit dates from MSL
     MONTH_KEYS.forEach(m => {
       newRow[m.key] = (selectedMslDoc as any)[m.key] || '';
     });
@@ -182,12 +179,7 @@ export const A2GheeValrosSheet: React.FC = () => {
     }
   };
 
-  const handleSave = () => {
-    persistRows(rows);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
-  };
-
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     const lines: string[] = [];
     lines.push('PRODUCT NAME,,VALROS,A2 GHEE CAMPAIGN,,,,VISIT DATES,,,,,,,,,,,');
@@ -216,6 +208,7 @@ export const A2GheeValrosSheet: React.FC = () => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-5">
+      
       {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div className="flex items-center gap-2">
@@ -224,7 +217,7 @@ export const A2GheeValrosSheet: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               8. A2 GHEE VALROS CAMPAIGN
               <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
-                Extended Dates View &amp; MSL Picker
+                Cloud Sync Ready
               </span>
             </h2>
             <p className="text-xs text-slate-400">PRODUCT: VALROS • Wider Columns (115px) for Clear Date Visibility • Add/Remove Doctors</p>
@@ -232,7 +225,6 @@ export const A2GheeValrosSheet: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Selective Month Auto-Sync */}
           <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-cyan-500/50">
             <select
               value={selectedSyncMonth}
@@ -253,7 +245,6 @@ export const A2GheeValrosSheet: React.FC = () => {
             </button>
           </div>
 
-          {/* 🌟 ADD DOCTOR FROM MSL BUTTON */}
           <button
             onClick={() => setShowAddMslModal(true)}
             className="flex items-center gap-1 px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
@@ -261,7 +252,6 @@ export const A2GheeValrosSheet: React.FC = () => {
             <Plus size={14} /> + Add Doctor (From MSL)
           </button>
 
-          {/* 🌟 SAFE REMOVE DOCTOR BUTTON */}
           <button
             onClick={() => setShowRemoveModal(true)}
             className="flex items-center gap-1 px-3 py-1.5 bg-rose-950/70 hover:bg-rose-900 text-rose-300 border border-rose-800/80 rounded-xl text-xs font-bold transition cursor-pointer"
@@ -269,14 +259,7 @@ export const A2GheeValrosSheet: React.FC = () => {
             <Trash2 size={13} /> Remove Doctor
           </button>
 
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save Data'}
-          </button>
-
+          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
@@ -285,6 +268,22 @@ export const A2GheeValrosSheet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="campaigns/sheet_08_a2_ghee_valros"
+        sheetTitle="8. A2 Ghee Valros Campaign"
+        getData={() => ({ rows })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.rows && Array.isArray(cloudData.rows)) {
+            persistRows(cloudData.rows);
+          }
+        }}
+        onSaveLocal={() => {
+          persistRows(rows);
+        }}
+      />
 
       {statusMsg && (
         <div className="p-3 bg-cyan-950/80 border border-cyan-500/60 text-cyan-200 rounded-xl text-xs flex items-center justify-between">
@@ -296,7 +295,7 @@ export const A2GheeValrosSheet: React.FC = () => {
         </div>
       )}
 
-      {/* 🌟 ADD DOCTOR FROM MSL MODAL */}
+      {/* ADD DOCTOR FROM MSL MODAL */}
       {showAddMslModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-amber-500/60 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
@@ -378,7 +377,7 @@ export const A2GheeValrosSheet: React.FC = () => {
         </div>
       )}
 
-      {/* 🌟 SAFE REMOVE DOCTOR MODAL */}
+      {/* SAFE REMOVE DOCTOR MODAL */}
       {showRemoveModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-rose-500/60 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
@@ -417,12 +416,11 @@ export const A2GheeValrosSheet: React.FC = () => {
         </div>
       )}
 
-      {/* Main 2-Tier Table with WIDER (115px) Columns */}
+      {/* Main 2-Tier Table */}
       <div className="space-y-3 bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-lg">
         <div className="overflow-x-auto border border-slate-800 rounded-xl">
           <table className="w-full text-left text-xs border-separate border-spacing-0">
             <thead className="sticky top-0 z-30 bg-slate-950">
-              {/* Tier 1 Header */}
               <tr>
                 <th colSpan={7} className="p-2.5 bg-slate-900 border-b border-r border-slate-800 text-amber-300 font-extrabold uppercase tracking-wider">
                   PRODUCT NAME: VALROS | A2 GHEE CAMPAIGN
@@ -435,7 +433,6 @@ export const A2GheeValrosSheet: React.FC = () => {
                 </th>
               </tr>
 
-              {/* Tier 2 Header */}
               <tr>
                 <th className="p-2 text-center w-10 bg-slate-950 border-b border-r border-slate-800 text-slate-400 font-bold uppercase">S.NO.</th>
                 <th className="p-2 min-w-[170px] bg-slate-950 border-b border-r border-slate-800 text-white font-bold uppercase">DR NAME</th>
@@ -445,7 +442,6 @@ export const A2GheeValrosSheet: React.FC = () => {
                 <th className="p-2 text-center min-w-[140px] bg-slate-950 border-b border-r border-slate-800 text-blue-300 font-bold uppercase">PRESCRIBER / NON</th>
                 <th className="p-2 text-center min-w-[130px] bg-slate-950 border-b border-r border-slate-800 text-emerald-400 font-bold uppercase">NO. OF Rx / MONTH</th>
 
-                {/* 🌟 1. WIDER MONTH COLUMNS (115px) SO VISIT DATES FIT COMFORTABLY */}
                 {MONTH_KEYS.map(m => (
                   <th key={m.key} className="p-2 text-center bg-slate-950 text-[11px] text-cyan-300 border-b border-r border-slate-800 font-black w-[115px] min-w-[115px]">
                     {m.label}
@@ -507,7 +503,6 @@ export const A2GheeValrosSheet: React.FC = () => {
                     <input type="text" value={row.rxPerMonth} onChange={e => handleFieldChange(row.sn, 'rxPerMonth', e.target.value)} placeholder="0" className="w-full py-1.5 px-1 bg-slate-950 border border-slate-800 text-center font-mono font-bold text-emerald-300 rounded text-xs focus:border-emerald-500 focus:outline-none" />
                   </td>
 
-                  {/* 🌟 WIDE (115px) VISIT DATE CELLS */}
                   {MONTH_KEYS.map(m => (
                     <td key={m.key} className="p-1 text-center border-b border-r border-slate-800/60 w-[115px] min-w-[115px]">
                       <input

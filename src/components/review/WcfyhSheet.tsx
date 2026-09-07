@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  HeartPulse, Search, Save, Download, Check, Plus, Trash2, 
-  RefreshCw, X, Stethoscope, CheckCircle2, Filter, Calendar, ShieldAlert
+  HeartPulse, Search, Download, Check, Plus, Trash2, 
+  RefreshCw, X, Stethoscope, CheckCircle2, ShieldAlert
 } from 'lucide-react';
 import { memoryStore, MslDoctor } from '../../data/memoryStore';
 import { MASTER_123_MSL_DOCTORS } from './MslSheet';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const STORAGE_KEY = 'dios_wcfyh_campaign_permanent_v2';
 
@@ -61,11 +62,9 @@ const cleanStr = (s: string) => (s || '').toLowerCase().replace(/^(dr\\.?|dr\\s+
 
 export const WcfyhSheet: React.FC = () => {
   const [selectedSyncMonth, setSelectedSyncMonth] = useState('ALL');
-  const [savedSuccess, setSavedSuccess] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
-  // Modals
   const [showAddMslModal, setShowAddMslModal] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [mslSearchQuery, setMslSearchQuery] = useState('');
@@ -97,7 +96,6 @@ export const WcfyhSheet: React.FC = () => {
     } catch (e) {}
   };
 
-  // 🌟 3-Layer Guaranteed MSL Doctors Loader
   const allMslDoctors: MslDoctor[] = useMemo(() => {
     if (memoryStore.mslData && memoryStore.mslData.length > 0) return memoryStore.mslData;
     try {
@@ -146,12 +144,6 @@ export const WcfyhSheet: React.FC = () => {
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
-  const handleSave = () => {
-    persistRows(rows);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
-  };
-
   const handleSelectMslDoctor = (doc: MslDoctor) => {
     setSelectedMslDoc(doc);
     setNewDocForm(prev => ({
@@ -190,7 +182,6 @@ export const WcfyhSheet: React.FC = () => {
       oct: '', nov: '', dec: '', jan: '', feb: '', mar: ''
     };
 
-    // Pre-fill visit dates from MSL
     MONTH_KEYS.forEach(m => {
       newRow[m.key] = (selectedMslDoc as any)[m.key] || '';
     });
@@ -211,6 +202,7 @@ export const WcfyhSheet: React.FC = () => {
     }
   };
 
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     const lines: string[] = [];
     lines.push('WE CARE FOR YOUR HEALTH CAMPAIGN,,,,,,,VISIT DATES,,,,,,,,,,,');
@@ -246,6 +238,7 @@ export const WcfyhSheet: React.FC = () => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-5">
+      
       {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div className="flex items-center gap-2">
@@ -293,7 +286,6 @@ export const WcfyhSheet: React.FC = () => {
             </button>
           </div>
 
-          {/* 🌟 ADD DOCTOR (FROM MSL) */}
           <button
             onClick={() => setShowAddMslModal(true)}
             className="flex items-center gap-1 px-3.5 py-1.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
@@ -301,7 +293,6 @@ export const WcfyhSheet: React.FC = () => {
             <Plus size={14} /> + Add Doctor (From MSL)
           </button>
 
-          {/* 🌟 SAFE REMOVE DOCTOR BUTTON */}
           <button
             onClick={() => setShowRemoveModal(true)}
             className="flex items-center gap-1 px-3 py-1.5 bg-rose-950/70 hover:bg-rose-900 text-rose-300 border border-rose-800/80 rounded-xl text-xs font-bold transition cursor-pointer"
@@ -309,14 +300,7 @@ export const WcfyhSheet: React.FC = () => {
             <Trash2 size={13} /> Remove Doctor
           </button>
 
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save Data'}
-          </button>
-
+          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
@@ -325,6 +309,22 @@ export const WcfyhSheet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="campaigns/sheet_07_wcfyh"
+        sheetTitle="7. WCFYH Campaign (Vintel & Valros)"
+        getData={() => ({ rows })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.rows && Array.isArray(cloudData.rows)) {
+            persistRows(cloudData.rows);
+          }
+        }}
+        onSaveLocal={() => {
+          persistRows(rows);
+        }}
+      />
 
       {statusMsg && (
         <div className="p-3 bg-cyan-950/80 border border-cyan-500/60 text-cyan-200 rounded-xl text-xs flex items-center justify-between">
@@ -336,7 +336,7 @@ export const WcfyhSheet: React.FC = () => {
         </div>
       )}
 
-      {/* 🌟 1. ADD DOCTOR FROM MSL MODAL */}
+      {/* ADD DOCTOR FROM MSL MODAL */}
       {showAddMslModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-rose-500/60 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
@@ -418,7 +418,7 @@ export const WcfyhSheet: React.FC = () => {
         </div>
       )}
 
-      {/* 🌟 2. SAFE REMOVE DOCTOR MODAL */}
+      {/* REMOVE DOCTOR MODAL */}
       {showRemoveModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-rose-500/60 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
@@ -457,11 +457,10 @@ export const WcfyhSheet: React.FC = () => {
         </div>
       )}
 
-      {/* Main 2-Tier Table (Frozen Panes up to Doctor Name) */}
+      {/* Main 2-Tier Table */}
       <div className="overflow-x-auto max-h-[640px] border border-slate-800 rounded-2xl relative shadow-2xl">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
           <thead className="sticky top-0 z-40 bg-slate-950">
-            {/* Tier 1 Header */}
             <tr>
               <th colSpan={7} className="p-2.5 bg-slate-900 border-b border-r-4 border-cyan-500 shadow-[4px_0_12px_rgba(0,0,0,0.6)] text-rose-300 font-extrabold uppercase tracking-wider sticky left-0 z-50">
                 WE CARE FOR YOUR HEALTH CAMPAIGN
@@ -474,7 +473,6 @@ export const WcfyhSheet: React.FC = () => {
               </th>
             </tr>
 
-            {/* Tier 2 Header */}
             <tr>
               <th style={{ width: '42px', minWidth: '42px', left: 0 }} className="p-2 text-center bg-slate-950 border-b border-r border-slate-800 text-slate-400 font-bold uppercase sticky z-50">
                 S.NO.
@@ -514,7 +512,6 @@ export const WcfyhSheet: React.FC = () => {
                   </span>
                 </td>
 
-                {/* 🌟 NAME OF THE DR. FROZEN WITH CYAN DIVIDER */}
                 <td style={{ width: '180px', minWidth: '180px', left: '127px' }} className="p-1 border-b border-r-4 border-cyan-500 shadow-[4px_0_12px_rgba(0,0,0,0.6)] sticky bg-slate-900 group-hover:bg-slate-800 z-20">
                   <input
                     type="text"

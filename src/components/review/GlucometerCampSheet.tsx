@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { 
-  Activity, Search, Save, Download, Check, Plus, Trash2, 
-  Users, UserCheck, Stethoscope, Sparkles, Layers, Pill, X
+  Activity, Download, Plus, Trash2, 
+  Users, Stethoscope
 } from 'lucide-react';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const STORAGE_KEY = 'dios_glucometer_camp_permanent_v1';
 
@@ -57,9 +58,6 @@ const INITIAL_PATIENT_SEED: PatientCampRow[] = [
 ];
 
 export const GlucometerCampSheet: React.FC = () => {
-  const [savedSuccess, setSavedSuccess] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
-
   const [campDocs, setCampDocs] = useState<DoctorCampRow[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY + '_docs');
@@ -132,13 +130,7 @@ export const GlucometerCampSheet: React.FC = () => {
     persistData(campDocs, patients.filter(p => p.sn !== sn));
   };
 
-  const handleSave = () => {
-    persistData(campDocs, patients);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
-  };
-
-  // 📥 Export Exact 2-Tier CSV matching csv_output/10_GLUCOMETER CAMP.csv
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     const lines: string[] = [];
     lines.push('HQ,GLUCOMETER CAMPAIGN,,,,,,,,,,,,,,,,,');
@@ -179,6 +171,7 @@ export const GlucometerCampSheet: React.FC = () => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-6">
+      
       {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div className="flex items-center gap-2">
@@ -187,7 +180,7 @@ export const GlucometerCampSheet: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               10. GLUCOMETER CAMPAIGN (LINAGET)
               <span className="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
-                Doctor Rx &amp; Patient Strips
+                Cloud Sync Ready
               </span>
             </h2>
             <p className="text-xs text-slate-400">HQ: UDAIPUR • Brand: LINAGET • Doctor Monthly Rx &amp; Patient Campaign Day Tracking</p>
@@ -209,14 +202,7 @@ export const GlucometerCampSheet: React.FC = () => {
             <Plus size={14} /> Add Patient Row
           </button>
 
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save Data'}
-          </button>
-
+          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
@@ -226,7 +212,23 @@ export const GlucometerCampSheet: React.FC = () => {
         </div>
       </div>
 
-      {/* 🌟 TABLE 1: DOCTOR CAMPAIGN & 12-MONTH PRESCRIPTION GENERATED */}
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="campaigns/sheet_10_glucometer"
+        sheetTitle="10. Glucometer Campaign (Linaget)"
+        getData={() => ({ campDocs, patients })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          const newDocs = Array.isArray(cloudData.campDocs) ? cloudData.campDocs : campDocs;
+          const newPats = Array.isArray(cloudData.patients) ? cloudData.patients : patients;
+          persistData(newDocs, newPats);
+        }}
+        onSaveLocal={() => {
+          persistData(campDocs, patients);
+        }}
+      />
+
+      {/* TABLE 1: DOCTOR CAMPAIGN & 12-MONTH PRESCRIPTION GENERATED */}
       <div className="space-y-3 bg-slate-950 p-4 rounded-2xl border border-slate-800">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -279,7 +281,6 @@ export const GlucometerCampSheet: React.FC = () => {
                     <input type="text" value={doc.rxInCamp} onChange={e => handleDocChange(doc.sn, 'rxInCamp', e.target.value)} placeholder="0" className="w-full py-1 bg-slate-900 border border-slate-800 text-center font-mono font-bold text-amber-300 rounded text-xs" />
                   </td>
 
-                  {/* 12 Months Rx Generated */}
                   {MONTH_COLS.map(m => (
                     <td key={m.key} className="p-1 text-center">
                       <input
@@ -304,7 +305,7 @@ export const GlucometerCampSheet: React.FC = () => {
         </div>
       </div>
 
-      {/* 🌟 TABLE 2: PATIENT LEVEL DETAILS & STRIPS SOLD ON CAMPAIGN DAY */}
+      {/* TABLE 2: PATIENT LEVEL DETAILS & STRIPS SOLD ON CAMPAIGN DAY */}
       <div className="space-y-3 bg-slate-950 p-4 rounded-2xl border border-slate-800">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -378,7 +379,6 @@ export const GlucometerCampSheet: React.FC = () => {
               ))}
             </tbody>
 
-            {/* Footer Total */}
             <tfoot className="bg-slate-950 border-t-2 border-emerald-500/40 font-bold text-xs">
               <tr>
                 <td colSpan={4} className="p-2.5 text-right text-white uppercase pr-4">
@@ -393,7 +393,6 @@ export const GlucometerCampSheet: React.FC = () => {
           </table>
         </div>
       </div>
-
     </div>
   );
 };

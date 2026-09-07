@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  DollarSign, Search, Save, Download, Check, Plus, Trash2, 
-  RefreshCw, X, Calendar, UserCheck, Stethoscope, Link2, 
-  CheckCircle2, Filter, AlertTriangle, ArrowRight, ShieldAlert 
+  DollarSign, Search, Download, Check, Plus, Trash2, 
+  RefreshCw, X, Stethoscope, CheckCircle2, ShieldAlert 
 } from 'lucide-react';
 import { memoryStore, MslDoctor } from '../../data/memoryStore';
 import { MASTER_123_MSL_DOCTORS } from './MslSheet';
 import { INITIAL_ROI_SEED, RoiDoctorItem as BaseRoiItem } from '../../data/seedRoi';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const ROI_STORAGE_KEY = 'dios_roi_analysis_permanent_v2';
 
@@ -52,13 +52,9 @@ const cleanStr = (s: string) => (s || '').toLowerCase().replace(/^(dr\\.?|dr\\s+
 
 export const RoiSheet: React.FC = () => {
   const [search, setSearch] = useState('');
-  const [savedSuccess, setSavedSuccess] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
-
-  // 🌟 Selective Month Sync Target
   const [selectedSyncMonth, setSelectedSyncMonth] = useState<string>('ALL');
 
-  // Modals State
   const [showAddMslModal, setShowAddMslModal] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [mslSearchQuery, setMslSearchQuery] = useState('');
@@ -72,7 +68,6 @@ export const RoiSheet: React.FC = () => {
     category: 'NEW' as 'OLD' | 'NEW'
   });
 
-  // 🌟 Persistent ROI Doctors with Explicit Date & ROI Storage
   const [roiList, setRoiList] = useState<RoiDoctorItem[]>(() => {
     try {
       const saved = localStorage.getItem(ROI_STORAGE_KEY);
@@ -82,7 +77,6 @@ export const RoiSheet: React.FC = () => {
       }
     } catch (e) {}
 
-    // Initialize with MSL visit dates pre-filled
     const mslDocs: MslDoctor[] = memoryStore.mslData || [];
     return INITIAL_ROI_SEED.map(seedItem => {
       const match = mslDocs.find(d => d.srNo === seedItem.sn || cleanStr(d.doctorName) === cleanStr(seedItem.drName));
@@ -106,7 +100,6 @@ export const RoiSheet: React.FC = () => {
     persistRoiList(updated);
   };
 
-  // 🌟 1. SELECTIVE MONTH AUTO-SYNC FROM MSL SCHEDULE
   const handleAutoSyncFromMsl = () => {
     const mslDoctors: MslDoctor[] = memoryStore.mslData || [];
     if (mslDoctors.length === 0) {
@@ -137,12 +130,6 @@ export const RoiSheet: React.FC = () => {
     const mLabel = SYNC_MONTH_OPTIONS.find(o => o.key === selectedSyncMonth)?.label || selectedSyncMonth;
     setSyncMsg(`🎉 [${mLabel}] ki Visit Dates MSL Schedule se live update aur save ho gayi hain!`);
     setTimeout(() => setSyncMsg(null), 3500);
-  };
-
-  const handleSave = () => {
-    persistRoiList(roiList);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
   };
 
   const calculateRowTotal = (doc: RoiDoctorItem): number => {
@@ -195,7 +182,6 @@ export const RoiSheet: React.FC = () => {
       sept_roi: '', oct_roi: '', nov_roi: '', dec_roi: '', jan_roi: '', feb_roi: '', mar_roi: ''
     };
 
-    // Pre-fill all visit dates from MSL
     MONTH_KEYS.forEach(m => {
       created[m.dateKey] = (selectedMslDoc as any)[m.key] || '';
     });
@@ -216,6 +202,7 @@ export const RoiSheet: React.FC = () => {
     }
   };
 
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     const lines: string[] = [];
     lines.push('INVESTMENT AND COVERAGE ANALYSIS . ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,');
@@ -284,7 +271,7 @@ export const RoiSheet: React.FC = () => {
 
   const grandTotalRoi = roiList.reduce((sum, d) => sum + calculateRowTotal(d), 0);
 
-    const allMslDoctors: MslDoctor[] = useMemo(() => {
+  const allMslDoctors: MslDoctor[] = useMemo(() => {
     if (memoryStore.mslData && memoryStore.mslData.length > 0) return memoryStore.mslData;
     try {
       const saved = localStorage.getItem('dios_msl_schedule_permanent_v5');
@@ -295,6 +282,7 @@ export const RoiSheet: React.FC = () => {
     } catch (e) {}
     return MASTER_123_MSL_DOCTORS || [];
   }, [showAddMslModal]);
+
   const filteredMslDocs = allMslDoctors.filter(d => {
     const q = mslSearchQuery.toLowerCase();
     return !q || d.doctorName.toLowerCase().includes(q) || (d.speciality || '').toLowerCase().includes(q) || (d.activityType || '').toLowerCase().includes(q) || String(d.srNo).includes(q);
@@ -302,6 +290,7 @@ export const RoiSheet: React.FC = () => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-4">
+      
       {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div className="flex items-center gap-2">
@@ -310,7 +299,7 @@ export const RoiSheet: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               13. INVESTMENT AND COVERAGE ANALYSIS (ROI)
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
-                Selective Month Sync &amp; Custom Save
+                Cloud Sync Ready
               </span>
             </h2>
             <p className="text-xs text-slate-400">Month-Wise Selective MSL Sync • Fully Editable Dates &amp; ROI Amounts</p>
@@ -329,7 +318,6 @@ export const RoiSheet: React.FC = () => {
             />
           </div>
 
-          {/* 🌟 1. SELECTIVE MONTH AUTO-SYNC CONTROLS */}
           <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-cyan-500/50">
             <select
               value={selectedSyncMonth}
@@ -357,7 +345,6 @@ export const RoiSheet: React.FC = () => {
             <Plus size={14} /> + Add Doctor
           </button>
 
-          {/* 🌟 2. SAFE REMOVE DOCTOR TOOL IN TOOLBAR */}
           <button
             onClick={() => setShowRemoveModal(true)}
             className="flex items-center gap-1 px-3 py-1.5 bg-rose-950/70 hover:bg-rose-900 text-rose-300 border border-rose-800/80 rounded-xl text-xs font-bold transition cursor-pointer"
@@ -374,14 +361,7 @@ export const RoiSheet: React.FC = () => {
             Clean Blanks
           </button>
 
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save Data'}
-          </button>
-
+          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
@@ -390,6 +370,28 @@ export const RoiSheet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="review/sheet_13_roi"
+        sheetTitle="13. Investment & Coverage Analysis (ROI)"
+        getData={() => ({
+          roiList,
+          selectedSyncMonth
+        })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.roiList && Array.isArray(cloudData.roiList)) {
+            persistRoiList(cloudData.roiList);
+          }
+          if (cloudData.selectedSyncMonth) {
+            setSelectedSyncMonth(cloudData.selectedSyncMonth);
+          }
+        }}
+        onSaveLocal={() => {
+          persistRoiList(roiList);
+        }}
+      />
 
       {syncMsg && (
         <div className="p-3 bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 rounded-xl text-xs flex items-center justify-between">
@@ -401,7 +403,7 @@ export const RoiSheet: React.FC = () => {
         </div>
       )}
 
-      {/* 🌟 3. SAFE REMOVE DOCTOR MODAL DIALOG */}
+      {/* SAFE REMOVE DOCTOR MODAL DIALOG */}
       {showRemoveModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-rose-500/60 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
@@ -539,7 +541,7 @@ export const RoiSheet: React.FC = () => {
         </div>
       )}
 
-      {/* Main Double-Tier Table (Clean, Safe & Fully Editable) */}
+      {/* Main Double-Tier Table */}
       <div className="overflow-x-auto max-h-[640px] border border-slate-800 rounded-2xl relative shadow-2xl">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
           <thead className="sticky top-0 z-40 bg-slate-950">
@@ -617,14 +619,12 @@ export const RoiSheet: React.FC = () => {
                     </select>
                   </td>
 
-                  {/* 12 Months: (Editable Synced Visit Date + Editable ROI Amount) */}
                   {MONTH_KEYS.map(m => {
                     const dateVal = (doc as any)[m.dateKey] || '';
                     const roiVal = (doc as any)[m.roiKey] || '';
 
                     return (
                       <React.Fragment key={m.key}>
-                        {/* 🌟 Fully Editable Visit Date Cell */}
                         <td className="p-1 text-center border-b border-r border-slate-800/60 bg-slate-950/40">
                           <input
                             type="text"
@@ -635,7 +635,6 @@ export const RoiSheet: React.FC = () => {
                           />
                         </td>
 
-                        {/* 🌟 Fully Editable ROI (₹) Cell */}
                         <td className="p-1 border-b border-r border-slate-800/60">
                           <input
                             type="text"
@@ -659,7 +658,6 @@ export const RoiSheet: React.FC = () => {
             })}
           </tbody>
 
-          {/* Grand Total Footer */}
           <tfoot className="sticky bottom-0 bg-slate-950 border-t-2 border-emerald-500/40 font-bold z-30 shadow-2xl text-xs">
             <tr>
               <td colSpan={7} className="p-3 text-white font-extrabold uppercase border-r border-slate-800">

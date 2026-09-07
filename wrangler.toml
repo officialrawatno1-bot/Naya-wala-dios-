@@ -1,0 +1,7 @@
+name = "dios-hub"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "DIOS_STORAGE"
+id = "287bbf337a0746758bd49885a96e79bc"

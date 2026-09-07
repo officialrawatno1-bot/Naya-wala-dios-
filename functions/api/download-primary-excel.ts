@@ -12,7 +12,7 @@ export async function onRequest(context: any) {
 
   try {
     const body = await context.request.json();
-    const apiRes = await fetch("https://redesigned-winner-gx7rv659g97vhp7r9-8000.app.github.dev/api/download-primary-excel", {
+    const apiRes = await fetch("https://supreme-happiness-gx7vj4pgpwj42wpv7-8000.app.github.dev/api/download-primary-excel", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

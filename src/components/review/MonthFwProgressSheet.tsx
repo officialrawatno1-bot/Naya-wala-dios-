@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, Bot, Loader2, Save, Download, Check, AlertTriangle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, Bot, Loader2, Download, AlertTriangle, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { memoryStore, FwDayEntry } from '../../data/memoryStore';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const MONTH_OPTIONS = [
   { label: 'Apr-2026', value: 'Apr-2026', code: 'APR', year: 2026, monthIdx: 3, days: 30 },
@@ -39,10 +40,22 @@ const buildEmptyMonth = (monthConfig: typeof MONTH_OPTIONS[0]): FwDayEntry[] => 
 };
 
 export const MonthFwProgressSheet: React.FC = () => {
-  const [selectedMonth, setSelectedMonth] = useState(() => memoryStore.currentDcrMonth || 'Aug-2026');
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    try {
+      const draft = localStorage.getItem('dios_draft_sheet_02_fw_progress');
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed.dcrDataByMonth) {
+          memoryStore.dcrDataByMonth = { ...memoryStore.dcrDataByMonth, ...parsed.dcrDataByMonth };
+        }
+        if (parsed.selectedMonth) return parsed.selectedMonth;
+      }
+    } catch (e) {}
+    return memoryStore.currentDcrMonth || 'Aug-2026';
+  });
   
   const [entries, setEntries] = useState<FwDayEntry[]>(() => {
-    const opt = MONTH_OPTIONS.find(m => m.value === (memoryStore.currentDcrMonth || 'Aug-2026')) || MONTH_OPTIONS[4];
+    const opt = MONTH_OPTIONS.find(m => m.value === (memoryStore.currentDcrMonth || selectedMonth)) || MONTH_OPTIONS[4];
     if (memoryStore.dcrDataByMonth[opt.code]) {
       return memoryStore.dcrDataByMonth[opt.code];
     }
@@ -52,7 +65,6 @@ export const MonthFwProgressSheet: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [savedSuccess, setSavedSuccess] = useState(false);
 
   const handleMonthSelect = (newMonth: string) => {
     setSelectedMonth(newMonth);
@@ -211,13 +223,7 @@ export const MonthFwProgressSheet: React.FC = () => {
     return a && !a.includes('LEAVE') && !a.includes('HOLIDAY') && !a.includes('SUNDAY') && !a.includes('DAY') && !a.includes('BANDHAN') && !a.includes('MEETING') && !a.includes('TRANSIT') && !a.includes('ADMIN');
   }).length;
 
-  const handleSave = () => {
-    const opt = MONTH_OPTIONS.find(m => m.value === selectedMonth);
-    if (opt) memoryStore.dcrDataByMonth[opt.code] = entries;
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
-  };
-
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     let csv = `BE NAME: BANWARI LAL MEENA,HQ NAME: UDAIPUR,MONTH: ${selectedMonth}\n`;
     csv += `DATE,Day,AREA WORKED,TP Submitted ,No. of Dr's Met,No. of Chemists/Stockiest Met\n`;
@@ -238,6 +244,8 @@ export const MonthFwProgressSheet: React.FC = () => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
+      
+      {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
           <span className="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30">
@@ -247,7 +255,7 @@ export const MonthFwProgressSheet: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               2. MONTH FIELD WORK PROGRESS
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-mono">
-                Live CBO Excel Sync
+                Cloud Sync Ready
               </span>
             </h2>
             <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA • HQ: UDAIPUR • {selectedMonth}</p>
@@ -271,6 +279,7 @@ export const MonthFwProgressSheet: React.FC = () => {
             </select>
           </div>
 
+          {/* CBO Live Bot */}
           <button
             onClick={handleFetchFromCbo}
             disabled={loading}
@@ -280,14 +289,7 @@ export const MonthFwProgressSheet: React.FC = () => {
             {loading ? 'Fetching CBO Excel...' : '⚡ Auto-Fetch DCR'}
           </button>
 
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer border border-slate-700"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save'}
-          </button>
-
+          {/* 100% Untouched Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer"
@@ -296,6 +298,48 @@ export const MonthFwProgressSheet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="review/sheet_02_fw_progress"
+        sheetTitle="2. Month FW Progress"
+        getData={() => {
+          const opt = MONTH_OPTIONS.find(m => m.value === selectedMonth);
+          if (opt) memoryStore.dcrDataByMonth[opt.code] = entries;
+          return {
+            dcrDataByMonth: memoryStore.dcrDataByMonth,
+            selectedMonth
+          };
+        }}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.dcrDataByMonth) {
+            memoryStore.dcrDataByMonth = cloudData.dcrDataByMonth;
+          }
+          if (cloudData.selectedMonth) {
+            setSelectedMonth(cloudData.selectedMonth);
+            const cfg = MONTH_OPTIONS.find(m => m.value === cloudData.selectedMonth) || MONTH_OPTIONS[4];
+            if (memoryStore.dcrDataByMonth[cfg.code]) {
+              setEntries(memoryStore.dcrDataByMonth[cfg.code]);
+            }
+          } else {
+            const cfg = MONTH_OPTIONS.find(m => m.value === selectedMonth) || MONTH_OPTIONS[4];
+            if (memoryStore.dcrDataByMonth[cfg.code]) {
+              setEntries(memoryStore.dcrDataByMonth[cfg.code]);
+            }
+          }
+        }}
+        onSaveLocal={() => {
+          const opt = MONTH_OPTIONS.find(m => m.value === selectedMonth);
+          if (opt) memoryStore.dcrDataByMonth[opt.code] = entries;
+          try {
+            localStorage.setItem('dios_draft_sheet_02_fw_progress', JSON.stringify({
+              dcrDataByMonth: memoryStore.dcrDataByMonth,
+              selectedMonth
+            }));
+          } catch (e) {}
+        }}
+      />
 
       {statusMsg && !errorMsg && (
         <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs flex items-center gap-2">

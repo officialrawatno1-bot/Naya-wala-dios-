@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { CheckCircle2, Save, Download, Check, RefreshCw, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, Download, Check, RefreshCw, Plus, Trash2 } from 'lucide-react';
 import { memoryStore } from '../../data/memoryStore';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const MONTH_CODES = ['APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR'];
 const MONTH_FULL = ['Apr-2026', 'May-2026', 'Jun-2026', 'Jul-2026', 'Aug-2026', 'Sep-2026', 'Oct-2026', 'Nov-2026', 'Dec-2026', 'Jan-2027', 'Feb-2027', 'Mar-2027'];
@@ -30,9 +31,25 @@ interface SupportRow {
 }
 
 export const CommitmentSheet: React.FC = () => {
-  // Top Commitment of Month State
-  const [selectedPrevIdx, setSelectedPrevIdx] = useState<number>(3); // Default July
+  const [selectedPrevIdx, setSelectedPrevIdx] = useState<number>(() => {
+    try {
+      const draft = localStorage.getItem('dios_draft_sheet_06_commitment');
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed.selectedPrevIdx !== undefined) return parsed.selectedPrevIdx;
+      }
+    } catch (e) {}
+    return 3;
+  });
+
   const [commitmentData, setCommitmentData] = useState(() => {
+    try {
+      const draft = localStorage.getItem('dios_draft_sheet_06_commitment');
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed.commitmentData) return parsed.commitmentData;
+      }
+    } catch (e) {}
     return memoryStore.commitmentTopData || {
       prevBudget: '4.83',
       prevAch: '4.84',
@@ -43,8 +60,14 @@ export const CommitmentSheet: React.FC = () => {
     };
   });
 
-  // 12-Month Commitment & Achievement State
   const [monthlyCA, setMonthlyCA] = useState<Record<string, { commitment: string; achievement: string }>>(() => {
+    try {
+      const draft = localStorage.getItem('dios_draft_sheet_06_commitment');
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed.monthlyCA) return parsed.monthlyCA;
+      }
+    } catch (e) {}
     if (memoryStore.commitmentMonthlyCA) {
       return memoryStore.commitmentMonthlyCA;
     }
@@ -55,14 +78,19 @@ export const CommitmentSheet: React.FC = () => {
     return initial;
   });
 
-  // Support Requirement Table State
   const [doctorsRows, setDoctorsRows] = useState<SupportRow[]>(() => {
+    try {
+      const draft = localStorage.getItem('dios_draft_sheet_06_commitment');
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed.doctorsRows && Array.isArray(parsed.doctorsRows)) return parsed.doctorsRows;
+      }
+    } catch (e) {}
     return memoryStore.commitmentDoctors || [];
   });
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  // Auto-Fill Top Box & 12M Grid from Sales Performance
   const handleAutoFillFromPerformance = () => {
     const sp = memoryStore.salesPerformanceData;
     if (!sp) {
@@ -93,7 +121,6 @@ export const CommitmentSheet: React.FC = () => {
     setCommitmentData(newTop);
     memoryStore.commitmentTopData = newTop;
 
-    // Also auto-sync 12M grid
     const updated: Record<string, { commitment: string; achievement: string }> = {};
     MONTHS_DATA.forEach(m => {
       const budgetVal = sp.budget?.[m.code] || '';
@@ -161,14 +188,7 @@ export const CommitmentSheet: React.FC = () => {
     });
   };
 
-  const handleSave = () => {
-    memoryStore.commitmentTopData = commitmentData;
-    memoryStore.commitmentMonthlyCA = monthlyCA;
-    memoryStore.commitmentDoctors = doctorsRows;
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
-  };
-
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     let csv = `COMMITMENT OF MONTH\n`;
     csv += `H.Q. NAME,PREVIOUS MONTH BUDGET,PREVIOUS MONTH ACH.,CURRENT SECONDARY,CURRENT INVENTORY,CURRENT MONTH BUDGET,COMMITMENT\n`;
@@ -234,14 +254,7 @@ export const CommitmentSheet: React.FC = () => {
             <RefreshCw size={14} className="text-yellow-300" /> Auto-Sync All from Performance
           </button>
 
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save'}
-          </button>
-
+          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer"
@@ -250,6 +263,49 @@ export const CommitmentSheet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="review/sheet_06_commitment"
+        sheetTitle="6. Commitment Master Hub"
+        getData={() => ({
+          commitmentData,
+          monthlyCA,
+          doctorsRows,
+          selectedPrevIdx
+        })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.commitmentData) {
+            setCommitmentData(cloudData.commitmentData);
+            memoryStore.commitmentTopData = cloudData.commitmentData;
+          }
+          if (cloudData.monthlyCA) {
+            setMonthlyCA(cloudData.monthlyCA);
+            memoryStore.commitmentMonthlyCA = cloudData.monthlyCA;
+          }
+          if (cloudData.doctorsRows && Array.isArray(cloudData.doctorsRows)) {
+            setDoctorsRows(cloudData.doctorsRows);
+            memoryStore.commitmentDoctors = cloudData.doctorsRows;
+          }
+          if (cloudData.selectedPrevIdx !== undefined) {
+            setSelectedPrevIdx(cloudData.selectedPrevIdx);
+          }
+        }}
+        onSaveLocal={() => {
+          memoryStore.commitmentTopData = commitmentData;
+          memoryStore.commitmentMonthlyCA = monthlyCA;
+          memoryStore.commitmentDoctors = doctorsRows;
+          try {
+            localStorage.setItem('dios_draft_sheet_06_commitment', JSON.stringify({
+              commitmentData,
+              monthlyCA,
+              doctorsRows,
+              selectedPrevIdx
+            }));
+          } catch (e) {}
+        }}
+      />
 
       {/* SECTION 1: COMMITMENT OF MONTH (TOP SUMMARY BOX) */}
       <div className="space-y-3 bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-lg">

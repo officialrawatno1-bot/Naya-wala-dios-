@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { 
-  Layers, Search, Save, Download, Check, Plus, Trash2, 
-  Edit3, CheckCircle2, AlertTriangle, Pill, X, Sparkles, Tag
+  Layers, Download, Plus, Trash2, Edit3
 } from 'lucide-react';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const STORAGE_KEY = 'dios_table_top_campaign_permanent_v2';
 const TITLE_STORAGE_KEY = 'dios_table_top_title_permanent_v1';
@@ -45,9 +45,6 @@ const INITIAL_SECTIONS_SEED: TableTopSection[] = [
 ];
 
 export const TableTopSheet: React.FC = () => {
-  const [savedSuccess, setSavedSuccess] = useState(false);
-
-  // 🌟 1. FULLY EDITABLE MAIN CAMPAIGN TITLE (e.g. TABLE TOP CAMPAIGN)
   const [campaignTitle, setCampaignTitle] = useState<string>(() => {
     try {
       const savedTitle = localStorage.getItem(TITLE_STORAGE_KEY);
@@ -139,13 +136,7 @@ export const TableTopSheet: React.FC = () => {
     }
   };
 
-  const handleSave = () => {
-    persistData(campaignTitle, sections);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
-  };
-
-  // 📥 Export Exact CSV matching csv_output/9_TABLE TOP.csv (Uses custom editable title!)
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     const lines: string[] = [];
     lines.push(`HQ,${campaignTitle},,,,,`);
@@ -177,7 +168,8 @@ export const TableTopSheet: React.FC = () => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-6">
-      {/* Top Header */}
+      
+      {/* Top Header Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div className="flex items-center gap-3">
           <span className="p-2 bg-amber-500/20 text-amber-400 rounded-lg"><Layers size={18} /></span>
@@ -185,7 +177,6 @@ export const TableTopSheet: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="text-base font-bold text-white">9.</span>
               
-              {/* 🌟 EDITABLE MAIN CAMPAIGN TITLE INPUT (TABLE TOP CAMPAIGN) */}
               <div className="relative flex items-center">
                 <input
                   type="text"
@@ -213,14 +204,7 @@ export const TableTopSheet: React.FC = () => {
             <Plus size={14} /> + Add Brand Section
           </button>
 
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save Data'}
-          </button>
-
+          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
@@ -230,14 +214,34 @@ export const TableTopSheet: React.FC = () => {
         </div>
       </div>
 
-      {/* 🌟 CAMPAIGN PRODUCT SECTIONS */}
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="campaigns/sheet_09_table_top"
+        sheetTitle={`9. ${campaignTitle || 'Table Top Campaign'}`}
+        getData={() => ({ campaignTitle, sections })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.campaignTitle) {
+            setCampaignTitle(cloudData.campaignTitle);
+          }
+          if (cloudData.sections && Array.isArray(cloudData.sections)) {
+            setSections(cloudData.sections);
+          }
+          persistData(cloudData.campaignTitle || campaignTitle, cloudData.sections || sections);
+        }}
+        onSaveLocal={() => {
+          persistData(campaignTitle, sections);
+        }}
+      />
+
+      {/* CAMPAIGN PRODUCT SECTIONS */}
       <div className="space-y-6">
         {sections.map(sec => {
           const totalRx = sec.rows.reduce((acc, r) => acc + (parseFloat(r.rxPerMonth || '0') || 0), 0);
 
           return (
             <div key={sec.id} className="space-y-3 bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-lg">
-              {/* Product Heading Bar */}
+              
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] text-slate-400 font-bold uppercase">PRODUCT NAME:</span>
@@ -275,7 +279,6 @@ export const TableTopSheet: React.FC = () => {
                 </div>
               </div>
 
-              {/* Exact CSV Table Format */}
               <div className="overflow-x-auto border border-slate-800 rounded-xl">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>

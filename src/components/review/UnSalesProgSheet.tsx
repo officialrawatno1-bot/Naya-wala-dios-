@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Table2, Search, Zap, Save, Download, Check, Info, Trash2, RefreshCw } from 'lucide-react';
+import { Table2, Search, Zap, Download, Check, Info, Trash2, RefreshCw } from 'lucide-react';
 import { MASTER_PRODUCTS } from '../../data/masterProducts';
 import { unProgressionStore, MONTH_CODES } from '../../data/unProgressionStore';
 import { memoryStore } from '../../data/memoryStore';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const INITIAL_BASE_PRIMARY: Record<string, string> = {
   APR: '4.34', MAY: '4.75', JUN: '5.07', JUL: '4.84', AUG: '4.98', SEP: '5.28', OCT: '4.70', NOV: '4.93', DEC: '5.30', JAN: '4.97', FEB: '4.69', MAR: '4.55'
@@ -10,7 +11,13 @@ const INITIAL_BASE_PRIMARY: Record<string, string> = {
 
 export const UnSalesProgSheet: React.FC = () => {
   const [search, setSearch] = useState('');
-  const [targetMonth, setTargetMonth] = useState('AUG');
+  const [targetMonth, setTargetMonth] = useState(() => {
+    try {
+      return localStorage.getItem('dios_draft_sheet_04_target_month') || 'AUG';
+    } catch (e) {
+      return 'AUG';
+    }
+  });
   const [gridData, setGridData] = useState(() => unProgressionStore.getData());
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -31,7 +38,6 @@ export const UnSalesProgSheet: React.FC = () => {
   };
 
   const handleSyncWithPerformance = () => {
-    // Calculate total secondary value in Lacs for targetMonth
     let secValSum = 0;
     const monthMap: Record<string, string> = { APR: 'APR', MAY: 'MAY', JUN: 'JUN', JUL: 'JUL', AUG: 'AUG', SEP: 'SEP', OCT: 'OCT', NOV: 'NOV', DEC: 'DEC', JAN: 'JAN', FEB: 'FEB', MAR: 'MAR' };
     const code = monthMap[targetMonth] || 'AUG';
@@ -57,11 +63,6 @@ export const UnSalesProgSheet: React.FC = () => {
     setTimeout(() => setStatusMsg(null), 4000);
   };
 
-  const handleSave = () => {
-    setStatusMsg('✅ Data saved successfully to persistent memory!');
-    setTimeout(() => setStatusMsg(null), 2500);
-  };
-
   const handleClearMonth = () => {
     if (window.confirm(`Are you sure you want to clear all quantities for ${targetMonth} 2026?`)) {
       unProgressionStore.clearMonth(targetMonth);
@@ -71,6 +72,7 @@ export const UnSalesProgSheet: React.FC = () => {
     }
   };
 
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     let csv = `UNIT SALES PROGRESSION (HQ TOTAL)\n`;
     csv += `S.N.,PRODUCT NAME,PTS,` + MONTH_CODES.map(m => `${m} PRI,${m} SEC,${m} CL`).join(',') + `,CUMM PRI,CUMM SEC,CUMM CL,TOTAL SEC VAL (Rs)\n`;
@@ -105,6 +107,8 @@ export const UnSalesProgSheet: React.FC = () => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl space-y-4">
+      
+      {/* Top Header Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
           <span className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl border border-cyan-500/30">
@@ -114,7 +118,7 @@ export const UnSalesProgSheet: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               4. UNIT SALES PROGRESSION (HQ TOTAL)
               <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
-                12-Month Live Engine
+                Cloud Sync Ready
               </span>
             </h2>
             <p className="text-xs text-slate-400">Fixed Column Widths • Mutual Sync with Sales Performance</p>
@@ -152,19 +156,13 @@ export const UnSalesProgSheet: React.FC = () => {
 
           <button
             onClick={handleClearMonth}
-            className="flex items-center gap-1.5 px-3 py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 rounded-xl text-xs font-semibold transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 rounded-xl text-xs font-semibold transition cursor-pointer"
             title="Clear all quantities for selected month"
           >
             <Trash2 size={14} /> Clear Month
           </button>
 
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            <Save size={14} /> Save
-          </button>
-
+          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition cursor-pointer"
@@ -173,6 +171,34 @@ export const UnSalesProgSheet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="review/sheet_04_un_sales_progression"
+        sheetTitle="4. Unit Sales Progression (HQ Total)"
+        getData={() => ({
+          progressionData: unProgressionStore.getData(),
+          targetMonth
+        })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.progressionData) {
+            setGridData(cloudData.progressionData);
+            try {
+              localStorage.setItem('dios_un_sales_progression_v1', JSON.stringify(cloudData.progressionData));
+            } catch (e) {}
+          }
+          if (cloudData.targetMonth) {
+            setTargetMonth(cloudData.targetMonth);
+          }
+        }}
+        onSaveLocal={() => {
+          try {
+            localStorage.setItem('dios_un_sales_progression_v1', JSON.stringify(gridData));
+            localStorage.setItem('dios_draft_sheet_04_target_month', targetMonth);
+          } catch (e) {}
+        }}
+      />
 
       {statusMsg && (
         <div className="p-3 bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 rounded-xl text-xs flex items-center gap-2">

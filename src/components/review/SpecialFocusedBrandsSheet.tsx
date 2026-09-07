@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { 
-  TrendingUp, Search, Save, Download, Check, RefreshCw, 
-  Layers, Sparkles, Filter, Info, ArrowUpRight 
+  TrendingUp, Download, Check, RefreshCw, 
+  Layers, X
 } from 'lucide-react';
 import { MASTER_PRODUCTS } from '../../data/masterProducts';
 import { unProgressionStore, MONTH_CODES } from '../../data/unProgressionStore';
+import { CloudSyncBar } from '../CloudSyncBar';
 
 const STORAGE_KEY = 'dios_special_focused_brands_permanent_v1';
 
@@ -45,10 +46,8 @@ const MONTH_SELECT_OPTIONS = [
 
 export const SpecialFocusedBrandsSheet: React.FC = () => {
   const [selectedMonthSync, setSelectedMonthSync] = useState('ALL');
-  const [savedSuccess, setSavedSuccess] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  // 🌟 Helper: Sums all SKUs of a Brand Family from Un. Sales Progression
   const getFamilyUnits = (keyword: string, monthCode: string, type: 'netPri' | 'netSec'): number => {
     const unGrid = unProgressionStore.getData();
     const monthData = unGrid[monthCode] || {};
@@ -134,7 +133,6 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
     persistData(primaryRows, updated);
   };
 
-  // 🌟 1. AUTO-FILL PRIMARY & SECONDARY FROM UN. SALES PROGRESSION (Single Month or All)
   const handleAutoFillFromUnSales = () => {
     const monthsToSync = selectedMonthSync === 'ALL' 
       ? MONTH_CODES 
@@ -166,13 +164,6 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
     setTimeout(() => setStatusMsg(null), 3500);
   };
 
-  const handleSave = () => {
-    persistData(primaryRows, secondaryRows);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
-  };
-
-  // 🧮 Math Calculations for Quarters & % Growth
   const parseNum = (v: any) => {
     const n = parseFloat(String(v || '0').replace(/,/g, ''));
     return isNaN(n) ? 0 : n;
@@ -189,7 +180,7 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
     return `${g >= 0 ? '+' : ''}${g.toFixed(1)}%`;
   };
 
-  // 📥 Export Exact 2-Tier CSV matching csv_output/11_SPECIAL FOCUSED BRANDS.csv
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     const lines: string[] = [];
     lines.push('HQ,UDAIPUR,,,,,,,,,,,,,,,,,,,,,');
@@ -240,6 +231,7 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-6">
+      
       {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div className="flex items-center gap-2">
@@ -248,7 +240,7 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               11. SPECIAL FOCUSED BRANDS (Primary &amp; Secondary in Strips)
               <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
-                Auto-Synced from Un. Sales Prog
+                Cloud Sync Ready
               </span>
             </h2>
             <p className="text-xs text-slate-400">HQ: UDAIPUR • VINTEL, VINVES, LINAGET, VALROS &amp; DIOSGLT All SKUs Aggregated</p>
@@ -256,7 +248,6 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* 🌟 1. SELECTIVE MONTH AUTO-SYNC FROM UN. SALES PROG */}
           <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-cyan-500/50">
             <select
               value={selectedMonthSync}
@@ -276,14 +267,7 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
             </button>
           </div>
 
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save Data'}
-          </button>
-
+          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
@@ -292,6 +276,29 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="review/sheet_11_special_focused"
+        sheetTitle="11. Special Focused Brands"
+        getData={() => ({
+          primaryRows,
+          secondaryRows,
+          selectedMonthSync
+        })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          const newPri = Array.isArray(cloudData.primaryRows) ? cloudData.primaryRows : primaryRows;
+          const newSec = Array.isArray(cloudData.secondaryRows) ? cloudData.secondaryRows : secondaryRows;
+          persistData(newPri, newSec);
+          if (cloudData.selectedMonthSync) {
+            setSelectedMonthSync(cloudData.selectedMonthSync);
+          }
+        }}
+        onSaveLocal={() => {
+          persistData(primaryRows, secondaryRows);
+        }}
+      />
 
       {statusMsg && (
         <div className="p-3 bg-blue-950/80 border border-blue-500/60 text-blue-200 rounded-xl text-xs flex items-center justify-between">
@@ -303,7 +310,7 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
         </div>
       )}
 
-      {/* 🌟 TABLE 1: PRIMARY IN STRIPS */}
+      {/* TABLE 1: PRIMARY IN STRIPS */}
       <div className="space-y-3 bg-slate-950 p-4 rounded-2xl border border-slate-800">
         <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
           <Layers size={14} /> Primary in Strips (Quarterly Analysis &amp; Growth %)
@@ -357,28 +364,24 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
                       <input type="text" value={row.janToMar} onChange={e => handlePriChange(row.sn, 'janToMar', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 text-center font-mono text-slate-300 font-bold rounded py-1" />
                     </td>
 
-                    {/* Q1 */}
                     <td className="p-1"><input type="text" value={row.apr} onChange={e => handlePriChange(row.sn, 'apr', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.may} onChange={e => handlePriChange(row.sn, 'may', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.jun} onChange={e => handlePriChange(row.sn, 'jun', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-2 text-center font-mono font-bold text-blue-300 bg-blue-950/20">{q1 || '-'}</td>
                     <td className="p-2 text-center font-mono font-bold text-emerald-400 bg-emerald-950/20">{g1}</td>
 
-                    {/* Q2 */}
                     <td className="p-1"><input type="text" value={row.jul} onChange={e => handlePriChange(row.sn, 'jul', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.aug} onChange={e => handlePriChange(row.sn, 'aug', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.sept} onChange={e => handlePriChange(row.sn, 'sept', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-2 text-center font-mono font-bold text-blue-300 bg-blue-950/20">{q2 || '-'}</td>
                     <td className="p-2 text-center font-mono font-bold text-emerald-400 bg-emerald-950/20">{g2}</td>
 
-                    {/* Q3 */}
                     <td className="p-1"><input type="text" value={row.oct} onChange={e => handlePriChange(row.sn, 'oct', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.nov} onChange={e => handlePriChange(row.sn, 'nov', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.dec} onChange={e => handlePriChange(row.sn, 'dec', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-2 text-center font-mono font-bold text-blue-300 bg-blue-950/20">{q3 || '-'}</td>
                     <td className="p-2 text-center font-mono font-bold text-emerald-400 bg-emerald-950/20">{g3}</td>
 
-                    {/* Q4 */}
                     <td className="p-1"><input type="text" value={row.jan} onChange={e => handlePriChange(row.sn, 'jan', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.feb} onChange={e => handlePriChange(row.sn, 'feb', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.mar} onChange={e => handlePriChange(row.sn, 'mar', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
@@ -392,7 +395,7 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
         </div>
       </div>
 
-      {/* 🌟 TABLE 2: SECONDARY IN STRIPS */}
+      {/* TABLE 2: SECONDARY IN STRIPS */}
       <div className="space-y-3 bg-slate-950 p-4 rounded-2xl border border-slate-800">
         <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
           <Layers size={14} /> Secondary in Strips (Quarterly Analysis &amp; Growth %)
@@ -446,28 +449,24 @@ export const SpecialFocusedBrandsSheet: React.FC = () => {
                       <input type="text" value={row.janToMar} onChange={e => handleSecChange(row.sn, 'janToMar', e.target.value)} className="w-16 bg-slate-900 border border-slate-700 text-center font-mono text-slate-300 font-bold rounded py-1" />
                     </td>
 
-                    {/* Q1 */}
                     <td className="p-1"><input type="text" value={row.apr} onChange={e => handleSecChange(row.sn, 'apr', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.may} onChange={e => handleSecChange(row.sn, 'may', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.jun} onChange={e => handleSecChange(row.sn, 'jun', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-2 text-center font-mono font-bold text-cyan-300 bg-cyan-950/20">{q1 || '-'}</td>
                     <td className="p-2 text-center font-mono font-bold text-emerald-400 bg-emerald-950/20">{g1}</td>
 
-                    {/* Q2 */}
                     <td className="p-1"><input type="text" value={row.jul} onChange={e => handleSecChange(row.sn, 'jul', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.aug} onChange={e => handleSecChange(row.sn, 'aug', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.sept} onChange={e => handleSecChange(row.sn, 'sept', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-2 text-center font-mono font-bold text-cyan-300 bg-cyan-950/20">{q2 || '-'}</td>
                     <td className="p-2 text-center font-mono font-bold text-emerald-400 bg-emerald-950/20">{g2}</td>
 
-                    {/* Q3 */}
                     <td className="p-1"><input type="text" value={row.oct} onChange={e => handleSecChange(row.sn, 'oct', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.nov} onChange={e => handleSecChange(row.sn, 'nov', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.dec} onChange={e => handleSecChange(row.sn, 'dec', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-2 text-center font-mono font-bold text-cyan-300 bg-cyan-950/20">{q3 || '-'}</td>
                     <td className="p-2 text-center font-mono font-bold text-emerald-400 bg-emerald-950/20">{g3}</td>
 
-                    {/* Q4 */}
                     <td className="p-1"><input type="text" value={row.jan} onChange={e => handleSecChange(row.sn, 'jan', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.feb} onChange={e => handleSecChange(row.sn, 'feb', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>
                     <td className="p-1"><input type="text" value={row.mar} onChange={e => handleSecChange(row.sn, 'mar', e.target.value)} placeholder="-" className="w-14 bg-slate-900 border border-slate-800 text-center font-mono text-white rounded py-1" /></td>

@@ -3,7 +3,7 @@ export async function onRequest(context: any) {
   try {
     const url = new URL(context.request.url);
     const taskId = url.searchParams.get("taskId") || "default";
-    const apiRes = await fetch("https://super-duper-space-adventure-5vx7qxp6jp95h765r-8000.app.github.dev/api/extraction-status?taskId=" + encodeURIComponent(taskId), { headers: { "Accept": "application/json" } });
+    const apiRes = await fetch("https://supreme-happiness-gx7vj4pgpwj42wpv7-8000.app.github.dev/api/extraction-status?taskId=" + encodeURIComponent(taskId), { headers: { "Accept": "application/json" } });
     const data = await apiRes.text();
     return new Response(data, { status: apiRes.status, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } });
   } catch (err: any) {

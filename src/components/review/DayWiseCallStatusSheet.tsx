@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
-  UserCheck, Pill, Calendar as CalendarIcon, Search, Download, Save, 
+  UserCheck, Pill, Calendar as CalendarIcon, Search, Download, 
   Bot, Loader2, Check, AlertTriangle, Stethoscope, 
   Terminal, X, CalendarDays, RefreshCw, Copy, FileDown,
-  ToggleLeft, ToggleRight, RotateCcw, Sparkles, Trash2,
-  CalendarRange, Filter, ChevronLeft, ChevronRight, Edit3
+  ToggleLeft, ToggleRight, RotateCcw,
+  CalendarRange, Filter, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { memoryStore, DcrDoctorCall, DcrChemistCall } from '../../data/memoryStore';
+import { CloudSyncBar } from '../CloudSyncBar';
 
-// Permanent LocalStorage Keys
 const CALLS_MASTER_DOCS_KEY = 'dios_call_status_master_doctors_v4';
 const CALLS_MASTER_CHEMS_KEY = 'dios_call_status_master_chemists_v4';
 const CALLS_LAST_RANGE_KEY = 'dios_call_status_active_range_v4';
@@ -51,7 +51,6 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-// Helper: Parse DD/MM/YYYY to Date Object safely
 const parseDateStr = (s: string): Date => {
   if (!s || !s.includes('/')) return new Date();
   const parts = s.split('/').map(Number);
@@ -59,7 +58,6 @@ const parseDateStr = (s: string): Date => {
   return new Date(parts[2], parts[1] - 1, parts[0]);
 };
 
-// Helper: Format Date Object to DD/MM/YYYY string
 const formatDateToDDMMYYYY = (d: Date): string => {
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -67,7 +65,6 @@ const formatDateToDDMMYYYY = (d: Date): string => {
   return `${day}/${month}/${year}`;
 };
 
-// Persistent Storage Helpers
 const loadMasterDoctors = (): DcrDoctorCall[] => {
   try {
     const raw = localStorage.getItem(CALLS_MASTER_DOCS_KEY);
@@ -84,9 +81,6 @@ const loadMasterChemists = (): DcrChemistCall[] => {
   return [];
 };
 
-// =========================================================================
-// 🌟 MATERIAL DESIGN DATE PICKER DIALOG COMPONENT (As in Image)
-// =========================================================================
 interface MaterialDatePickerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -118,9 +112,8 @@ const MaterialDatePickerModal: React.FC<MaterialDatePickerModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Calendar Math
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay(); // 0 = Sunday
+  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
 
   const handlePrevMonth = () => {
     if (viewMonth === 0) {
@@ -151,7 +144,6 @@ const MaterialDatePickerModal: React.FC<MaterialDatePickerModalProps> = ({
     onClose();
   };
 
-  // Format header text like "Mon, Nov 17"
   const weekdayShort = selectedDate.toLocaleDateString('en-US', { weekday: 'short' });
   const monthShort = selectedDate.toLocaleDateString('en-US', { month: 'short' });
   const dayNum = selectedDate.getDate();
@@ -160,8 +152,6 @@ const MaterialDatePickerModal: React.FC<MaterialDatePickerModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-[340px] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-        
-        {/* 🟣 1. TOP PURPLE BANNER (Material Design Header) */}
         <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-purple-700 p-5 text-white shadow-md">
           <div className="text-[10px] font-bold uppercase tracking-widest text-purple-200">
             {title}
@@ -176,9 +166,7 @@ const MaterialDatePickerModal: React.FC<MaterialDatePickerModalProps> = ({
           </div>
         </div>
 
-        {/* ⚪ 2. CALENDAR BODY */}
         <div className="p-4 bg-slate-950 text-slate-200">
-          {/* Month Navigator Header */}
           <div className="flex items-center justify-between px-1 mb-3">
             <span className="text-xs font-bold text-white tracking-wide">
               {MONTH_NAMES[viewMonth]} {viewYear}
@@ -201,7 +189,6 @@ const MaterialDatePickerModal: React.FC<MaterialDatePickerModalProps> = ({
             </div>
           </div>
 
-          {/* Days of Week Row (S M T W T F S) */}
           <div className="grid grid-cols-7 text-center mb-2">
             {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((dw, idx) => (
               <span key={idx} className="text-[11px] font-bold text-slate-500">
@@ -210,14 +197,11 @@ const MaterialDatePickerModal: React.FC<MaterialDatePickerModalProps> = ({
             ))}
           </div>
 
-          {/* Day Grid */}
           <div className="grid grid-cols-7 gap-y-1 text-center text-xs">
-            {/* Empty padding cells for first day offset */}
             {Array.from({ length: firstDayOfWeek }).map((_, idx) => (
               <div key={`empty-${idx}`} className="h-8 w-8" />
             ))}
 
-            {/* Day numbers 1 to daysInMonth */}
             {Array.from({ length: daysInMonth }).map((_, idx) => {
               const dNum = idx + 1;
               const isSelected = 
@@ -244,7 +228,6 @@ const MaterialDatePickerModal: React.FC<MaterialDatePickerModalProps> = ({
           </div>
         </div>
 
-        {/* 🟣 3. FOOTER ACTIONS (CANCEL / OK) */}
         <div className="flex items-center justify-end gap-3 px-5 py-3 bg-slate-950 border-t border-slate-900">
           <button
             type="button"
@@ -261,21 +244,15 @@ const MaterialDatePickerModal: React.FC<MaterialDatePickerModalProps> = ({
             OK
           </button>
         </div>
-
       </div>
     </div>
   );
 };
 
-// =========================================================================
-// MAIN SHEET COMPONENT
-// =========================================================================
 export const DayWiseCallStatusSheet: React.FC = () => {
-  // Master Lists (All saved calls in system)
   const [masterDoctors, setMasterDoctors] = useState<DcrDoctorCall[]>(() => loadMasterDoctors());
   const [masterChemists, setMasterChemists] = useState<DcrChemistCall[]>(() => loadMasterChemists());
 
-  // Active Date Range
   const [fromDate, setFromDate] = useState<string>(() => {
     try {
       const savedRange = localStorage.getItem(CALLS_LAST_RANGE_KEY);
@@ -292,13 +269,10 @@ export const DayWiseCallStatusSheet: React.FC = () => {
     return '30/09/2026';
   });
 
-  // 🌟 Material Date Picker Dialog State
   const [activePickerTarget, setActivePickerTarget] = useState<'from' | 'to' | null>(null);
-
   const [activeTab, setActiveTab] = useState<'doctors' | 'chemists'>('doctors');
   const [search, setSearch] = useState('');
   
-  // Progress & Extraction HUD
   const [isExtracting, setIsExtracting] = useState(false);
   const [progressPercent, setProgressPercent] = useState(100);
   const [currentStep, setCurrentStep] = useState('Data loaded from master memory');
@@ -307,7 +281,6 @@ export const DayWiseCallStatusSheet: React.FC = () => {
   const [logsCopied, setLogsCopied] = useState(false);
   const [diagnosticError, setDiagnosticError] = useState<{ title: string; details: string } | null>(null);
 
-  // Sync to MSL Toggle
   const [syncToMsl, setSyncToMsl] = useState<boolean>(() => {
     try {
       const savedSync = localStorage.getItem(CALLS_SYNC_TOGGLE_KEY);
@@ -316,17 +289,13 @@ export const DayWiseCallStatusSheet: React.FC = () => {
     return memoryStore.mslSyncEnabled ?? true;
   });
 
-  const [savedSuccess, setSavedSuccess] = useState(false);
   const [selectedResetTarget, setSelectedResetTarget] = useState<string>('ACTIVE');
-
-  // Missed Dates Tracker
   const [missedDates, setMissedDates] = useState<any[]>([]);
   const [isRetryingMissed, setIsRetryingMissed] = useState(false);
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const taskId = `${fromDate}_${toDate}`;
 
-  // 🌟 Dynamic Range Filter: Instant Auto-Load across all months!
   const { filteredDoctors, filteredChemists } = useMemo(() => {
     const fDt = parseDateStr(fromDate);
     const tDt = parseDateStr(toDate);
@@ -367,7 +336,6 @@ export const DayWiseCallStatusSheet: React.FC = () => {
     setDiagnosticError(null);
   };
 
-  // Persist calls to Master storage
   const persistMasterCalls = (newDocs: DcrDoctorCall[], newChems: DcrChemistCall[]) => {
     const docMap = new Map<string, DcrDoctorCall>();
     masterDoctors.forEach(d => docMap.set(`${d.date}_${d.docName}_${d.visitTime}`, d));
@@ -389,7 +357,6 @@ export const DayWiseCallStatusSheet: React.FC = () => {
     } catch (e) {}
   };
 
-  // Toggle Sync Switch
   const handleToggleSync = () => {
     const nextState = !syncToMsl;
     setSyncToMsl(nextState);
@@ -399,19 +366,6 @@ export const DayWiseCallStatusSheet: React.FC = () => {
     } catch (e) {}
   };
 
-  // Explicit Save Handler
-  const handleSaveData = () => {
-    try {
-      localStorage.setItem(CALLS_MASTER_DOCS_KEY, JSON.stringify(masterDoctors));
-      localStorage.setItem(CALLS_MASTER_CHEMS_KEY, JSON.stringify(masterChemists));
-      localStorage.setItem(CALLS_LAST_RANGE_KEY, JSON.stringify({ fromDate, toDate }));
-      localStorage.setItem(CALLS_SYNC_TOGGLE_KEY, JSON.stringify(syncToMsl));
-    } catch (e) {}
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2500);
-  };
-
-  // Advanced Reset Handler
   const handleResetTarget = () => {
     if (selectedResetTarget === 'ALL') {
       if (window.confirm("⚠️ Kya aap Call Status ka POORA DATA (All Months) permanently reset karna chahte hain?")) {
@@ -423,8 +377,6 @@ export const DayWiseCallStatusSheet: React.FC = () => {
           localStorage.removeItem(CALLS_MASTER_DOCS_KEY);
           localStorage.removeItem(CALLS_MASTER_CHEMS_KEY);
         } catch (e) {}
-        setSavedSuccess(true);
-        setTimeout(() => setSavedSuccess(false), 2500);
       }
       return;
     }
@@ -463,13 +415,9 @@ export const DayWiseCallStatusSheet: React.FC = () => {
         localStorage.setItem(CALLS_MASTER_DOCS_KEY, JSON.stringify(remainingDocs));
         localStorage.setItem(CALLS_MASTER_CHEMS_KEY, JSON.stringify(remainingChems));
       } catch (e) {}
-
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 2500);
     }
   };
 
-  // Copy Logs
   const handleCopyLogs = () => {
     const fullLogText = liveLogs.join('\n');
     if (!fullLogText) return;
@@ -490,7 +438,6 @@ export const DayWiseCallStatusSheet: React.FC = () => {
     }
   };
 
-  // Download Logs .txt
   const handleDownloadLogs = () => {
     const fullLogText = liveLogs.join('\n');
     if (!fullLogText) return;
@@ -501,7 +448,6 @@ export const DayWiseCallStatusSheet: React.FC = () => {
     a.click();
   };
 
-  // Start Full Live Crawl
   const handleStartLiveExtraction = async () => {
     setIsExtracting(true);
     setProgressPercent(5);
@@ -556,7 +502,6 @@ export const DayWiseCallStatusSheet: React.FC = () => {
     }
   };
 
-  // 1-Click Re-Fetch Missed Dates
   const handleRetryMissedDates = async () => {
     if (missedDates.length === 0) return;
 
@@ -610,6 +555,7 @@ export const DayWiseCallStatusSheet: React.FC = () => {
     }
   };
 
+  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     if (activeTab === 'doctors') {
       let csv = `Date,Day,Employee,Station,Route,Work_With,Sr_No,Doctor_Name,Doctor_Code,Speciality,Area,Visit_Time,Products_Sample,Gift,Rx_Qty,POB_Amount,Call_Type,Remarks\n`;
@@ -634,7 +580,6 @@ export const DayWiseCallStatusSheet: React.FC = () => {
     }
   };
 
-  // Search Filters
   const searchDoctors = filteredDoctors.filter(d => 
     (d.docName || '').toLowerCase().includes(search.toLowerCase()) ||
     (d.speciality || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -655,7 +600,7 @@ export const DayWiseCallStatusSheet: React.FC = () => {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl space-y-4">
       
-      {/* 🌟 1. MATERIAL DESIGN DATE PICKER DIALOG POPUP */}
+      {/* 1. MATERIAL DESIGN DATE PICKER DIALOG POPUP */}
       <MaterialDatePickerModal
         isOpen={activePickerTarget !== null}
         onClose={() => setActivePickerTarget(null)}
@@ -680,7 +625,7 @@ export const DayWiseCallStatusSheet: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               15. DAY WISE CALL STATUS REPORT
               <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
-                Material Date Picker &amp; Auto-Restore
+                Cloud Sync Ready
               </span>
             </h2>
             <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA • Active Range: <span className="text-cyan-400 font-bold font-mono">{fromDate}</span> ➔ <span className="text-cyan-400 font-bold font-mono">{toDate}</span></p>
@@ -688,7 +633,7 @@ export const DayWiseCallStatusSheet: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* ⚡ SYNC TO MSL TOGGLE */}
+          {/* SYNC TO MSL TOGGLE */}
           <button
             onClick={handleToggleSync}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
@@ -702,16 +647,7 @@ export const DayWiseCallStatusSheet: React.FC = () => {
             <span>Sync to MSL: <b className={syncToMsl ? "text-emerald-400" : "text-slate-400"}>{syncToMsl ? "ON" : "OFF"}</b></span>
           </button>
 
-          {/* 💾 EXPLICIT SAVE BUTTON */}
-          <button
-            onClick={handleSaveData}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <Save size={14} />}
-            {savedSuccess ? 'Saved' : 'Save Data'}
-          </button>
-
-          {/* ⚡ LIVE CBO FETCH BUTTON */}
+          {/* LIVE CBO FETCH BUTTON */}
           <button
             onClick={handleStartLiveExtraction}
             disabled={isExtracting}
@@ -721,6 +657,7 @@ export const DayWiseCallStatusSheet: React.FC = () => {
             {isExtracting ? `Extracting (${progressPercent}%)` : '⚡ Live CBO Fetch'}
           </button>
 
+          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow transition cursor-pointer"
@@ -729,6 +666,45 @@ export const DayWiseCallStatusSheet: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      <CloudSyncBar
+        storageKey="review/sheet_15_call_status"
+        sheetTitle="15. Day Wise Call Status Report"
+        getData={() => ({
+          masterDoctors,
+          masterChemists,
+          lastRange: { fromDate, toDate },
+          syncToMsl
+        })}
+        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.masterDoctors && Array.isArray(cloudData.masterDoctors)) {
+            setMasterDoctors(cloudData.masterDoctors);
+            try { localStorage.setItem(CALLS_MASTER_DOCS_KEY, JSON.stringify(cloudData.masterDoctors)); } catch (e) {}
+          }
+          if (cloudData.masterChemists && Array.isArray(cloudData.masterChemists)) {
+            setMasterChemists(cloudData.masterChemists);
+            try { localStorage.setItem(CALLS_MASTER_CHEMS_KEY, JSON.stringify(cloudData.masterChemists)); } catch (e) {}
+          }
+          if (cloudData.lastRange) {
+            if (cloudData.lastRange.fromDate) setFromDate(cloudData.lastRange.fromDate);
+            if (cloudData.lastRange.toDate) setToDate(cloudData.lastRange.toDate);
+          }
+          if (cloudData.syncToMsl !== undefined) {
+            setSyncToMsl(cloudData.syncToMsl);
+            memoryStore.mslSyncEnabled = cloudData.syncToMsl;
+          }
+        }}
+        onSaveLocal={() => {
+          try {
+            localStorage.setItem(CALLS_MASTER_DOCS_KEY, JSON.stringify(masterDoctors));
+            localStorage.setItem(CALLS_MASTER_CHEMS_KEY, JSON.stringify(masterChemists));
+            localStorage.setItem(CALLS_LAST_RANGE_KEY, JSON.stringify({ fromDate, toDate }));
+            localStorage.setItem(CALLS_SYNC_TOGGLE_KEY, JSON.stringify(syncToMsl));
+          } catch (e) {}
+        }}
+      />
 
       {/* 3. FY MONTH PRESETS WITH LIVE SAVED DATA INDICATORS & CALL COUNTS */}
       <div className="space-y-2.5 bg-slate-950 p-3 rounded-2xl border border-slate-800">
@@ -777,7 +753,6 @@ export const DayWiseCallStatusSheet: React.FC = () => {
               <CalendarRange size={13} className="text-cyan-400" /> Custom Range:
             </span>
 
-            {/* From Date Box with Material Dialog Trigger */}
             <div 
               onClick={() => setActivePickerTarget('from')}
               className="flex items-center gap-1.5 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-purple-500 cursor-pointer transition shadow-sm"
@@ -785,17 +760,13 @@ export const DayWiseCallStatusSheet: React.FC = () => {
             >
               <span className="text-slate-400 text-xs">From:</span>
               <span className="font-mono font-bold text-cyan-300 text-xs">{fromDate}</span>
-              <button
-                type="button"
-                className="p-1 text-purple-400 hover:text-purple-300 rounded-lg transition"
-              >
+              <button type="button" className="p-1 text-purple-400 hover:text-purple-300 rounded-lg transition">
                 <CalendarIcon size={14} />
               </button>
             </div>
 
             <span className="text-slate-500 font-bold">➔</span>
 
-            {/* To Date Box with Material Dialog Trigger */}
             <div 
               onClick={() => setActivePickerTarget('to')}
               className="flex items-center gap-1.5 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-purple-500 cursor-pointer transition shadow-sm"
@@ -803,16 +774,12 @@ export const DayWiseCallStatusSheet: React.FC = () => {
             >
               <span className="text-slate-400 text-xs">To:</span>
               <span className="font-mono font-bold text-cyan-300 text-xs">{toDate}</span>
-              <button
-                type="button"
-                className="p-1 text-purple-400 hover:text-purple-300 rounded-lg transition"
-              >
+              <button type="button" className="p-1 text-purple-400 hover:text-purple-300 rounded-lg transition">
                 <CalendarIcon size={14} />
               </button>
             </div>
           </div>
 
-          {/* 🧹 ADVANCED MONTH-WISE / ALL-MONTH RESET CONTROLS */}
           <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
             <span className="text-[10px] text-slate-400 uppercase font-bold pl-1 flex items-center gap-1">
               <Filter size={11} /> Reset Target:
@@ -937,7 +904,7 @@ export const DayWiseCallStatusSheet: React.FC = () => {
         </div>
       )}
 
-      {/* ⚠️ ERROR DIAGNOSTICS */}
+      {/* ERROR DIAGNOSTICS */}
       {diagnosticError && (
         <div className="p-4 bg-rose-950/80 border-2 border-rose-500 rounded-2xl text-xs space-y-2">
           <div className="flex items-center justify-between text-rose-300 font-bold">
@@ -1014,7 +981,7 @@ export const DayWiseCallStatusSheet: React.FC = () => {
         </div>
       </div>
 
-      {/* 9. TABLE */}
+      {/* 9. TABLES */}
       {activeTab === 'doctors' ? (
         <div className="overflow-x-auto max-h-[580px] border border-slate-800 rounded-xl">
           <table className="w-full text-left text-xs border-collapse">
