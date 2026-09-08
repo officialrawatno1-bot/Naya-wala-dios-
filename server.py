@@ -26,6 +26,7 @@ from spo_engine import fetch_spo_data
 from primary_playwright_engine import fetch_primary_via_playwright
 from primary_excel_generator import build_cbo_primary_excel_blob, get_primary_cache
 from dcr_live_engine import fetch_live_dcr_excel
+from expense_engine import fetch_cbo_expense
 
 app = FastAPI(title="DIOS Persistent Terminal Engine")
 
@@ -186,3 +187,7 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+@app.post("/api/fetch-expense")
+def api_fetch_expense(req: MonthRequest):
+    return fetch_cbo_expense(req.from_month)

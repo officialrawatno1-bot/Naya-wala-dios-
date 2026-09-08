@@ -6,12 +6,13 @@ import {
 import { generateMasterReviewWorkbook } from '../exporters/masterReviewWorkbook';
 import { StockwiseStatementVault } from './StockwiseStatementVault';
 import { IncentiveWorkspace } from './IncentiveWorkspace';
+import { ExpenseWorkspace } from './ExpenseWorkspace';
 
 interface Props {
   onBack: () => void;
 }
 
-type ViewState = 'web-data' | 'statement' | 'stockwise-statement' | 'earn' | 'incentive';
+type ViewState = 'web-data' | 'statement' | 'stockwise-statement' | 'earn' | 'incentive' | 'expense';
 
 export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
   const [currentView, setCurrentView] = useState<ViewState>('web-data');
@@ -258,28 +259,28 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
               </button>
             </div>
 
-            {/* OPTION 2: EXPENSE (Placeholder / Coming Soon) */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 transition space-y-4 flex flex-col justify-between opacity-75">
+            {/* OPTION 2: 🌟 ACTIVE EXPENSE WORKSPACE */}
+            <div className="bg-slate-900 border-2 border-cyan-500/50 hover:border-cyan-400 rounded-2xl p-6 transition shadow-2xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="p-2.5 bg-slate-800 text-slate-400 rounded-xl">
+                  <span className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl">
                     <Wallet size={22} />
                   </span>
-                  <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">
-                    Coming Soon
+                  <span className="text-[10px] text-cyan-300 font-bold bg-cyan-950 px-2 py-0.5 rounded border border-cyan-500/30 font-mono">
+                    LIVE CBO EXPENSE
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-slate-300">2. Expense</h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Daily allowance (DA), travel fare (TA), hotel stay, and monthly tour claim submissions.
+                <h3 className="text-lg font-bold text-white">2. Expense Statement</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Daily allowance (DA), travel fare (TA), doctor calls &amp; monthly tour claim submissions auto-synced with CBO.
                 </p>
               </div>
 
               <button
-                disabled
-                className="w-full py-2.5 px-4 bg-slate-800 text-slate-500 font-bold text-xs rounded-xl border border-slate-700/50 cursor-not-allowed"
+                onClick={() => setCurrentView('expense')}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-950 transition cursor-pointer"
               >
-                Expense (Coming Soon)
+                Open Expense Statement &rarr;
               </button>
             </div>
 
@@ -295,6 +296,11 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
       {/* 3️⃣ LEVEL 3 (B): 🌟 INCENTIVE WORKSPACE */}
       {currentView === 'incentive' && (
         <IncentiveWorkspace onBack={() => setCurrentView('earn')} />
+      )}
+
+      {/* 3️⃣ LEVEL 3 (C): 🌟 EXPENSE STATEMENT WORKSPACE */}
+      {currentView === 'expense' && (
+        <ExpenseWorkspace onBack={() => setCurrentView('earn')} />
       )}
 
     </div>
