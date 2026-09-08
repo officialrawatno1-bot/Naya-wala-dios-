@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   Search, FolderGit2, Activity, ShieldCheck, Database, 
-  FileText, Cloud, CloudUpload, CloudDownload, Check, Loader2
+  FileText, Cloud, CloudUpload, CloudDownload, Check, Loader2,
+  Globe
 } from 'lucide-react';
 import { memoryStore } from '../data/memoryStore';
 import { unProgressionStore } from '../data/unProgressionStore';
@@ -169,6 +170,7 @@ export const MainHub: React.FC<Props> = ({ onOpenProject }) => {
         </div>
       )}
 
+      {/* HEADER */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-slate-800">
         <div>
           <h1 className="text-3xl font-extrabold text-white flex items-center gap-3">
@@ -183,15 +185,17 @@ export const MainHub: React.FC<Props> = ({ onOpenProject }) => {
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
         <input
           type="text"
-          placeholder="Search modules (e.g. dios, review, aggregator)..."
+          placeholder="Search modules..."
           value={hubSearch}
           onChange={(e) => setHubSearch(e.target.value)}
           className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-12 pr-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
         />
       </div>
 
-      {/* Workspace Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* 3 MAIN WORKSPACE MODULE CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* 1. STATEMENT AGGREGATOR */}
         <div className="bg-slate-900/80 border border-slate-800 hover:border-cyan-500/60 rounded-2xl p-6 transition duration-200 shadow-xl flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -200,10 +204,10 @@ export const MainHub: React.FC<Props> = ({ onOpenProject }) => {
               </span>
               <Database size={20} className="text-cyan-400" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">
+            <h2 className="text-xl font-bold text-white mb-2">
               Statement Aggregator
             </h2>
-            <p className="text-slate-400 text-sm leading-relaxed mb-4">
+            <p className="text-slate-400 text-xs leading-relaxed mb-4">
               Unit Sales Progression (HQ Total) aggregator for 6 Distributors + Dhruvi Math Sheet + Live CBO Primary Dispatch.
             </p>
           </div>
@@ -213,23 +217,24 @@ export const MainHub: React.FC<Props> = ({ onOpenProject }) => {
               onClick={() => onOpenProject('dios-aggregator')}
               className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-600/20 transition cursor-pointer"
             >
-              Open Statement Aggregator &rarr;
+              Open Aggregator &rarr;
             </button>
           </div>
         </div>
 
+        {/* 2. DATA HUB (PERFORMANCE REVIEW) */}
         <div className="bg-slate-900/80 border border-slate-800 hover:border-emerald-500/60 rounded-2xl p-6 transition duration-200 shadow-xl flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                Cloud Protected Data Hub
+                Data Hub
               </span>
               <FileText size={20} className="text-emerald-400" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">
-              Performance Review
+            <h2 className="text-xl font-bold text-white mb-2">
+              Data Hub (Review)
             </h2>
-            <p className="text-slate-400 text-sm leading-relaxed mb-4">
+            <p className="text-slate-400 text-xs leading-relaxed mb-4">
               Access and manage all 15 Monthly Performance Review formats with Cloudflare KV Cloud Backup, Time Machine Undo &amp; Live CBO Crawler.
             </p>
           </div>
@@ -239,10 +244,38 @@ export const MainHub: React.FC<Props> = ({ onOpenProject }) => {
               onClick={() => onOpenProject('dios-review')}
               className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition cursor-pointer"
             >
-              📊 Open Review Format &rarr;
+              📊 Open Data Hub &rarr;
             </button>
           </div>
         </div>
+
+        {/* 3. WEB DATA */}
+        <div className="bg-slate-900/80 border border-slate-800 hover:border-amber-500/60 rounded-2xl p-6 transition duration-200 shadow-xl flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                Web Data
+              </span>
+              <Globe size={20} className="text-amber-400" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">
+              Web Data
+            </h2>
+            <p className="text-slate-400 text-xs leading-relaxed mb-4">
+              Access web-extracted live data and statements modules.
+            </p>
+          </div>
+
+          <div className="pt-4 border-t border-slate-800">
+            <button
+              onClick={() => onOpenProject('web-data')}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition cursor-pointer"
+            >
+              Open Web Data &rarr;
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   );

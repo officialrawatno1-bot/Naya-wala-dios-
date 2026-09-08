@@ -1,0 +1,15 @@
+{
+  "forwardPorts": [8000, 5173],
+  "portsAttributes": {
+    "8000": {
+      "label": "FastAPI Backend",
+      "visibility": "public",
+      "onAutoForward": "silent"
+    },
+    "5173": {
+      "label": "Vite Frontend",
+      "visibility": "public",
+      "onAutoForward": "silent"
+    }
+  }
+}

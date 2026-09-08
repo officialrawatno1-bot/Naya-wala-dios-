@@ -1,0 +1,14 @@
+{
+  "remote.portsAttributes": {
+    "8000": {
+      "label": "DIOS Backend Server",
+      "onAutoForward": "silent",
+      "visibility": "public"
+    },
+    "5173": {
+      "label": "Vite Frontend",
+      "onAutoForward": "silent",
+      "visibility": "public"
+    }
+  }
+}
