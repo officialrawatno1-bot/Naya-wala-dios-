@@ -1,4 +1,7 @@
-import os, sys, time, json, traceback
+import os, sys
+
+# 1. Update expense_engine.py with strict Syncfusion DatePicker Binding
+expense_engine_code = """import os, sys, time, json, traceback
 from datetime import datetime
 from playwright.sync_api import sync_playwright
 
@@ -262,3 +265,9 @@ def fetch_cbo_expense(target_month="Aug-2026"):
             "error": str(e),
             "month": target_month
         }
+"""
+
+with open('expense_engine.py', 'w', encoding='utf-8') as f:
+    f.write(expense_engine_code)
+print("✅ expense_engine.py updated with strict Syncfusion DatePicker Binding.")
+
