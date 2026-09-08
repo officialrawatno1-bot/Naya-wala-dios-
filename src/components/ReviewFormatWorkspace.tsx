@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   ArrowLeft, FileText, Sparkles, Activity, Calendar, 
-  TrendingUp, Table2, AlertTriangle, CheckCircle2, Layers, DollarSign, Target, HeartPulse, UserCheck
+  TrendingUp, Table2, AlertTriangle, CheckCircle2, Layers, 
+  DollarSign, Target, HeartPulse, UserCheck, Award
 } from 'lucide-react';
 
 import {
@@ -19,7 +20,8 @@ import {
   FocusedBrandsSheet,
   RoiSheet,
   MslSheet,
-  DayWiseCallStatusSheet
+  DayWiseCallStatusSheet,
+  ProductIncentiveSheet
 } from './review';
 
 interface Props {
@@ -42,10 +44,10 @@ const REVIEW_NAV = [
   { id: '13', title: '13. ROI', short: 'ROI Analysis', icon: DollarSign },
   { id: '14', title: '14. MSL', short: 'MSL Schedule', icon: Calendar },
   { id: '15', title: '15. Day Wise Calls', short: 'Call Status', icon: UserCheck },
+  { id: '16', title: '16. Product Incentive', short: 'Product Inc. 🎯', icon: Award },
 ];
 
 export const ReviewFormatWorkspace: React.FC<Props> = ({ onBack }) => {
-  // 🌟 FIX: डिफ़ॉल्ट अब '1' (Effort Level) ही खुलेगा!
   const [activeTab, setActiveTab] = useState('1');
 
   const renderSheetContent = () => {
@@ -65,6 +67,7 @@ export const ReviewFormatWorkspace: React.FC<Props> = ({ onBack }) => {
       case '13': return <RoiSheet />;
       case '14': return <MslSheet />;
       case '15': return <DayWiseCallStatusSheet />;
+      case '16': return <ProductIncentiveSheet />;
       default: return <EffortLevelSheet />;
     }
   };
@@ -81,7 +84,7 @@ export const ReviewFormatWorkspace: React.FC<Props> = ({ onBack }) => {
 
         <div className="flex items-center gap-3">
           <span className="text-[11px] bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-full font-mono font-bold flex items-center gap-1.5 shadow-lg shadow-emerald-950/50">
-            <Sparkles size={13} className="text-emerald-400 animate-pulse" /> DIOS REVIEW HUB
+            <Sparkles size={13} className="text-emerald-400 animate-pulse" /> DIOS REVIEW HUB (16 SHEETS)
           </span>
         </div>
       </div>
@@ -94,7 +97,7 @@ export const ReviewFormatWorkspace: React.FC<Props> = ({ onBack }) => {
           Monthly Performance Review Format
         </h1>
         <p className="text-slate-400 text-xs md:text-sm mt-1">
-          15 Modular Review Sheets with Live CBO DCR, Calls Status, and Sales Integration.
+          16 Modular Review Sheets with Live CBO DCR, Calls Status, Sales Integration &amp; Product Incentives.
         </p>
       </div>
 
