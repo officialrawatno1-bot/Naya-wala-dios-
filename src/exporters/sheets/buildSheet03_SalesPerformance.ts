@@ -5,7 +5,7 @@ const MONTHS = ['APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC', '
 
 const ROWS_CONFIG = [
   { sn: '1', id: 'budget', title: 'BUDGET' },
-  { sn: '2', id: 'primary_curr', title: 'PRIMARY. 26-27' },
+  { sn: '2', id: 'primary_curr', title: 'PRIMARY. 26-27', isNetPrimary: true },
   { sn: '',  id: 'primary_prev', title: 'PRIMARY. 25-26' },
   { sn: '3', id: 'prm_ach',      title: '% PRM. ACHIVEMENT' },
   { sn: '',  id: 'prm_growth',   title: 'PRIMARY GROWTH' },
@@ -23,7 +23,6 @@ export function buildSheet03_SalesPerformance(data?: any) {
   const hqName = data?.hqName || memoryStore.hqName || 'UDAIPUR';
   const formData = data?.formData || memoryStore.salesPerformanceData || {};
 
-  // Extract breakdowns from KV or memoryStore or localStorage
   let salesBreakdown: Record<string, any[]> = data?.salesBreakdown || memoryStore.salesBreakdown || {};
   if (Object.keys(salesBreakdown).length === 0 && typeof window !== 'undefined') {
     try {
@@ -79,9 +78,17 @@ export function buildSheet03_SalesPerformance(data?: any) {
     MONTHS.forEach(m => {
       let val = formData[cfg.id]?.[m];
 
+      // Net Primary Calculation (CBO + Dhruvi)
+      if (cfg.isNetPrimary) {
+        const cbo = parseFloat(formData.cbo_primary?.[m] || formData.primary_curr?.[m] || '0') || 0;
+        const dhr = parseFloat(formData.dhruvi_primary?.[m] || '0') || 0;
+        const net = (cbo + dhr);
+        val = net > 0 ? Number(net.toFixed(2)) : (cbo > 0 ? Number(cbo.toFixed(2)) : (formData.primary_curr?.[m] || ''));
+      }
+
       if (val === undefined || val === '') {
         if (cfg.id === 'prm_ach') {
-          const pri = parseFloat(formData.primary_curr?.[m] || '0');
+          const pri = parseFloat(formData.primary_curr?.[m] || formData.cbo_primary?.[m] || '0');
           const bud = parseFloat(formData.budget?.[m] || '0');
           val = (pri > 0 && bud > 0) ? Math.round((pri / bud) * 100) : '';
         } else if (cfg.id === 'prm_growth' || cfg.id === 'sec_growth') {
@@ -97,7 +104,20 @@ export function buildSheet03_SalesPerformance(data?: any) {
       const displayVal = val !== undefined && val !== null ? val : '';
       const cellObj: any = { v: displayVal, s: standardTheme.cellCenter };
 
-      // 🌟 1. Native Excel Hover Comment for SALES RETURNS (Row 7)
+      // Native Excel Hover Note on Net Primary
+      if (cfg.isNetPrimary) {
+        const cbo = formData.cbo_primary?.[m];
+        const dhr = formData.dhruvi_primary?.[m];
+        if (dhr && parseFloat(dhr) > 0) {
+          cellObj.c = [{
+            a: 'DIOS Primary Net',
+            t: `=== NET PRIMARY 26-27 (${m}) ===\n• CBO Primary: ${cbo || 0}L\n• Dhruvi Primary: ${dhr}L\nTotal Net: ${displayVal}L`
+          }];
+          cellObj.s = { ...standardTheme.cellCenter, fill: { fgColor: { rgb: 'E0F2FE' } } };
+        }
+      }
+
+      // Native Excel Hover Comment for SALES RETURNS (Row 7)
       if (cfg.isReturn) {
         const retItems = salesBreakdown[`sales_returns_${m}`] || [];
         if (retItems.length > 0) {
@@ -110,7 +130,7 @@ export function buildSheet03_SalesPerformance(data?: any) {
         }
       }
 
-      // 🌟 2. Native Excel Hover Comment for EXPIRY (Row 8)
+      // Native Excel Hover Comment for EXPIRY (Row 8)
       if (cfg.isExpiry) {
         const expItems = salesBreakdown[`expiry_${m}`] || [];
         if (expItems.length > 0) {
@@ -123,7 +143,7 @@ export function buildSheet03_SalesPerformance(data?: any) {
         }
       }
 
-      // 🌟 3. Native Excel Hover Comment for INVESTMENT* (Row 10)
+      // Native Excel Hover Comment for INVESTMENT* (Row 10)
       if (cfg.isInvestment) {
         const invItems = salesBreakdown[`investment_${m}`] || [];
         if (invItems.length > 0) {

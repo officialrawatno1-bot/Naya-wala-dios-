@@ -28,7 +28,12 @@ const INITIAL_WCFYH_ROWS = [
 ];
 
 export function buildSheet07_Wcfyh(data?: any) {
-  const rowsList = data?.rows && Array.isArray(data.rows) && data.rows.length > 0 ? data.rows : INITIAL_WCFYH_ROWS;
+  const rawList = data?.rows && Array.isArray(data.rows) && data.rows.length > 0 ? data.rows : INITIAL_WCFYH_ROWS;
+  
+  // Strict Brand segregation for Excel
+  const vintelRows = rawList.filter((r: any) => (r.brand || '').toUpperCase().trim() === 'VINTEL');
+  const valrosRows = rawList.filter((r: any) => (r.brand || '').toUpperCase().trim() === 'VALROS');
+
   const wsData: any[][] = [];
 
   // ROW 1: 
@@ -66,8 +71,48 @@ export function buildSheet07_Wcfyh(data?: any) {
   });
   wsData.push(r2);
 
-  // ROWS 3 onwards: Data Rows
-  rowsList.forEach((row: any) => {
+  // ROWS 3 onwards: Vintel Rows First
+  vintelRows.forEach((row: any, idx: number) => {
+    const dataRow: any[] = [
+      { v: idx + 1, s: standardTheme.cellCenter },
+      { v: 'VINTEL', s: standardTheme.cellCenter },
+      { v: row.drName || '', s: standardTheme.cellLeft },
+      { v: row.speciality || '', s: standardTheme.cellLeft },
+      { v: row.dateOfCamp || row.dateOfCampaign || '10TH OF EVERY MONTH', s: standardTheme.cellCenter },
+      { v: row.doneOn || row.campaignDoneOn || '', s: standardTheme.cellCenter },
+      { v: row.rx || row.rxGenerated || '', s: standardTheme.cellCenter }
+    ];
+    MONTH_COLS.forEach(m => {
+      dataRow.push({ v: row[m.key] || '', s: standardTheme.cellCenter });
+    });
+    wsData.push(dataRow);
+  });
+
+  // Separator rows between Vintel and Valros
+  wsData.push(new Array(19).fill({ v: '', s: standardTheme.cellCenter }));
+  const sepRow: any[] = new Array(19).fill({ v: '', s: standardTheme.cellCenter });
+  sepRow[5] = { v: 'p', s: standardTheme.cellCenter };
+  wsData.push(sepRow);
+  wsData.push(new Array(19).fill({ v: '', s: standardTheme.cellCenter }));
+
+  // Valros Rows Second
+  valrosRows.forEach((row: any, idx: number) => {
+    const dataRow: any[] = [
+      { v: idx + 1, s: standardTheme.cellCenter },
+      { v: 'VALROS', s: standardTheme.cellCenter },
+      { v: row.drName || '', s: standardTheme.cellLeft },
+      { v: row.speciality || '', s: standardTheme.cellLeft },
+      { v: row.dateOfCamp || row.dateOfCampaign || '20TH OF EVERY MONTH', s: standardTheme.cellCenter },
+      { v: row.doneOn || row.campaignDoneOn || '', s: standardTheme.cellCenter },
+      { v: row.rx || row.rxGenerated || '', s: standardTheme.cellCenter }
+    ];
+    MONTH_COLS.forEach(m => {
+      dataRow.push({ v: row[m.key] || '', s: standardTheme.cellCenter });
+    });
+    wsData.push(dataRow);
+  });
+
+  if (false) rowsList.forEach((row: any) => {
     if (row.isBlank) {
       wsData.push(new Array(19).fill({ v: '', s: standardTheme.cellCenter }));
     } else if (row.isSeparatorP) {

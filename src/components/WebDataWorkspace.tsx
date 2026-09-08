@@ -4,6 +4,7 @@ import {
   CheckCircle2, Sparkles, Loader2, Award 
 } from 'lucide-react';
 import { generateMasterReviewWorkbook } from '../exporters/masterReviewWorkbook';
+import { StockwiseStatementVault } from './StockwiseStatementVault';
 
 interface Props {
   onBack: () => void;
@@ -40,10 +41,10 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-12 max-w-5xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       
-      {/* 🔙 BREADCRUMB & BACK BUTTON */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+      {/* 🔙 TOP NAVBAR: Exact Data Hub Style */}
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <button
           onClick={() => {
             if (currentView === 'stockwise-statement') setCurrentView('statement');
@@ -56,56 +57,44 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
           {currentView === 'stockwise-statement' ? 'Back to Statement' : currentView === 'statement' ? 'Back to Web Data' : 'Back to Hub'}
         </button>
 
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <span className="text-slate-400">Hub</span>
-          <span className="text-slate-600">/</span>
-          <span className={currentView === 'web-data' ? 'text-amber-400 font-bold' : 'text-slate-400'}>Web Data</span>
-          {currentView !== 'web-data' && (
-            <>
-              <span className="text-slate-600">/</span>
-              <span className={currentView === 'statement' ? 'text-amber-400 font-bold' : 'text-slate-400'}>Statement</span>
-            </>
-          )}
-          {currentView === 'stockwise-statement' && (
-            <>
-              <span className="text-slate-600">/</span>
-              <span className="text-amber-400 font-bold">Stockwise Statement</span>
-            </>
-          )}
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] bg-amber-950 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-full font-mono font-bold flex items-center gap-1.5 shadow-lg shadow-amber-950/50">
+            <Sparkles size={13} className="text-amber-400 animate-pulse" /> DIOS WEB REPOSITORY
+          </span>
         </div>
       </div>
 
-      {/* 1️⃣ LEVEL 1: WEB DATA (Side-by-Side: Statement & 14-in-1 Master Review Excel) */}
+      {/* 1️⃣ LEVEL 1: WEB DATA HOME */}
       {currentView === 'web-data' && (
         <div className="space-y-6">
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-3">
-              <span className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
-                <Globe size={26} />
+              <span className="p-2.5 bg-gradient-to-tr from-amber-500 to-orange-600 rounded-xl text-slate-950 shadow-lg shadow-amber-500/20">
+                <Globe size={24} />
               </span>
-              Web Data
+              Web Data &amp; Statements Hub
             </h1>
-            <p className="text-xs md:text-sm text-slate-400 mt-1">
-              Select module or download complete 14-in-1 master review workbook
+            <p className="text-slate-400 text-xs md:text-sm mt-1">
+              Archived Stockist Statements, Monthly Performance Review Workbook &amp; CBO Reports.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
             
-            {/* 📁 BUTTON 1: STATEMENT */}
-            <div className="bg-slate-900/90 border border-slate-800 hover:border-amber-500/60 rounded-2xl p-6 transition shadow-xl space-y-4 flex flex-col justify-between">
+            {/* BUTTON 1: STATEMENT */}
+            <div className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-2xl p-6 transition shadow-xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
                     <FileText size={22} />
                   </span>
                   <span className="text-[10px] text-amber-400 font-mono bg-amber-950/50 px-2 py-0.5 rounded border border-amber-500/30">
-                    Statements Hub
+                    Statements Vault
                   </span>
                 </div>
                 <h3 className="text-lg font-bold text-white">Statement</h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Access statements and report listings (Stockwise Statement)
+                  Access archived stockist-wise statements and secondary sales repositories.
                 </p>
               </div>
               <button
@@ -116,8 +105,8 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
               </button>
             </div>
 
-            {/* 🏆 BUTTON 2: 14-in-1 MASTER REVIEW EXCEL (COMPLETED!) */}
-            <div className="bg-slate-900/90 border-2 border-emerald-500/60 hover:border-emerald-400 rounded-2xl p-6 transition shadow-2xl space-y-4 flex flex-col justify-between">
+            {/* BUTTON 2: 14-in-1 MASTER REVIEW EXCEL */}
+            <div className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-2xl p-6 transition shadow-xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
@@ -132,7 +121,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
                   14-in-1 Master Review Excel
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  All 14 company review sheets consolidated in 1 workbook (Exact Colors, Fonts &amp; Layout)
+                  All 14 company review sheets consolidated in 1 workbook (Exact Colors, Fonts &amp; Layout).
                 </p>
 
                 <div className="mt-3 p-2.5 bg-slate-950 rounded-xl border border-slate-800 text-[11px] font-mono space-y-1">
@@ -141,10 +130,6 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
                     <span className="text-emerald-400 font-bold flex items-center gap-1">
                       <CheckCircle2 size={12} /> {kvStatus ? kvStatus : 'Connected'}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span>Standard Sheets Ready:</span>
-                    <span className="text-emerald-300 font-bold">Sheets 1 to 14 (100% Verified)</span>
                   </div>
                 </div>
               </div>
@@ -155,7 +140,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
                 className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition cursor-pointer disabled:opacity-50"
               >
                 {isDownloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                {isDownloading ? 'Building Master Excel...' : '⚡ Download 14-in-1 Master Excel (0.5s)'}
+                {isDownloading ? 'Building Master Excel...' : '⚡ Download 14-in-1 Master Excel'}
               </button>
             </div>
 
@@ -163,29 +148,34 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 2️⃣ LEVEL 2: STATEMENT */}
+      {/* 2️⃣ LEVEL 2: STATEMENT SELECTOR */}
       {currentView === 'statement' && (
         <div className="space-y-6">
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-3">
-              <span className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
-                <FileText size={26} />
+              <span className="p-2.5 bg-gradient-to-tr from-amber-500 to-orange-600 rounded-xl text-slate-950 shadow-lg shadow-amber-500/20">
+                <FileText size={24} />
               </span>
-              Statement
+              Statement Repositories
             </h1>
-            <p className="text-xs md:text-sm text-slate-400 mt-1">Available Statements</p>
+            <p className="text-slate-400 text-xs md:text-sm mt-1">
+              Select available stockist statements and secondary repositories.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-            <div className="bg-slate-900/90 border border-slate-800 hover:border-amber-500/60 rounded-2xl p-6 transition shadow-xl space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+            <div className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-2xl p-6 transition shadow-xl space-y-4">
               <div className="flex items-center justify-between">
                 <span className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
                   <FileSpreadsheet size={22} />
                 </span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded font-mono">Archive Active</span>
               </div>
               <div>
                 <h3 className="text-lg font-bold text-white">Stockwise Statement</h3>
-                <p className="text-xs text-slate-400 mt-1">Stockist-wise statements</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Archived 7-distributor statements across all 12 months with product-level details.
+                </p>
               </div>
               <button
                 onClick={() => setCurrentView('stockwise-statement')}
@@ -198,22 +188,9 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 3️⃣ LEVEL 3: STOCKWISE STATEMENT (Empty Page) */}
+      {/* 3️⃣ LEVEL 3: STOCKWISE STATEMENT (Data Hub Master Layout) */}
       {currentView === 'stockwise-statement' && (
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-3">
-              <span className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
-                <FileSpreadsheet size={26} />
-              </span>
-              Stockwise Statement
-            </h1>
-            <p className="text-xs text-slate-400 mt-1">Empty Page</p>
-          </div>
-          <div className="p-16 border-2 border-dashed border-slate-800 rounded-3xl text-center text-slate-600 text-sm font-mono">
-            (Yeh page abhi poori tarah khali hai)
-          </div>
-        </div>
+        <StockwiseStatementVault onBack={() => setCurrentView('statement')} />
       )}
 
     </div>

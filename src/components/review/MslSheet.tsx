@@ -41,8 +41,8 @@ const DEFAULT_SPECIALITY_MASTER = [
 
 export const MASTER_123_MSL_DOCTORS: MslDoctor[] = [
   { srNo: 23, doctorName: 'Abhay jain', activityType: 'CRM', speciality: 'CONSULTANT PHYSICIAN', dob: '12/12/1972', doa: '', apr: '1,7,10,17,21,24,27,29', may: '6,8,11,19,26,27,29', jun: '1,2,12,16,18', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 50, doctorName: 'ABHIJEET BASU', activityType: '', speciality: 'MD MED', dob: '12/12/1972', doa: '', apr: '7,9,11,17,24', may: '4,6,8,15,18', jun: '13,19,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 61, doctorName: 'Abhishek Kumar', activityType: '', speciality: 'CONSPHYS', dob: '', doa: '', apr: '2,10,17,23,24,28,30', may: '15,21,28', jun: '12,18,25', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 50, doctorName: 'ABHIJEET BASU', activityType: '', speciality: 'MD MED', dob: '12/12/1972', doa: '19/04/2000', apr: '7,9,11,17,24', may: '4,6,8,15,18', jun: '13,19,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 61, doctorName: 'Abhishek Kumar', activityType: '', speciality: 'CONSPHYS', dob: '26/05/1990', doa: '', apr: '2,10,17,23,24,28,30', may: '15,21,28', jun: '12,18,25', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 10, doctorName: 'AKVATS', activityType: 'CRM', speciality: 'DM NEURO', dob: '02/08/2019', doa: '', apr: '1,15,23,30', may: '6,14,21', jun: '3,18,24', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 59, doctorName: 'Ameet Mehta', activityType: '', speciality: 'GENERAL PHYSICIAN', dob: '27/04/1900', doa: '19/05/1900', apr: '3,13,17,24,27', may: '8,15,28,29', jun: '1,3,16', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 37, doctorName: 'AMIT KHANDELWAL', activityType: 'WCFYH VAL/VIN', speciality: 'CARDIO', dob: '03/04/1977', doa: '', apr: '21', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
@@ -53,7 +53,7 @@ export const MASTER_123_MSL_DOCTORS: MslDoctor[] = [
   { srNo: 74, doctorName: 'ANURAG JAIN', activityType: '', speciality: 'DNB NEFRO', dob: '12/03/1979', doa: '', apr: '', may: '', jun: '20', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 107, doctorName: 'Ashutosh soni', activityType: '', speciality: 'NEPHRO', dob: '', doa: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 114, doctorName: 'ASHWIN PATIDAR', activityType: '', speciality: 'MBBS MD', dob: '', doa: '', apr: '8', may: '13,25', jun: '17,26', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 22, doctorName: 'BALDEV MEENA', activityType: 'CRM', speciality: 'MD MED', dob: '05/07/1997', doa: '', apr: '1,2,9,11,18,27', may: '14,28,27', jun: '12,22,25,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 22, doctorName: 'BALDEV MEENA', activityType: 'CRM', speciality: 'MD MED', dob: '05/07/1978', doa: '16/01/2005', apr: '1,2,9,11,18,27', may: '14,28,27', jun: '12,22,25,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 57, doctorName: 'BHUPESH PARTANI', activityType: '', speciality: 'MD MED', dob: '23/10/2019', doa: '', apr: '6,22', may: '7,22', jun: '4,23', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 113, doctorName: 'BIPIN CHANDRA ADITYA DASARI', activityType: '', speciality: 'CARDIO', dob: '13/05/1990', doa: '', apr: '8,16', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 111, doctorName: 'BL KUMAWAT', activityType: '', speciality: 'MBBB MD', dob: '', doa: '', apr: '6,22', may: '22', jun: '4,23', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
@@ -64,10 +64,10 @@ export const MASTER_123_MSL_DOCTORS: MslDoctor[] = [
   { srNo: 108, doctorName: 'DEEPA KATARA', activityType: '', speciality: 'MD PHYSICAN', dob: '', doa: '', apr: '8,16', may: '25', jun: '26', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 32, doctorName: 'DEEPAK AAMETHA', activityType: 'WCFYH VAL/VIN', speciality: 'MD.CARDIO', dob: '17/03/1980', doa: '', apr: '7,10,17', may: '12,19,26', jun: '16,19', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 120, doctorName: 'DEEPAK GARG', activityType: '', speciality: 'MBBS PHY', dob: '', doa: '', apr: '4', may: '', jun: '20', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 12, doctorName: 'DENY', activityType: 'CRM', speciality: 'DM CARDIO', dob: '03/06/2019', doa: '', apr: '9,10,24,30', may: '8,19,26,29', jun: '12,18,25', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 12, doctorName: 'DENY', activityType: 'CRM', speciality: 'DM CARDIO', dob: '03/06/2019', doa: '30/04/1998', apr: '9,10,24,30', may: '8,19,26,29', jun: '12,18,25', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 38, doctorName: 'Dilip jain', activityType: 'WCFYH VAL/VIN', speciality: 'CARDIOLOGY', dob: '24/04/1982', doa: '', apr: '4,13,17,21,27', may: '18,26,29', jun: '9,19,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 2, doctorName: 'DP SINGH', activityType: 'CRM', speciality: 'MD MED', dob: '23/11/2019', doa: '', apr: '7,23,27', may: '6,11,21,29,30', jun: '15,24,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 27, doctorName: 'G K Mukhiya', activityType: 'CRM', speciality: 'DM NEPHRO', dob: '13/05/1973', doa: '', apr: '3,11', may: '8,15,29', jun: '13,19', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 27, doctorName: 'G K Mukhiya', activityType: 'CRM', speciality: 'DM NEPHRO', dob: '13/05/1973', doa: '11/03/2009', apr: '3,11', may: '8,15,29', jun: '13,19', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 97, doctorName: 'GOURAV KUMAR MITTAL', activityType: '', speciality: 'CARDIO', dob: '11/09/1900', doa: '23/06/1900', apr: '27', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 75, doctorName: 'GOVIND MANGAL', activityType: '', speciality: 'DM NEURO', dob: '', doa: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 103, doctorName: 'GYANKUMAR DAKSH', activityType: '', speciality: 'General Practitioner (GP)', dob: '', doa: '', apr: '', may: '', jun: '11', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
@@ -76,8 +76,8 @@ export const MASTER_123_MSL_DOCTORS: MslDoctor[] = [
   { srNo: 70, doctorName: 'HARISH SANADHY', activityType: '', speciality: 'MD MED', dob: '01/01/1970', doa: '', apr: '4,14,21,28', may: '12', jun: '9', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 87, doctorName: 'HC SONI', activityType: '', speciality: 'MD MED', dob: '25/10/1955', doa: '23/11/2023', apr: '6,22', may: '7,22', jun: '4,23', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 21, doctorName: 'HEMANT MAHUR', activityType: 'CRM', speciality: 'MD MED', dob: '25/03/1996', doa: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 24, doctorName: 'Hitesh yadav', activityType: 'CRM', speciality: 'CARDIO', dob: '11/05/1900', doa: '31/01/1900', apr: '1,10,15', may: '8,11,28', jun: '12,22,27', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 76, doctorName: 'JAGDISH VISHNOI', activityType: '', speciality: 'MD MED', dob: '03/03/1974', doa: '', apr: '14,21,23,28', may: '6,12,19,26', jun: '2,9,16', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 24, doctorName: 'Hitesh yadav', activityType: 'CRM', speciality: 'CARDIO', dob: '11/05/1900', doa: '31/01/2009', apr: '1,10,15', may: '8,11,28', jun: '12,22,27', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 76, doctorName: 'JAGDISH VISHNOI', activityType: '', speciality: 'MD MED', dob: '03/03/1974', doa: '25/12/2009', apr: '14,21,23,28', may: '6,12,19,26', jun: '2,9,16', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 42, doctorName: 'JAY CHORDIYA', activityType: 'LGT TABLE TOP', speciality: 'DM ENDO', dob: '21/04/2019', doa: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 56, doctorName: 'JAYESH GANDHI', activityType: '', speciality: 'MD MED', dob: '10/06/2019', doa: '', apr: '25', may: '2,9,16', jun: '6,10,20,27', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 51, doctorName: 'JC DEVPURA', activityType: '', speciality: 'MD MED', dob: '30/03/2019', doa: '', apr: '7,13,18', may: '12', jun: '2,13,22,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
@@ -87,15 +87,15 @@ export const MASTER_123_MSL_DOCTORS: MslDoctor[] = [
   { srNo: 68, doctorName: 'KALPESH CHODHRAY', activityType: '', speciality: 'MD MED', dob: '', doa: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 100, doctorName: 'KAMLESH BHATT', activityType: '', speciality: 'DNB', dob: '', doa: '', apr: '', may: '6,19,26', jun: '2,9,16', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 81, doctorName: 'KANTI LAL MEGWAL', activityType: '', speciality: 'MD MED', dob: '09/01/2019', doa: '', apr: '25', may: '2,9,16,23', jun: '6,10,20,27', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 35, doctorName: 'KAPIL BHARGAV', activityType: 'WCFYH VAL/VIN', speciality: 'DM CARDIO', dob: '16/12/2019', doa: '', apr: '3,17,24', may: '', jun: '19', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 3, doctorName: 'KAVITA BADJATIYA', activityType: 'CRM', speciality: 'MD MED', dob: '26/08/2019', doa: '', apr: '1,7,13,18,20', may: '4,11,21,27', jun: '9,13,15,22,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 35, doctorName: 'KAPIL BHARGAV', activityType: 'WCFYH VAL/VIN', speciality: 'DM CARDIO', dob: '16/12/2019', doa: '27/04/1998', apr: '3,17,24', may: '', jun: '19', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 3, doctorName: 'KAVITA BADJATIYA', activityType: 'CRM', speciality: 'MD MED', dob: '26/08/2019', doa: '09/02/2007', apr: '1,7,13,18,20', may: '4,11,21,27', jun: '9,13,15,22,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 64, doctorName: 'KB BADAULIA', activityType: '', speciality: 'MBBS', dob: '', doa: '', apr: '13', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 47, doctorName: 'KC JAIN', activityType: '', speciality: 'MD MED', dob: '24/07/2019', doa: '', apr: '18', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 47, doctorName: 'KC JAIN', activityType: '', speciality: 'MD MED', dob: '24/07/2019', doa: '27/11/2001', apr: '18', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 19, doctorName: 'KIRIT GANDHI', activityType: 'CRM', speciality: 'MD MED', dob: '11/07/2019', doa: '', apr: '8,16', may: '25', jun: '17,26', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 78, doctorName: 'KN DAS', activityType: '', speciality: 'MD MED', dob: '15/11/2019', doa: '', apr: '25', may: '2,9,16,23', jun: '6,10,20,27', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 78, doctorName: 'KN DAS', activityType: '', speciality: 'MD MED', dob: '15/11/2019', doa: '15/05/2009', apr: '25', may: '2,9,16,23', jun: '6,10,20,27', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 58, doctorName: 'KRIPA SHANKAR', activityType: '', speciality: 'MD MED', dob: '15/09/2019', doa: '', apr: '6,22', may: '7,22', jun: '4,23', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 82, doctorName: 'LALIT JAINANI', activityType: '', speciality: 'MD MED', dob: '11/04/2019', doa: '', apr: '', may: '', jun: '11', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 67, doctorName: 'LALIT SHREEMALI', activityType: '', speciality: 'MD MED', dob: '20/12/2019', doa: '', apr: '3,11,17,24,27', may: '15,29', jun: '19', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 67, doctorName: 'LALIT SHREEMALI', activityType: '', speciality: 'MD MED', dob: '20/12/2019', doa: '27/04/2008', apr: '3,11,17,24,27', may: '15,29', jun: '19', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 89, doctorName: 'M vijay vargiy', activityType: '', speciality: 'M B B S PHY', dob: '', doa: '', apr: '6,22', may: '7,22', jun: '4,23', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 83, doctorName: 'MADHUP BAXI', activityType: '', speciality: 'MD MED', dob: '29/01/2019', doa: '', apr: '', may: '', jun: '11', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 1, doctorName: 'MAHESH DAVE', activityType: 'CRM', speciality: 'MD MED', dob: '03/03/2019', doa: '', apr: '1,10,17', may: '15,19,26,30', jun: '13,25,30', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
@@ -109,13 +109,13 @@ export const MASTER_123_MSL_DOCTORS: MslDoctor[] = [
   { srNo: 30, doctorName: 'Mona dingra', activityType: 'WCFYH VTL', speciality: 'ENDO', dob: '18/07/1900', doa: '10/02/1900', apr: '18,23', may: '21,28', jun: '22', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 53, doctorName: 'MUKESH BARJATIYA', activityType: '', speciality: 'DNB NEFRO', dob: '', doa: '', apr: '', may: '12,19,27', jun: '3,15', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 33, doctorName: 'MUKESH SHARMA', activityType: 'WCFYH VAL/VIN', speciality: 'DM CARDIO', dob: '07/07/2019', doa: '', apr: '2,21,29', may: '12,19', jun: '3,24', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 4, doctorName: 'NAVGEET MATHUR', activityType: 'CRM', speciality: 'MD MED', dob: '', doa: '', apr: '3,11', may: '', jun: '13,19', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 4, doctorName: 'NAVGEET MATHUR', activityType: 'CRM', speciality: 'MD MED', dob: '28/03/1982', doa: '06/12/2009', apr: '3,11', may: '', jun: '13,19', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 91, doctorName: 'Navneet patel kiyda', activityType: '', speciality: 'MBBB MD', dob: '30/06/1900', doa: '23/04/1900', apr: '8,16', may: '13,25', jun: '17,26', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 46, doctorName: 'Nilesh pathira', activityType: 'GLUCOMETER', speciality: 'M B B S PHY', dob: '28/01/1900', doa: '14/04/1900', apr: '28', may: '12,19,26', jun: '2', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 69, doctorName: 'OP MEENA', activityType: '', speciality: 'MD MED', dob: '', doa: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 5, doctorName: 'PARAS JAIN', activityType: 'CRM', speciality: 'MD MED', dob: '23/11/2019', doa: '', apr: '4,15,24', may: '14,26', jun: '1,24', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 90, doctorName: 'pintu aahari', activityType: '', speciality: 'MBBB MD', dob: '', doa: '', apr: '25', may: '2,9,16,23', jun: '6,10,27', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 60, doctorName: 'PRASHANT BADJATIYA', activityType: '', speciality: 'CONSULTANT PHYSICIAN', dob: '', doa: '', apr: '7,13,18,20', may: '4,11,14,27', jun: '9,12,22', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 60, doctorName: 'PRASHANT BADJATIYA', activityType: '', speciality: 'CONSULTANT PHYSICIAN', dob: '25/06/2000', doa: '02/11/2025', apr: '7,13,18,20', may: '4,11,14,27', jun: '9,12,22', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 99, doctorName: 'PRATIBHA CHOUDHURY', activityType: '', speciality: 'PHY', dob: '', doa: '', apr: '1,15,20', may: '11,27', jun: '12,15,18,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 110, doctorName: 'Praveen jain', activityType: '', speciality: 'MBBS', dob: '', doa: '', apr: '', may: '', jun: '10', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 105, doctorName: 'Prerna baheti', activityType: '', speciality: 'MBBS,DNB,ECMO', dob: '', doa: '', apr: '4,17', may: '14,19', jun: '27', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
@@ -137,8 +137,8 @@ export const MASTER_123_MSL_DOCTORS: MslDoctor[] = [
   { srNo: 39, doctorName: 'S K KUASHIK', activityType: 'A2 GHEE', speciality: 'DM CARDIO', dob: '', doa: '', apr: '2,17,27', may: '6,27', jun: '13,24', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 118, doctorName: 'S.A.BOHRA', activityType: '', speciality: 'MBBS MD', dob: '', doa: '', apr: '21,28', may: '12,19,26', jun: '2,9,16', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 48, doctorName: 'SAFDAR HUSSAIN', activityType: '', speciality: 'MD MED', dob: '05/05/2019', doa: '', apr: '7,13', may: '4,11,18', jun: '1,15,22,25,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 49, doctorName: 'SALMA SHAH', activityType: '', speciality: 'MD MED', dob: '07/03/2019', doa: '', apr: '2,10,17,23,24,30', may: '8,15', jun: '12,18,25', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 16, doctorName: 'SANDEEP BHATNAGAR', activityType: 'CRM', speciality: 'MD MED', dob: '13/02/2019', doa: '', apr: '2,15,27', may: '21', jun: '15', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 49, doctorName: 'SALMA SHAH', activityType: '', speciality: 'MD MED', dob: '07/03/2019', doa: '01/01/2000', apr: '2,10,17,23,24,30', may: '8,15', jun: '12,18,25', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 16, doctorName: 'SANDEEP BHATNAGAR', activityType: 'CRM', speciality: 'MD MED', dob: '13/02/2019', doa: '27/04/1993', apr: '2,15,27', may: '21', jun: '15', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 101, doctorName: 'SANDEEP CHANDOLIYA', activityType: '', speciality: 'MBBB MD', dob: '', doa: '', apr: '', may: '', jun: '11', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 8, doctorName: 'SANDEEP KANSARA', activityType: 'CRM+LGT TABLE TOP', speciality: 'DM ENDO', dob: '22/10/2019', doa: '', apr: '11,23', may: '14,21', jun: '2,9,24', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 36, doctorName: 'Sanjay Gandhi', activityType: 'WCFYH VAL/VIN', speciality: 'C V T S', dob: '', doa: '', apr: '', may: '', jun: '13', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
@@ -148,17 +148,17 @@ export const MASTER_123_MSL_DOCTORS: MslDoctor[] = [
   { srNo: 15, doctorName: 'SUMIT SIROIYA', activityType: 'CRM', speciality: 'MD MED', dob: '14/01/2019', doa: '', apr: '18', may: '', jun: '12', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 85, doctorName: 'SUNIL UPADHAY', activityType: '', speciality: 'MD MED', dob: '07/02/2019', doa: '', apr: '6,22', may: '22', jun: '4', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 94, doctorName: 'SURAJ GUPTA', activityType: '', speciality: 'NEPHROLOGIST', dob: '', doa: '', apr: '3', may: '8,15', jun: '13,19', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 26, doctorName: 'Suresh Chandra', activityType: 'CRM', speciality: 'GEN MED', dob: '', doa: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 26, doctorName: 'Suresh Chandra', activityType: 'CRM', speciality: 'GEN MED', dob: '17/02/1983', doa: '13/07/2001', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 73, doctorName: 'TARUN MATHUR', activityType: '', speciality: 'DM NEURO', dob: '02/08/1979', doa: '', apr: '24', may: '5', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 52, doctorName: 'TARUN RHLOT', activityType: '', speciality: 'DM NEURO', dob: '', doa: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 31, doctorName: 'UDAY BHOMIK', activityType: 'WCFYH VTL', speciality: 'DM NEURO', dob: '08/04/2019', doa: '', apr: '30', may: '15', jun: '12', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 14, doctorName: 'VIJAY GOYAL', activityType: 'CRM', speciality: 'MD MED', dob: '01/09/2019', doa: '', apr: '4,15', may: '14', jun: '1', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 14, doctorName: 'VIJAY GOYAL', activityType: 'CRM', speciality: 'MD MED', dob: '01/09/2019', doa: '11/12/2008', apr: '4,15', may: '14', jun: '1', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 41, doctorName: 'Vinod bokadia', activityType: 'LGT TABLE TOP', speciality: 'Diabet/ End', dob: '24/02/1988', doa: '02/05/2014', apr: '28', may: '6,28', jun: '19,20,27', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 28, doctorName: 'VINOD KUMAR RAI', activityType: 'CRM', speciality: 'MBBS', dob: '', doa: '', apr: '2,10,17,23,24,30', may: '8,15,21,28', jun: '12,18,25', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 9, doctorName: 'VINOD MEHTA', activityType: 'CRM', speciality: 'DM NEURO', dob: '02/06/2019', doa: '', apr: '2,3,11,17', may: '14,15,26,29', jun: '16,18,19,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 28, doctorName: 'VINOD KUMAR RAI', activityType: 'CRM', speciality: 'MBBS', dob: '22/12/1969', doa: '28/04/1999', apr: '2,10,17,23,24,30', may: '8,15,21,28', jun: '12,18,25', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 9, doctorName: 'VINOD MEHTA', activityType: 'CRM', speciality: 'DM NEURO', dob: '02/06/2019', doa: '02/12/2009', apr: '2,3,11,17', may: '14,15,26,29', jun: '16,18,19,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 102, doctorName: 'VK RAMCHANDANI', activityType: '', speciality: 'General Practitioner (GP)', dob: '', doa: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 109, doctorName: 'YASH SHAH', activityType: '', speciality: 'CONS PHY', dob: '', doa: '', apr: '8,16', may: '13,25', jun: '17,26', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
-  { srNo: 63, doctorName: 'YN VERMA', activityType: '', speciality: 'MD MED', dob: '03/07/2019', doa: '', apr: '', may: '', jun: '11,22', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
+  { srNo: 63, doctorName: 'YN VERMA', activityType: '', speciality: 'MD MED', dob: '03/07/2019', doa: '11/05/1900', apr: '', may: '', jun: '11,22', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' },
   { srNo: 112, doctorName: 'YOGENDRA SINGH RANAWAT', activityType: '', speciality: 'MD CARDIO', dob: '', doa: '', apr: '', may: '', jun: '', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' }
 ];
 
@@ -195,17 +195,32 @@ export const MslSheet: React.FC = () => {
   const [search, setSearch] = useState('');
 
   const [doctors, setDoctors] = useState<MslDoctor[]>(() => {
+    const masterMap = new Map<string, MslDoctor>();
+    MASTER_123_MSL_DOCTORS.forEach(d => {
+      masterMap.set(cleanStr(d.doctorName), d);
+    });
+
     try {
       const saved = localStorage.getItem(MSL_STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
+        const parsed: MslDoctor[] = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          memoryStore.mslData = parsed;
-          return parsed;
+          const merged = parsed.map(savedDoc => {
+            const m = masterMap.get(cleanStr(savedDoc.doctorName)) || MASTER_123_MSL_DOCTORS.find(x => x.srNo === savedDoc.srNo);
+            return {
+              ...savedDoc,
+              dob: (m && m.dob) ? m.dob : (savedDoc.dob || ''),
+              doa: (m && m.doa) ? m.doa : (savedDoc.doa || '')
+            };
+          });
+          localStorage.setItem(MSL_STORAGE_KEY, JSON.stringify(merged));
+          memoryStore.mslData = merged;
+          return merged;
         }
       }
     } catch (e) {}
-    return memoryStore.mslData || MASTER_123_MSL_DOCTORS;
+    memoryStore.mslData = MASTER_123_MSL_DOCTORS;
+    return MASTER_123_MSL_DOCTORS;
   });
 
   const [activityMaster, setActivityMaster] = useState<string[]>(() => {

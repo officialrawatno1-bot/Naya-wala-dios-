@@ -2,9 +2,8 @@ import React, { useState, useRef, useMemo, Component, ErrorInfo, ReactNode } fro
 import { 
   TrendingUp, Bot, Loader2, Download, Check, AlertTriangle, 
   MessageSquare, Plus, Trash2, X, Info, UploadCloud, RefreshCw,
-  Search, DollarSign, Stethoscope, Sparkles
+  Search, DollarSign, Stethoscope, Sparkles, Edit3, Settings2
 } from 'lucide-react';
-import * as XLSX from 'xlsx-js-style';
 import { memoryStore, PartyBreakdownItem, DEFAULT_STOCKISTS, MslDoctor } from '../../data/memoryStore';
 import { MASTER_123_MSL_DOCTORS } from './MslSheet';
 import { unProgressionStore } from '../../data/unProgressionStore';
@@ -39,11 +38,15 @@ interface MetricConfig {
   isCalculated?: boolean;
   hasBreakdown?: boolean;
   isInvestment?: boolean;
+  isSubRow?: boolean;
+  isDhruviPrimary?: boolean;
 }
 
 const METRICS_CONFIG: MetricConfig[] = [
   { sn: '1', id: 'budget', name: 'BUDGET (Lacs)' },
-  { sn: '2', id: 'primary_curr', name: 'PRIMARY. 26-27 (Lacs)' },
+  { sn: '2', id: 'primary_curr', name: 'PRIMARY. 26-27 (NET) (Lacs)', isCalculated: true },
+  { sn: '↳', id: 'cbo_primary', name: '  ↳ CBO Primary (Live Fetch)', isSubRow: true },
+  { sn: '↳', id: 'dhruvi_primary', name: '  ↳ Dhruvi Primary (Lacs)', isDhruviPrimary: true, isSubRow: true },
   { sn: '', id: 'primary_prev', name: 'PRIMARY. 25-26 (Lacs)' },
   { sn: '3', id: 'prm_ach', name: '% PRM. ACHIEVEMENT', isCalculated: true },
   { sn: '', id: 'prm_growth', name: 'PRIMARY GROWTH %', isCalculated: true },
@@ -58,6 +61,8 @@ const METRICS_CONFIG: MetricConfig[] = [
 
 const INITIAL_BASE: Record<string, Record<string, string>> = {
   budget: { APR: '4.34', MAY: '4.55', JUN: '4.89', JUL: '4.83', AUG: '4.98', SEP: '5.28', OCT: '4.70', NOV: '4.93', DEC: '5.30', JAN: '4.97', FEB: '4.69', MAR: '4.55' },
+  cbo_primary: { APR: '4.34', MAY: '4.75', JUN: '5.07', JUL: '4.84', AUG: '', SEP: '', OCT: '', NOV: '', DEC: '', JAN: '', FEB: '', MAR: '' },
+  dhruvi_primary: { APR: '', MAY: '', JUN: '', JUL: '', AUG: '', SEP: '', OCT: '', NOV: '', DEC: '', JAN: '', FEB: '', MAR: '' },
   primary_curr: { APR: '4.34', MAY: '4.75', JUN: '5.07', JUL: '4.84', AUG: '', SEP: '', OCT: '', NOV: '', DEC: '', JAN: '', FEB: '', MAR: '' },
   primary_prev: { APR: '4.34', MAY: '4.66', JUN: '4.89', JUL: '4.36', AUG: '4.98', SEP: '1.82', OCT: '4.70', NOV: '4.01', DEC: '2.83', JAN: '3.50', FEB: '3.66', MAR: '2.22' },
   prm_ach: {}, prm_growth: {},
@@ -104,29 +109,38 @@ const SalesPerformanceContent: React.FC = () => {
       if (draft) {
         const parsed = JSON.parse(draft);
         if (parsed.salesBreakdown) memoryStore.salesBreakdown = { ...memoryStore.salesBreakdown, ...parsed.salesBreakdown };
-        if (parsed.formData) return parsed.formData;
+        if (parsed.formData) {
+          const d = parsed.formData;
+          if (!d.cbo_primary && d.primary_curr) d.cbo_primary = { ...d.primary_curr };
+          if (!d.dhruvi_primary) d.dhruvi_primary = {};
+          return d;
+        }
       }
     } catch (e) {}
     return memoryStore.salesPerformanceData || INITIAL_BASE;
   });
 
+  const [dhruviModes, setDhruviModes] = useState<Record<string, 'MANUAL' | 'STATEMENT'>>(() => {
+    try {
+      const saved = localStorage.getItem('dios_dhruvi_primary_modes_v1');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {};
+  });
+
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 🌟 Stockist Breakdown Modal State (For Returns & Expiry)
   const [activeStockistModal, setActiveStockistModal] = useState<{ rowId: string; rowName: string; month: string } | null>(null);
   const [stockistModalItems, setStockistModalItems] = useState<PartyBreakdownItem[]>([]);
 
-  // 🌟 Doctor Investment Modal State (For INVESTMENT*)
   const [activeInvestmentModalMonth, setActiveInvestmentModalMonth] = useState<string | null>(null);
   const [docSearchQuery, setDocSearchQuery] = useState('');
   const [newInvestmentEntry, setNewInvestmentEntry] = useState<{ doctorName: string; activityType: string; amount: number; note: string }>({
     doctorName: '', activityType: 'GIFT CARDS', amount: 0, note: ''
   });
 
-  // MSL Master Doctors for Search
   const allMslDoctors: MslDoctor[] = useMemo(() => {
     if (memoryStore.mslData && memoryStore.mslData.length > 0) return memoryStore.mslData;
     try {
@@ -144,7 +158,12 @@ const SalesPerformanceContent: React.FC = () => {
     ).slice(0, 8);
   }, [allMslDoctors, docSearchQuery]);
 
-  // Handle Stockist Breakdown (Returns / Expiry)
+  const getNetPrimary = (month: string): number => {
+    const cbo = parseFloat(formData.cbo_primary?.[month] || formData.primary_curr?.[month] || '0') || 0;
+    const dhruvi = parseFloat(formData.dhruvi_primary?.[month] || '0') || 0;
+    return Number((cbo + dhruvi).toFixed(2));
+  };
+
   const openStockistBreakdown = (rowId: string, rowName: string, month: string) => {
     const key = `${rowId}_${month}`;
     const existing = memoryStore.salesBreakdown[key] || [];
@@ -175,14 +194,13 @@ const SalesPerformanceContent: React.FC = () => {
       };
       memoryStore.salesPerformanceData = updated;
       try {
-        localStorage.setItem('dios_draft_sheet_03_sales_perf', JSON.stringify({ formData: updated, salesBreakdown: memoryStore.salesBreakdown, selectedMonth }));
+        localStorage.setItem('dios_draft_sheet_03_sales_perf', JSON.stringify({ formData: updated, salesBreakdown: memoryStore.salesBreakdown, selectedMonth, dhruviModes }));
       } catch (e) {}
       return updated;
     });
     setActiveStockistModal(null);
   };
 
-  // 🌟 Handle Doctor Investment Entries (Row 10)
   const handleSelectDoctorForInvestment = (doc: MslDoctor) => {
     setNewInvestmentEntry({
       ...newInvestmentEntry,
@@ -213,7 +231,6 @@ const SalesPerformanceContent: React.FC = () => {
     const updatedList = [...currentList, newItem];
     memoryStore.salesBreakdown[key] = updatedList;
 
-    // 🌟 Auto-Calculate Formatted 'k' String (e.g. ₹150,000 -> 150k, ₹12,500 -> 12.5k)
     const totalAmt = updatedList.reduce((sum, it) => sum + (parseFloat(String(it.amount)) || 0), 0);
     let formattedStr = '0';
     if (totalAmt >= 1000) {
@@ -255,12 +272,48 @@ const SalesPerformanceContent: React.FC = () => {
           [month]: value
         }
       };
+
+      if (rowId === 'cbo_primary' || rowId === 'dhruvi_primary') {
+        const cbo = parseFloat(rowId === 'cbo_primary' ? value : (updated.cbo_primary?.[month] || '0')) || 0;
+        const dhr = parseFloat(rowId === 'dhruvi_primary' ? value : (updated.dhruvi_primary?.[month] || '0')) || 0;
+        const net = (cbo + dhr);
+        updated.primary_curr = {
+          ...updated.primary_curr,
+          [month]: net > 0 ? net.toFixed(2) : (cbo > 0 ? cbo.toFixed(2) : '')
+        };
+      }
+
       memoryStore.salesPerformanceData = updated;
       try {
-        localStorage.setItem('dios_draft_sheet_03_sales_perf', JSON.stringify({ formData: updated, salesBreakdown: memoryStore.salesBreakdown, selectedMonth }));
+        localStorage.setItem('dios_draft_sheet_03_sales_perf', JSON.stringify({ formData: updated, salesBreakdown: memoryStore.salesBreakdown, selectedMonth, dhruviModes }));
       } catch (e) {}
       return updated;
     });
+  };
+
+  const toggleDhruviMode = (month: string) => {
+    const currentMode = dhruviModes[month] || 'MANUAL';
+    const nextMode = currentMode === 'MANUAL' ? 'STATEMENT' : 'MANUAL';
+    
+    const newModes = { ...dhruviModes, [month]: nextMode };
+    setDhruviModes(newModes);
+    try {
+      localStorage.setItem('dios_dhruvi_primary_modes_v1', JSON.stringify(newModes));
+    } catch (e) {}
+
+    if (nextMode === 'STATEMENT') {
+      let dhruviPtsVal = 0;
+      MASTER_PRODUCTS.forEach(p => {
+        const entry = memoryStore.dhruviEntries?.[p.sn];
+        if (entry && entry.salesQty) {
+          dhruviPtsVal += entry.salesQty * p.pts;
+        }
+      });
+      const lacs = dhruviPtsVal > 0 ? (dhruviPtsVal / 100000).toFixed(2) : '0';
+      handleCellChange('dhruvi_primary', month, lacs);
+      setStatusMsg(`🔄 ${month}: Dhruvi Primary Statement se auto-calculated (${lacs}L)!`);
+      setTimeout(() => setStatusMsg(''), 3000);
+    }
   };
 
   const handleAutoSyncFromDataHub = () => {
@@ -292,13 +345,17 @@ const SalesPerformanceContent: React.FC = () => {
   };
 
   const calculateCell = (rowId: string, month: string): string => {
+    if (rowId === 'primary_curr') {
+      const net = getNetPrimary(month);
+      return net > 0 ? net.toFixed(2) : (formData.primary_curr?.[month] || '-');
+    }
     if (rowId === 'prm_ach') {
-      const pri = parseFloat(formData.primary_curr?.[month] || '0');
+      const netPri = getNetPrimary(month);
       const bud = parseFloat(formData.budget?.[month] || '0');
-      return (pri > 0 && bud > 0) ? Math.round((pri / bud) * 100) + '%' : '-';
+      return (netPri > 0 && bud > 0) ? Math.round((netPri / bud) * 100) + '%' : '-';
     }
     if (rowId === 'prm_growth') {
-      const curr = parseFloat(formData.primary_curr?.[month] || '0');
+      const curr = getNetPrimary(month);
       const prev = parseFloat(formData.primary_prev?.[month] || '0');
       if (curr > 0 && prev > 0) {
         const g = Math.round(((curr - prev) / prev) * 100);
@@ -319,22 +376,36 @@ const SalesPerformanceContent: React.FC = () => {
   };
 
   const calculateCumm = (rowId: string): string => {
+    if (rowId === 'primary_curr') {
+      let tot = 0;
+      MONTHS.forEach(m => { tot += getNetPrimary(m); });
+      return tot > 0 ? tot.toFixed(2) : '-';
+    }
+    if (rowId === 'cbo_primary') {
+      let tot = 0;
+      MONTHS.forEach(m => { tot += parseFloat(formData.cbo_primary?.[m] || '0') || 0; });
+      return tot > 0 ? tot.toFixed(2) : '-';
+    }
+    if (rowId === 'dhruvi_primary') {
+      let tot = 0;
+      MONTHS.forEach(m => { tot += parseFloat(formData.dhruvi_primary?.[m] || '0') || 0; });
+      return tot > 0 ? tot.toFixed(2) : '-';
+    }
     if (rowId === 'prm_ach') {
       let totPri = 0, totBud = 0;
       MONTHS.forEach(m => {
-        const p = parseFloat(formData.primary_curr?.[m] || '0');
+        const p = getNetPrimary(m);
         const b = parseFloat(formData.budget?.[m] || '0');
         if (p > 0) { totPri += p; totBud += b; }
       });
       return totBud > 0 ? Math.round((totPri / totBud) * 100) + '%' : '0%';
     }
     if (rowId === 'prm_growth' || rowId === 'sec_growth') {
-      const fieldCurr = rowId === 'prm_growth' ? 'primary_curr' : 'sec_curr';
-      const fieldPrev = rowId === 'prm_growth' ? 'primary_prev' : 'sec_prev';
+      const isPri = rowId === 'prm_growth';
       let totCurr = 0, totPrev = 0;
       MONTHS.forEach(m => {
-        const c = parseFloat(formData[fieldCurr]?.[m] || '0');
-        const p = parseFloat(formData[fieldPrev]?.[m] || '0');
+        const c = isPri ? getNetPrimary(m) : (parseFloat(formData.sec_curr?.[m] || '0') || 0);
+        const p = parseFloat(formData[isPri ? 'primary_prev' : 'sec_prev']?.[m] || '0') || 0;
         if (c > 0) { totCurr += c; totPrev += p; }
       });
       return totPrev > 0 ? ((totCurr - totPrev) / totPrev * 100).toFixed(0) + '%' : '-';
@@ -364,15 +435,27 @@ const SalesPerformanceContent: React.FC = () => {
       });
       const data = await res.json();
       if (data && data.success) {
-        setFormData(prev => ({
-          ...prev,
-          primary_curr: { ...prev.primary_curr, [targetCode]: String(data.net_sales_lacs || '0') },
-          sales_returns: { ...prev.sales_returns, [targetCode]: String(data.sales_return || '0') },
-          expiry: { ...prev.expiry, [targetCode]: String(data.expiry || '0') },
-        }));
+        const cboLacs = String(data.net_sales_lacs || '0');
+        
+        setFormData(prev => {
+          const dhr = parseFloat(prev.dhruvi_primary?.[targetCode] || '0') || 0;
+          const net = (parseFloat(cboLacs) + dhr).toFixed(2);
+
+          const updated = {
+            ...prev,
+            cbo_primary: { ...prev.cbo_primary, [targetCode]: cboLacs },
+            primary_curr: { ...prev.primary_curr, [targetCode]: net },
+            sales_returns: { ...prev.sales_returns, [targetCode]: String(data.sales_return || '0') },
+            expiry: { ...prev.expiry, [targetCode]: String(data.expiry || '0') },
+          };
+          memoryStore.salesPerformanceData = updated;
+          return updated;
+        });
+
         if (data.sales_return_breakdown) memoryStore.salesBreakdown[`sales_returns_${targetCode}`] = data.sales_return_breakdown;
         if (data.expiry_breakdown) memoryStore.salesBreakdown[`expiry_${targetCode}`] = data.expiry_breakdown;
-        setStatusMsg(`🎉 SUCCESS! Net Primary ${data.net_sales_lacs}L, Returns ₹${data.sales_return}, Expiry ₹${data.expiry}!`);
+        
+        setStatusMsg(`🎉 SUCCESS! CBO Primary ${cboLacs}L, Returns ₹${data.sales_return}, Expiry ₹${data.expiry}!`);
       } else {
         throw new Error(data?.error || 'Failed to fetch');
       }
@@ -394,10 +477,10 @@ const SalesPerformanceContent: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               3. SALES PERFORMANCE
               <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
-                <Sparkles size={10} /> Auto-Breakdown &amp; Investment Manager
+                <Sparkles size={10} /> CBO + Dhruvi Net Primary Dual Engine
               </span>
             </h2>
-            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA • HQ: UDAIPUR • Returns, Expiry &amp; Doctor Investment Notes</p>
+            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA • HQ: UDAIPUR • Net Primary = CBO Primary + Dhruvi Primary</p>
           </div>
         </div>
 
@@ -433,11 +516,10 @@ const SalesPerformanceContent: React.FC = () => {
         </div>
       </div>
 
-      {/* CloudSyncBar */}
       <CloudSyncBar
         storageKey="review/sheet_03_sales_performance"
         sheetTitle="3. Sales Performance"
-        getData={() => ({ formData, salesBreakdown: memoryStore.salesBreakdown, selectedMonth })}
+        getData={() => ({ formData, salesBreakdown: memoryStore.salesBreakdown, selectedMonth, dhruviModes })}
         onLoadData={(cloudData: any) => {
           if (!cloudData) return;
           if (cloudData.formData) {
@@ -446,11 +528,12 @@ const SalesPerformanceContent: React.FC = () => {
           }
           if (cloudData.salesBreakdown) memoryStore.salesBreakdown = cloudData.salesBreakdown;
           if (cloudData.selectedMonth) setSelectedMonth(cloudData.selectedMonth);
+          if (cloudData.dhruviModes) setDhruviModes(cloudData.dhruviModes);
         }}
         onSaveLocal={() => {
           memoryStore.salesPerformanceData = formData;
           try {
-            localStorage.setItem('dios_draft_sheet_03_sales_perf', JSON.stringify({ formData, salesBreakdown: memoryStore.salesBreakdown, selectedMonth }));
+            localStorage.setItem('dios_draft_sheet_03_sales_perf', JSON.stringify({ formData, salesBreakdown: memoryStore.salesBreakdown, selectedMonth, dhruviModes }));
           } catch (e) {}
         }}
       />
@@ -469,13 +552,12 @@ const SalesPerformanceContent: React.FC = () => {
         </div>
       )}
 
-      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800">
               <th className="p-3 w-10 text-center">S.N.</th>
-              <th className="p-3 min-w-[240px]">Particulars</th>
+              <th className="p-3 min-w-[260px]">Particulars</th>
               {MONTHS.map(m => (
                 <th key={m} className={`p-3 text-center min-w-[75px] ${m === selectedMonth.substring(0,3).toUpperCase() ? 'text-cyan-400 bg-cyan-950/30 font-extrabold' : ''}`}>
                   {m}
@@ -485,117 +567,182 @@ const SalesPerformanceContent: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
-            {METRICS_CONFIG.map((row) => (
-              <tr key={row.id} className="hover:bg-slate-800/30 transition">
-                <td className="p-2 text-center text-slate-500 font-mono">{row.sn}</td>
-                <td className="p-2 font-medium text-slate-200 flex items-center justify-between">
-                  <span>{row.name}</span>
-                  {(row.hasBreakdown || row.isInvestment) && (
-                    <span className="text-[10px] text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30 font-mono font-bold">
-                      {row.isInvestment ? 'Dr. Manager' : 'Stockist Note'}
+            {METRICS_CONFIG.map((row) => {
+              const isNetPrimaryRow = row.id === 'primary_curr';
+              const isCboSubRow = row.id === 'cbo_primary';
+              const isDhruviSubRow = row.id === 'dhruvi_primary';
+
+              return (
+                <tr 
+                  key={row.id} 
+                  className={`transition ${
+                    isNetPrimaryRow 
+                      ? 'bg-blue-950/30 font-bold' 
+                      : isCboSubRow || isDhruviSubRow 
+                      ? 'bg-slate-950/50 text-[11px]' 
+                      : 'hover:bg-slate-800/30'
+                  }`}
+                >
+                  <td className="p-2 text-center text-slate-500 font-mono">{row.sn}</td>
+                  <td className="p-2 font-medium text-slate-200 flex items-center justify-between">
+                    <span className={isNetPrimaryRow ? 'text-cyan-300 font-bold' : isCboSubRow ? 'text-blue-300 italic' : isDhruviSubRow ? 'text-amber-300 italic' : ''}>
+                      {row.name}
                     </span>
-                  )}
-                </td>
-                
-                {MONTHS.map((m) => {
-                  const val = row.isCalculated ? calculateCell(row.id, m) : (formData[row.id]?.[m] ?? '');
-                  const breakdownKey = `${row.id}_${m}`;
-                  const items = memoryStore.salesBreakdown[breakdownKey] || [];
-                  const hasItems = items.length > 0;
+                    {(row.hasBreakdown || row.isInvestment || row.isDhruviPrimary) && (
+                      <span className="text-[10px] text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30 font-mono font-bold">
+                        {row.isDhruviPrimary ? 'Auto/Manual' : row.isInvestment ? 'Dr. Manager' : 'Stockist Note'}
+                      </span>
+                    )}
+                  </td>
+                  
+                  {MONTHS.map((m) => {
+                    const val = row.isCalculated ? calculateCell(row.id, m) : (formData[row.id]?.[m] ?? '');
+                    const breakdownKey = `${row.id}_${m}`;
+                    const items = memoryStore.salesBreakdown[breakdownKey] || [];
+                    const hasItems = items.length > 0;
 
-                  // 🌟 Investment Row 10 Click Handler
-                  if (row.isInvestment) {
-                    return (
-                      <td key={m} className="p-1 text-center">
-                        <div className="relative">
+                    if (isNetPrimaryRow) {
+                      return (
+                        <td key={m} className="p-1 text-center bg-blue-950/20">
+                          <div className="w-full py-1.5 px-2 bg-blue-950/80 rounded-lg font-mono font-black text-cyan-300 border border-blue-500/50 text-center shadow-sm">
+                            {val}
+                          </div>
+                        </td>
+                      );
+                    }
+
+                    if (isCboSubRow) {
+                      return (
+                        <td key={m} className="p-1 text-center">
                           <input
                             type="text"
-                            value={val}
-                            onClick={() => { setActiveInvestmentModalMonth(m); setDocSearchQuery(''); }}
-                            onChange={(e) => handleCellChange(row.id, m, e.target.value)}
+                            value={formData.cbo_primary?.[m] || ''}
+                            onChange={(e) => handleCellChange('cbo_primary', m, e.target.value)}
                             placeholder="-"
-                            className={`w-full py-1.5 px-2 rounded-lg font-mono text-xs border text-center transition cursor-pointer ${
-                              hasItems 
-                                ? 'bg-amber-950/40 text-amber-300 font-bold border-amber-500/60 shadow-sm' 
-                                : 'bg-slate-950 text-slate-100 border-slate-800 hover:border-slate-600'
-                            }`}
-                            title="Click to open Doctor Investment Manager"
+                            className="w-full py-1 px-1.5 bg-slate-950 text-blue-300 font-mono rounded-lg border border-slate-800 focus:border-blue-500 text-center text-xs"
+                            title="CBO Primary Dispatch in Lacs (Auto-Fetched)"
                           />
-                          {hasItems && (
-                            <span 
+                        </td>
+                      );
+                    }
+
+                    if (isDhruviSubRow) {
+                      const dhrMode = dhruviModes[m] || 'MANUAL';
+                      return (
+                        <td key={m} className="p-1 text-center">
+                          <div className="relative flex items-center">
+                            <input
+                              type="text"
+                              value={formData.dhruvi_primary?.[m] || ''}
+                              onChange={(e) => handleCellChange('dhruvi_primary', m, e.target.value)}
+                              placeholder="0"
+                              className="w-full py-1 px-1 bg-slate-950 text-amber-300 font-mono font-bold rounded-lg border border-amber-500/40 focus:border-amber-400 text-center text-xs"
+                              title={`Dhruvi Primary in Lacs (${dhrMode} Mode - Click badge to switch)`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => toggleDhruviMode(m)}
+                              className="absolute -top-1.5 -right-1 text-[8px] bg-amber-500 text-slate-950 font-black px-1 rounded-full uppercase cursor-pointer shadow"
+                              title="Click to toggle Auto Statement vs Manual"
+                            >
+                              {dhrMode === 'STATEMENT' ? 'AUTO' : 'MAN'}
+                            </button>
+                          </div>
+                        </td>
+                      );
+                    }
+
+                    if (row.isInvestment) {
+                      return (
+                        <td key={m} className="p-1 text-center">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={val}
                               onClick={() => { setActiveInvestmentModalMonth(m); setDocSearchQuery(''); }}
-                              className="absolute -top-1.5 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 cursor-pointer shadow"
-                              title={`${items.length} Doctors Investment`}
-                            >
-                              {items.length}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  }
+                              onChange={(e) => handleCellChange(row.id, m, e.target.value)}
+                              placeholder="-"
+                              className={`w-full py-1.5 px-2 rounded-lg font-mono text-xs border text-center transition cursor-pointer ${
+                                hasItems 
+                                  ? 'bg-amber-950/40 text-amber-300 font-bold border-amber-500/60 shadow-sm' 
+                                  : 'bg-slate-950 text-slate-100 border-slate-800 hover:border-slate-600'
+                              }`}
+                              title="Click to open Doctor Investment Manager"
+                            />
+                            {hasItems && (
+                              <span 
+                                onClick={() => { setActiveInvestmentModalMonth(m); setDocSearchQuery(''); }}
+                                className="absolute -top-1.5 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 cursor-pointer shadow"
+                                title={`${items.length} Doctors Investment`}
+                              >
+                                {items.length}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    }
 
-                  // 🌟 Sales Returns (Row 7) & Expiry (Row 8) Stockist Breakdown Click Handler
-                  if (row.hasBreakdown) {
+                    if (row.hasBreakdown) {
+                      return (
+                        <td key={m} className="p-1 text-center">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={val}
+                              onClick={() => openStockistBreakdown(row.id, row.name, m)}
+                              onChange={(e) => handleCellChange(row.id, m, e.target.value)}
+                              placeholder="-"
+                              className={`w-full py-1.5 px-2 rounded-lg font-mono border text-center transition text-xs cursor-pointer ${
+                                hasItems 
+                                  ? 'bg-amber-950/40 text-amber-300 font-bold border-amber-500/60 shadow-sm' 
+                                  : 'bg-slate-950 text-slate-100 border-slate-800 hover:border-slate-600'
+                              }`}
+                              title="Click to view/edit stockist breakdown"
+                            />
+                            {hasItems && (
+                              <span 
+                                onClick={() => openStockistBreakdown(row.id, row.name, m)}
+                                className="absolute -top-1.5 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 cursor-pointer shadow"
+                                title={`${items.length} Stockists`}
+                              >
+                                {items.length}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    }
+
                     return (
                       <td key={m} className="p-1 text-center">
-                        <div className="relative">
+                        {row.isCalculated ? (
+                          <div className="w-full py-1.5 px-2 bg-slate-950/80 rounded-lg font-mono font-bold text-cyan-400 border border-slate-800/60 text-center">
+                            {val}
+                          </div>
+                        ) : (
                           <input
                             type="text"
                             value={val}
-                            onClick={() => openStockistBreakdown(row.id, row.name, m)}
                             onChange={(e) => handleCellChange(row.id, m, e.target.value)}
                             placeholder="-"
-                            className={`w-full py-1.5 px-2 rounded-lg font-mono border text-center transition text-xs cursor-pointer ${
-                              hasItems 
-                                ? 'bg-amber-950/40 text-amber-300 font-bold border-amber-500/60 shadow-sm' 
-                                : 'bg-slate-950 text-slate-100 border-slate-800 hover:border-slate-600'
-                            }`}
-                            title="Click to view/edit stockist breakdown"
+                            className="w-full py-1.5 px-2 bg-slate-950 rounded-lg font-mono text-slate-100 border border-slate-800 focus:border-purple-500 text-center transition text-xs"
                           />
-                          {hasItems && (
-                            <span 
-                              onClick={() => openStockistBreakdown(row.id, row.name, m)}
-                              className="absolute -top-1.5 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 cursor-pointer shadow"
-                              title={`${items.length} Stockists`}
-                            >
-                              {items.length}
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </td>
                     );
-                  }
+                  })}
 
-                  return (
-                    <td key={m} className="p-1 text-center">
-                      {row.isCalculated ? (
-                        <div className="w-full py-1.5 px-2 bg-slate-950/80 rounded-lg font-mono font-bold text-cyan-400 border border-slate-800/60 text-center">
-                          {val}
-                        </div>
-                      ) : (
-                        <input
-                          type="text"
-                          value={val}
-                          onChange={(e) => handleCellChange(row.id, m, e.target.value)}
-                          placeholder="-"
-                          className="w-full py-1.5 px-2 bg-slate-950 rounded-lg font-mono text-slate-100 border border-slate-800 focus:border-purple-500 text-center transition text-xs"
-                        />
-                      )}
-                    </td>
-                  );
-                })}
-
-                <td className="p-2 text-center font-mono font-bold text-purple-300 bg-purple-950/20">
-                  {calculateCumm(row.id)}
-                </td>
-              </tr>
-            ))}
+                  <td className="p-2 text-center font-mono font-bold text-purple-300 bg-purple-950/20">
+                    {calculateCumm(row.id)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      {/* 🌟 1. STOCKIST BREAKDOWN MODAL (FOR RETURNS & EXPIRY) */}
       {activeStockistModal && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-amber-500/50 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
@@ -691,7 +838,6 @@ const SalesPerformanceContent: React.FC = () => {
         </div>
       )}
 
-      {/* 🌟 2. DOCTOR INVESTMENT MANAGER MODAL (WITH MASTER DOCTOR SEARCH) */}
       {activeInvestmentModalMonth && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-5">
           <div className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl max-w-2xl w-full p-5 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
@@ -711,7 +857,6 @@ const SalesPerformanceContent: React.FC = () => {
               <button onClick={() => setActiveInvestmentModalMonth(null)} className="text-slate-400 hover:text-white p-1 cursor-pointer"><X size={20} /></button>
             </div>
 
-            {/* Add Doctor Form */}
             <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-3 text-xs relative">
               <div className="text-xs font-bold text-amber-400 flex items-center justify-between">
                 <span>Add Doctor Investment Entry:</span>
@@ -722,7 +867,6 @@ const SalesPerformanceContent: React.FC = () => {
                 )}
               </div>
 
-              {/* Master Doctor Search Autocomplete */}
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
@@ -807,7 +951,6 @@ const SalesPerformanceContent: React.FC = () => {
               </div>
             </div>
 
-            {/* List of Added Investment Entries */}
             <div className="flex-1 overflow-y-auto space-y-2 border border-slate-800 rounded-2xl p-2 bg-slate-950/60 max-h-[220px]">
               {(memoryStore.salesBreakdown[`investment_${activeInvestmentModalMonth}`] || []).length === 0 ? (
                 <div className="py-6 text-center text-slate-500 text-xs font-mono">
@@ -841,7 +984,6 @@ const SalesPerformanceContent: React.FC = () => {
               )}
             </div>
 
-            {/* Modal Footer */}
             <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
               <div className="font-mono text-slate-400">
                 Cell Value Preview: <b className="text-amber-400">{formData.investment?.[activeInvestmentModalMonth] || '0'}</b>

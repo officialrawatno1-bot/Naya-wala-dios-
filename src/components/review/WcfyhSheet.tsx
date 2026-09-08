@@ -12,7 +12,7 @@ const STORAGE_KEY = 'dios_wcfyh_campaign_permanent_v2';
 export interface WcfyhRow {
   id: string;
   sn: number;
-  brand: string;
+  brand: 'VINTEL' | 'VALROS';
   drName: string;
   speciality: string;
   dateOfCampaign: string;
@@ -58,7 +58,29 @@ const INITIAL_WCFYH_SEED: WcfyhRow[] = [
   { id: 'w10', sn: 7, brand: 'VALROS', drName: 'Dilip jain', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH', campaignDoneOn: '23-Jul', rxGenerated: '', apr: '4,13,17,21,27', may: '18,26,29', jun: '9,19,29', jul: '', aug: '', sept: '', oct: '', nov: '', dec: '', jan: '', feb: '', mar: '' }
 ];
 
-const cleanStr = (s: string) => (s || '').toLowerCase().replace(/^(dr\\.?|dr\\s+)/i, '').replace(/[^a-z0-9]/g, '').trim();
+const cleanStr = (s: string) => (s || '').toLowerCase().replace(/^(dr\.?|dr\s+)/i, '').replace(/[^a-z0-9]/g, '').trim();
+
+// 🌟 STRICT AUTO-GROUPING & SERIAL NUMBER RE-INDEXING
+const organizeAndIndexRows = (rawList: WcfyhRow[]): WcfyhRow[] => {
+  const vintelList = rawList.filter(r => (r.brand || '').toUpperCase().trim() === 'VINTEL');
+  const valrosList = rawList.filter(r => (r.brand || '').toUpperCase().trim() !== 'VINTEL');
+
+  const indexedVintel = vintelList.map((r, i) => ({
+    ...r,
+    sn: i + 1,
+    brand: 'VINTEL' as const,
+    dateOfCampaign: r.dateOfCampaign || '10TH OF EVERY MONTH'
+  }));
+
+  const indexedValros = valrosList.map((r, i) => ({
+    ...r,
+    sn: i + 1,
+    brand: 'VALROS' as const,
+    dateOfCampaign: r.dateOfCampaign || '20TH OF EVERY MONTH'
+  }));
+
+  return [...indexedVintel, ...indexedValros];
+};
 
 export const WcfyhSheet: React.FC = () => {
   const [selectedSyncMonth, setSelectedSyncMonth] = useState('ALL');
@@ -70,7 +92,13 @@ export const WcfyhSheet: React.FC = () => {
   const [mslSearchQuery, setMslSearchQuery] = useState('');
   const [selectedMslDoc, setSelectedMslDoc] = useState<MslDoctor | null>(null);
 
-  const [newDocForm, setNewDocForm] = useState({
+  const [newDocForm, setNewDocForm] = useState<{
+    brand: 'VINTEL' | 'VALROS';
+    speciality: string;
+    dateOfCampaign: string;
+    campaignDoneOn: string;
+    rxGenerated: string;
+  }>({
     brand: 'VINTEL',
     speciality: 'MD MBBS, NEUROLOGY',
     dateOfCampaign: '10TH OF EVERY MONTH',
@@ -83,16 +111,19 @@ export const WcfyhSheet: React.FC = () => {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return organizeAndIndexRows(parsed);
+        }
       }
     } catch (e) {}
-    return INITIAL_WCFYH_SEED;
+    return organizeAndIndexRows(INITIAL_WCFYH_SEED);
   });
 
   const persistRows = (updated: WcfyhRow[]) => {
-    setRows(updated);
+    const sorted = organizeAndIndexRows(updated);
+    setRows(sorted);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
     } catch (e) {}
   };
 
@@ -140,7 +171,7 @@ export const WcfyhSheet: React.FC = () => {
 
     persistRows(updated);
     const mLabel = SYNC_MONTH_OPTIONS.find(o => o.key === selectedSyncMonth)?.label || selectedSyncMonth;
-    setStatusMsg(`🎉 SUCCESS: [${mLabel}] ki Visit Dates MSL Schedule se WCFYH me auto-sync ho gayi!`);
+    setStatusMsg(`🎉 SUCCESS: [${mLabel}] ki Visit Dates MSL Schedule se auto-sync ho gayi!`);
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
@@ -148,30 +179,29 @@ export const WcfyhSheet: React.FC = () => {
     setSelectedMslDoc(doc);
     setNewDocForm(prev => ({
       ...prev,
-      speciality: doc.speciality || 'DM CARD.'
+      speciality: doc.speciality || (newDocForm.brand === 'VINTEL' ? 'MD MED' : 'DM CARD.')
     }));
   };
 
-  const handleBrandSelectionChange = (newBrand: string) => {
+  const handleBrandSelectionChange = (newBrand: 'VINTEL' | 'VALROS') => {
     setNewDocForm(prev => ({
       ...prev,
       brand: newBrand,
-      dateOfCampaign: newBrand === 'VINTEL' ? '10TH OF EVERY MONTH' : '20TH OF EVERY MONTH'
+      dateOfCampaign: newBrand === 'VINTEL' ? '10TH OF EVERY MONTH' : '20TH OF EVERY MONTH',
+      speciality: prev.speciality || (newBrand === 'VINTEL' ? 'MD MED' : 'DM CARD.')
     }));
   };
 
+  // 🌟 INSERT INSIDE EXACT BRAND SECTION (Vintel top, Valros bottom)
   const handleConfirmAddMslDoctor = () => {
     if (!selectedMslDoc) {
       alert("Kripya MSL se Doctor select karein!");
       return;
     }
 
-    const sameBrandRows = rows.filter(r => r.brand === newDocForm.brand);
-    const nextSn = sameBrandRows.length > 0 ? Math.max(...sameBrandRows.map(r => r.sn)) + 1 : 1;
-
-    const newRow: any = {
+    const newRow: WcfyhRow = {
       id: 'w_' + Date.now(),
-      sn: nextSn,
+      sn: 999, // Will be auto-indexed
       brand: newDocForm.brand,
       drName: selectedMslDoc.doctorName,
       speciality: selectedMslDoc.speciality || newDocForm.speciality,
@@ -183,32 +213,36 @@ export const WcfyhSheet: React.FC = () => {
     };
 
     MONTH_KEYS.forEach(m => {
-      newRow[m.key] = (selectedMslDoc as any)[m.key] || '';
+      (newRow as any)[m.key] = (selectedMslDoc as any)[m.key] || '';
     });
 
+    // Auto-organize ensures Vintel rows stay on top and Valros rows stay at bottom
     persistRows([...rows, newRow]);
     setShowAddMslModal(false);
     setSelectedMslDoc(null);
     setMslSearchQuery('');
-    setStatusMsg(`🎉 Dr. ${newRow.drName} WCFYH (${newRow.brand}) me add ho gaye!`);
+    setStatusMsg(`🎉 Dr. ${newRow.drName} WCFYH (${newRow.brand} Section) me successfully add ho gaye!`);
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
   const handleRemoveDoctorDirect = (id: string, name: string) => {
     if (window.confirm(`⚠️ Kya aap Dr. ${name} ko WCFYH list se delete karna chahte hain?`)) {
-      persistRows(rows.filter(r => r.id !== id));
-      setStatusMsg(`🗑️ Dr. ${name} list se remove ho gaye.`);
+      const remaining = rows.filter(r => r.id !== id);
+      persistRows(remaining);
+      setStatusMsg(`🗑️ Dr. ${name} list se remove ho gaye aur Serial Numbers auto-adjust ho gaye.`);
       setTimeout(() => setStatusMsg(null), 2500);
     }
   };
 
-  // 100% UNTOUCHED Export CSV
   const handleExportCSV = () => {
     const lines: string[] = [];
     lines.push('WE CARE FOR YOUR HEALTH CAMPAIGN,,,,,,,VISIT DATES,,,,,,,,,,,');
     lines.push('S.NO.,BRAND,NAME OF THE DR.,SPECIALITY,DATE OF CAMPAIGN,CAMPAIGN DONE ON,RX GENERATED, APRIL,MAY,JUNE,JULY,AUG,SEP,OCT,NOV,DEC,JAN,FEB,MAR');
 
-    rows.forEach(r => {
+    const vintel = rows.filter(r => r.brand === 'VINTEL');
+    const valros = rows.filter(r => r.brand === 'VALROS');
+
+    vintel.forEach(r => {
       const q = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
       const row = [
         r.sn, q(r.brand), q(r.drName), q(r.speciality), q(r.dateOfCampaign),
@@ -219,8 +253,23 @@ export const WcfyhSheet: React.FC = () => {
       lines.push(row.join(','));
     });
 
-    const csvContent = lines.join('\\r\\n');
-    const blob = new Blob(['\\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    lines.push(',,,,,,,,,,,,,,,,,,');
+    lines.push(',,,,,p,,,,,,,,,,,,,');
+    lines.push(',,,,,,,,,,,,,,,,,,');
+
+    valros.forEach(r => {
+      const q = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
+      const row = [
+        r.sn, q(r.brand), q(r.drName), q(r.speciality), q(r.dateOfCampaign),
+        q(r.campaignDoneOn), q(r.rxGenerated),
+        q(r.apr), q(r.may), q(r.jun), q(r.jul), q(r.aug), q(r.sept),
+        q(r.oct), q(r.nov), q(r.dec), q(r.jan), q(r.feb), q(r.mar)
+      ];
+      lines.push(row.join(','));
+    });
+
+    const csvContent = lines.join('\r\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -230,10 +279,17 @@ export const WcfyhSheet: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  const filtered = useMemo(() => {
-    return rows.filter(r => 
-      !search || r.drName.toLowerCase().includes(search.toLowerCase()) || r.speciality.toLowerCase().includes(search.toLowerCase()) || r.brand.toLowerCase().includes(search.toLowerCase())
-    );
+  // Grouped rows for visual display
+  const vintelRows = useMemo(() => {
+    return rows
+      .filter(r => r.brand === 'VINTEL')
+      .filter(r => !search || r.drName.toLowerCase().includes(search.toLowerCase()) || r.speciality.toLowerCase().includes(search.toLowerCase()));
+  }, [rows, search]);
+
+  const valrosRows = useMemo(() => {
+    return rows
+      .filter(r => r.brand === 'VALROS')
+      .filter(r => !search || r.drName.toLowerCase().includes(search.toLowerCase()) || r.speciality.toLowerCase().includes(search.toLowerCase()));
   }, [rows, search]);
 
   return (
@@ -247,10 +303,10 @@ export const WcfyhSheet: React.FC = () => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               7. WE CARE FOR YOUR HEALTH (WCFYH) CAMPAIGN
               <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
-                Doctor Name Frozen &amp; MSL Tools
+                Strict Brand Ordering Active
               </span>
             </h2>
-            <p className="text-xs text-slate-400">BRANDS: VINTEL &amp; VALROS • Doctor Name Panes Frozen • Add/Remove from MSL</p>
+            <p className="text-xs text-slate-400">Vintel (10th) Always Top • Valros (20th) Always Bottom • Auto S.N. Sequence</p>
           </div>
         </div>
 
@@ -282,7 +338,7 @@ export const WcfyhSheet: React.FC = () => {
               className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white rounded-lg text-xs font-bold shadow transition cursor-pointer"
               title="Sync visit dates from MSL Schedule"
             >
-              <RefreshCw size={12} className="text-yellow-300" /> ⚡ Sync MSL Dates
+              <RefreshCw size={12} className="text-yellow-300" /> ⚡ Sync MSL
             </button>
           </div>
 
@@ -290,7 +346,7 @@ export const WcfyhSheet: React.FC = () => {
             onClick={() => setShowAddMslModal(true)}
             className="flex items-center gap-1 px-3.5 py-1.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
           >
-            <Plus size={14} /> + Add Doctor (From MSL)
+            <Plus size={14} /> + Add Doctor
           </button>
 
           <button
@@ -300,7 +356,6 @@ export const WcfyhSheet: React.FC = () => {
             <Trash2 size={13} /> Remove Doctor
           </button>
 
-          {/* 100% UNTOUCHED Export CSV */}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
@@ -310,7 +365,7 @@ export const WcfyhSheet: React.FC = () => {
         </div>
       </div>
 
-      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      {/* Cloud Sync Toolbar */}
       <CloudSyncBar
         storageKey="campaigns/sheet_07_wcfyh"
         sheetTitle="7. WCFYH Campaign (Vintel & Valros)"
@@ -336,7 +391,7 @@ export const WcfyhSheet: React.FC = () => {
         </div>
       )}
 
-      {/* ADD DOCTOR FROM MSL MODAL */}
+      {/* ADD DOCTOR MODAL */}
       {showAddMslModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-rose-500/60 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
@@ -344,8 +399,8 @@ export const WcfyhSheet: React.FC = () => {
               <div className="flex items-center gap-2.5">
                 <span className="p-2 bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/40"><Stethoscope size={20} /></span>
                 <div>
-                  <h3 className="text-base font-bold text-white">Select Doctor from MSL Schedule</h3>
-                  <p className="text-xs text-slate-400">Search doctor from MSL &amp; assign campaign brand</p>
+                  <h3 className="text-base font-bold text-white">Add Doctor to WCFYH Campaign</h3>
+                  <p className="text-xs text-slate-400">Select Doctor &amp; Assign to Vintel (Top) or Valros (Bottom)</p>
                 </div>
               </div>
               <button onClick={() => setShowAddMslModal(false)} className="text-slate-400 hover:text-white p-1"><X size={20} /></button>
@@ -392,18 +447,27 @@ export const WcfyhSheet: React.FC = () => {
             </div>
 
             <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-3 text-xs">
-              <div className="text-xs font-bold text-rose-400">2. Campaign Details:</div>
+              <div className="text-xs font-bold text-rose-400">2. Campaign Placement:</div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Campaign Brand</label>
-                  <select value={newDocForm.brand} onChange={e => handleBrandSelectionChange(e.target.value)} className="w-full bg-slate-900 border border-slate-700 text-cyan-300 font-bold rounded-xl px-3 py-1.5 cursor-pointer">
-                    <option value="VINTEL">VINTEL (10th of Month)</option>
-                    <option value="VALROS">VALROS (20th of Month)</option>
+                  <label className="block text-slate-400 font-semibold mb-1">Target Section (Brand)</label>
+                  <select 
+                    value={newDocForm.brand} 
+                    onChange={e => handleBrandSelectionChange(e.target.value as any)} 
+                    className="w-full bg-slate-900 border border-slate-700 text-cyan-300 font-bold rounded-xl px-3 py-1.5 cursor-pointer"
+                  >
+                    <option value="VINTEL">🔵 VINTEL (Top Section - 10th)</option>
+                    <option value="VALROS">🔴 VALROS (Bottom Section - 20th)</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-slate-400 font-semibold mb-1">Date of Campaign</label>
-                  <input type="text" value={newDocForm.dateOfCampaign} onChange={e => setNewDocForm({ ...newDocForm, dateOfCampaign: e.target.value })} className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-semibold rounded-xl px-3 py-1.5" />
+                  <input 
+                    type="text" 
+                    value={newDocForm.dateOfCampaign} 
+                    onChange={e => setNewDocForm({ ...newDocForm, dateOfCampaign: e.target.value })} 
+                    className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-semibold rounded-xl px-3 py-1.5" 
+                  />
                 </div>
               </div>
             </div>
@@ -411,7 +475,7 @@ export const WcfyhSheet: React.FC = () => {
             <div className="pt-2 border-t border-slate-800 flex items-center justify-end gap-2">
               <button type="button" onClick={() => setShowAddMslModal(false)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl">Cancel</button>
               <button type="button" onClick={handleConfirmAddMslDoctor} disabled={!selectedMslDoc} className="flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 text-white text-xs font-bold rounded-xl shadow-lg cursor-pointer">
-                <Check size={15} /> Add to WCFYH
+                <Check size={15} /> Add to {newDocForm.brand} Section
               </button>
             </div>
           </div>
@@ -437,7 +501,9 @@ export const WcfyhSheet: React.FC = () => {
               {rows.map(doc => (
                 <div key={doc.id} className="flex items-center justify-between p-2 rounded-xl bg-slate-900 border border-slate-800 text-xs">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-cyan-300 text-[10px] w-12">{doc.brand}</span>
+                    <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold ${doc.brand === 'VINTEL' ? 'bg-cyan-950 text-cyan-300' : 'bg-rose-950 text-rose-300'}`}>
+                      {doc.brand} #{doc.sn}
+                    </span>
                     <span className="font-bold text-white">{doc.drName || '(Unnamed)'}</span>
                   </div>
                   <button
@@ -457,7 +523,7 @@ export const WcfyhSheet: React.FC = () => {
         </div>
       )}
 
-      {/* Main 2-Tier Table */}
+      {/* Main Table with Visual Section Dividers */}
       <div className="overflow-x-auto max-h-[640px] border border-slate-800 rounded-2xl relative shadow-2xl">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
           <thead className="sticky top-0 z-40 bg-slate-950">
@@ -500,15 +566,92 @@ export const WcfyhSheet: React.FC = () => {
           </thead>
 
           <tbody className="bg-slate-900 divide-y divide-slate-800/60">
-            {filtered.map(row => (
+            
+            {/* 🔵 SECTION 1: VINTEL HEADER */}
+            <tr>
+              <td colSpan={20} className="bg-cyan-950/90 px-3 py-2 text-xs font-black text-cyan-300 border-y-2 border-cyan-500/60 uppercase tracking-wider">
+                🔵 SECTION 1: VINTEL CAMPAIGN (10TH OF EVERY MONTH) — ({vintelRows.length} Doctors)
+              </td>
+            </tr>
+
+            {vintelRows.map(row => (
               <tr key={row.id} className="hover:bg-slate-800/60 transition group">
-                <td style={{ width: '42px', minWidth: '42px', left: 0 }} className="p-2 text-center font-mono text-slate-400 border-b border-r border-slate-800/80 sticky bg-slate-900 group-hover:bg-slate-800 z-20">
+                <td style={{ width: '42px', minWidth: '42px', left: 0 }} className="p-2 text-center font-mono text-cyan-300 font-bold border-b border-r border-slate-800/80 sticky bg-slate-900 group-hover:bg-slate-800 z-20">
                   {row.sn}
                 </td>
 
                 <td style={{ width: '85px', minWidth: '85px', left: '42px' }} className="p-1 border-b border-r border-slate-800/80 sticky bg-slate-900 group-hover:bg-slate-800 z-20">
-                  <span className={`px-2 py-1 rounded font-bold text-[10px] font-mono ${row.brand === 'VINTEL' ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40' : 'bg-rose-950 text-rose-300 border border-rose-500/40'}`}>
-                    {row.brand}
+                  <span className="px-2 py-0.5 rounded font-bold text-[10px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-500/40">
+                    VINTEL
+                  </span>
+                </td>
+
+                <td style={{ width: '180px', minWidth: '180px', left: '127px' }} className="p-1 border-b border-r-4 border-cyan-500 shadow-[4px_0_12px_rgba(0,0,0,0.6)] sticky bg-slate-900 group-hover:bg-slate-800 z-20">
+                  <input
+                    type="text"
+                    value={row.drName}
+                    onChange={e => handleFieldChange(row.id, 'drName', e.target.value)}
+                    placeholder="Doctor Name"
+                    className="w-full py-1.5 px-2 bg-slate-950 rounded-md font-bold text-white text-xs border border-slate-800 focus:border-cyan-500 focus:outline-none"
+                  />
+                </td>
+
+                <td className="p-1 border-b border-r border-slate-800/80">
+                  <input type="text" value={row.speciality} onChange={e => handleFieldChange(row.id, 'speciality', e.target.value)} className="w-full py-1.5 px-2 bg-slate-950 border border-slate-800 text-slate-300 rounded text-xs" />
+                </td>
+
+                <td className="p-1 border-b border-r border-slate-800/80">
+                  <input type="text" value={row.dateOfCampaign} onChange={e => handleFieldChange(row.id, 'dateOfCampaign', e.target.value)} className="w-full py-1.5 px-2 bg-slate-950 border border-slate-800 text-amber-300 text-xs font-semibold" />
+                </td>
+
+                <td className="p-1 text-center border-b border-r border-slate-800/80">
+                  <input type="text" value={row.campaignDoneOn} onChange={e => handleFieldChange(row.id, 'campaignDoneOn', e.target.value)} placeholder="e.g. 10-Jul" className="w-full py-1.5 bg-slate-950 border border-slate-800 text-center font-mono font-bold text-cyan-300 rounded text-xs" />
+                </td>
+
+                <td className="p-1 text-center border-b border-r border-slate-800/80">
+                  <input type="text" value={row.rxGenerated} onChange={e => handleFieldChange(row.id, 'rxGenerated', e.target.value)} placeholder="-" className="w-full py-1.5 bg-slate-950 border border-slate-800 text-center font-mono font-bold text-purple-300 rounded text-xs" />
+                </td>
+
+                {MONTH_KEYS.map(m => (
+                  <td key={m.key} className="p-1 text-center border-b border-r border-slate-800/60 w-[120px] min-w-[120px]">
+                    <input
+                      type="text"
+                      value={(row as any)[m.key] || ''}
+                      onChange={e => handleFieldChange(row.id, m.key as any, e.target.value)}
+                      placeholder="-"
+                      className="w-full py-1.5 px-1 bg-slate-950 rounded-md font-mono font-bold text-center text-xs text-cyan-300 border border-slate-800 focus:border-cyan-500 focus:outline-none"
+                    />
+                  </td>
+                ))}
+
+                <td className="p-1 text-center border-b border-slate-800">
+                  <button
+                    onClick={() => handleRemoveDoctorDirect(row.id, row.drName)}
+                    className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition cursor-pointer"
+                    title="Delete Row"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+
+            {/* 🔴 SECTION 2: VALROS HEADER */}
+            <tr>
+              <td colSpan={20} className="bg-rose-950/90 px-3 py-2 text-xs font-black text-rose-300 border-y-2 border-rose-500/60 uppercase tracking-wider mt-4">
+                🔴 SECTION 2: VALROS CAMPAIGN (20TH OF EVERY MONTH) — ({valrosRows.length} Doctors)
+              </td>
+            </tr>
+
+            {valrosRows.map(row => (
+              <tr key={row.id} className="hover:bg-slate-800/60 transition group">
+                <td style={{ width: '42px', minWidth: '42px', left: 0 }} className="p-2 text-center font-mono text-rose-300 font-bold border-b border-r border-slate-800/80 sticky bg-slate-900 group-hover:bg-slate-800 z-20">
+                  {row.sn}
+                </td>
+
+                <td style={{ width: '85px', minWidth: '85px', left: '42px' }} className="p-1 border-b border-r border-slate-800/80 sticky bg-slate-900 group-hover:bg-slate-800 z-20">
+                  <span className="px-2 py-0.5 rounded font-bold text-[10px] font-mono bg-rose-950 text-rose-300 border border-rose-500/40">
+                    VALROS
                   </span>
                 </td>
 
@@ -561,6 +704,7 @@ export const WcfyhSheet: React.FC = () => {
                 </td>
               </tr>
             ))}
+
           </tbody>
         </table>
       </div>

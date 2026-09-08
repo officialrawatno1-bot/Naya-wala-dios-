@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  ArrowLeft, Zap, Upload, FileSpreadsheet, Download, CheckCircle2, 
+  ArrowLeft, PackageCheck, Zap, Upload, FileSpreadsheet, Download, CheckCircle2, 
   Trash2, Eye, X, RefreshCw, Layers, Building2, Search, Calculator,
   Package, Bot, Sparkles, Check, Loader2, Calendar, AlertTriangle, 
   FileSpreadsheet as ExcelIcon, Edit3
@@ -72,6 +72,8 @@ export const DiosWorkspace: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   // 📝 Dhruvi Modal State
   const [showDhruviModal, setShowDhruviModal] = useState(false);
+  const [isSavingStockwise, setIsSavingStockwise] = useState(false);
+  const [stockwiseSaveStatus, setStockwiseSaveStatus] = useState<string | null>(null);
 
   // CBO Modal State
   const [showCboModal, setShowCboModal] = useState(false);
@@ -344,6 +346,49 @@ export const DiosWorkspace: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     alert(`🎉 SUCCESS! Synced ${selectedMonth} (${products.reduce((a,b)=>a+b.netSec,0)} Sales Units, ${products.reduce((a,b)=>a+b.closing,0)} Closing Units) to Data Hub (4. Un. Sales Prog)!`);
   };
 
+  // 📦 Save Month Statements to Stockwise Vault & Cloudflare KV
+  const handleSaveToStockwiseStatement = async () => {
+    if (activePartyNames.length === 0 && !primaryData) {
+      alert("Kripya pehle kisi party ka statement upload ya fill karein!");
+      return;
+    }
+    setIsSavingStockwise(true);
+    setStockwiseSaveStatus(null);
+    const mCode = selectedMonth.substring(0, 3).toUpperCase();
+    const storageKey = `statements/stockwise_${mCode}_2026`;
+
+    const payload = {
+      month: selectedMonth,
+      monthCode: mCode,
+      year: '2026',
+      savedAt: new Date().toISOString(),
+      activePartiesCount: activePartyNames.length,
+      partyDataMap,
+      primaryData,
+      summary
+    };
+
+    try {
+      localStorage.setItem(`dios_stockwise_statement_${mCode}_2026`, JSON.stringify(payload));
+      const res = await fetch('/api/cloud-storage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: storageKey,
+          data: payload,
+          device: 'iPad Safari'
+        })
+      });
+      const resJson = await res.json().catch(() => ({}));
+      if (resJson && resJson.success === false) throw new Error(resJson.error || 'KV failed');
+      setStockwiseSaveStatus(`🎉 ${selectedMonth} ke Statements (${activePartyNames.length} Parties) successfully Stockwise Statement & Cloudflare KV me save ho gaye!`);
+    } catch (err: any) {
+      setStockwiseSaveStatus(`💾 ${selectedMonth} Statements local draft me save ho gaye (Cloud Notice: ${err.message})`);
+    } finally {
+      setIsSavingStockwise(false);
+    }
+  };
+
   const handleExport = () => {
     exportToExcel(products as any, selectedMonth, activePartyNames, summary);
   };
@@ -400,6 +445,16 @@ export const DiosWorkspace: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             </button>
           )}
                     <button
+            onClick={handleSaveToStockwiseStatement}
+            disabled={isSavingStockwise || (activePartyNames.length === 0 && !primaryData)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:opacity-40 text-slate-950 rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20 transition cursor-pointer"
+            title="Save all party statements of this month to Web Data (Stockwise Statement) and Cloudflare KV"
+          >
+            {isSavingStockwise ? <Loader2 size={15} className="animate-spin" /> : <PackageCheck size={15} />}
+            {isSavingStockwise ? 'Saving to KV...' : `📦 Save to Stockwise (${selectedMonth.substring(0,3)})`}
+          </button>
+
+          <button
             onClick={handleSyncToDataHub}
             className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/20 transition cursor-pointer"
             title="Save and Push aggregated data into Data Hub Un. Sales Prog"
@@ -420,6 +475,16 @@ export const DiosWorkspace: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           </button>
         </div>
       </div>
+
+      {stockwiseSaveStatus && (
+        <div className="mb-4 p-3 bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 rounded-xl text-xs flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-emerald-400" />
+            <span className="font-semibold">{stockwiseSaveStatus}</span>
+          </div>
+          <button onClick={() => setStockwiseSaveStatus(null)} className="p-1 hover:text-white cursor-pointer"><X size={15} /></button>
+        </div>
+      )}
 
       {/* PRIMARY ENGINE CARD */}
       <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-blue-950/60 via-slate-900 to-indigo-950/60 border border-blue-500/40 shadow-xl">

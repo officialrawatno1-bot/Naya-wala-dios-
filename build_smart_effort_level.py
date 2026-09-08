@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import os
+
+code = """import React, { useState, useMemo } from 'react';
 import { 
   Activity, Download, Zap, Check, MessageSquare, Plus, 
   Trash2, X, Search, Calendar, Stethoscope, Sparkles, Cake, Heart,
@@ -474,18 +476,14 @@ export const EffortLevelSheet: React.FC = () => {
   };
 
   const handleExportCSV = () => {
-    let csv = `BE Name - ,${beName},FIELD WORK ACTIVITY,,,,,,,,,,,,
-`;
-    csv += `H.Q- ,${hqName},,,,,,,,,,,,,,
-`;
-    csv += `S.N.,PARTICULARS,${MONTHS.join(',')},CUMM
-`;
+    let csv = `BE Name - ,${beName},FIELD WORK ACTIVITY,,,,,,,,,,,,\n`;
+    csv += `H.Q- ,${hqName},,,,,,,,,,,,,,\n`;
+    csv += `S.N.,PARTICULARS,${MONTHS.join(',')},CUMM\n`;
 
     ROW_DEFINITIONS.forEach(row => {
       const monthVals = MONTHS.map(m => row.isCalculated ? calculateCell(row.id, m) : (formData[row.id]?.[m] || ''));
       const cumm = calculateCumm(row.id);
-      csv += `${row.sn},"${row.title}",${monthVals.join(',')},${cumm}
-`;
+      csv += `${row.sn},"${row.title}",${monthVals.join(',')},${cumm}\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1003,3 +1001,9 @@ export const EffortLevelSheet: React.FC = () => {
     </div>
   );
 };
+"""
+
+with open('src/components/review/EffortLevelSheet.tsx', 'w', encoding='utf-8') as f:
+    f.write(code)
+
+print("✅ Successfully generated smart EffortLevelSheet.tsx with multi-month suggestions!")
