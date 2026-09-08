@@ -12,16 +12,28 @@ const ROWS_CONFIG = [
   { sn: '4', id: 'sec_curr',     title: 'SECONDARY 26-27' },
   { sn: '5', id: 'sec_prev',     title: 'SECONDARY 25-26' },
   { sn: '6', id: 'sec_growth',   title: 'SECONDARY GROWTH' },
-  { sn: '7', id: 'sales_returns',title: 'SALES RETURNS' },
-  { sn: '8', id: 'expiry',       title: 'EXPIRY' },
+  { sn: '7', id: 'sales_returns',title: 'SALES RETURNS', isReturn: true },
+  { sn: '8', id: 'expiry',       title: 'EXPIRY', isExpiry: true },
   { sn: '9', id: 'closing_stock',title: 'CLOSING STOCK' },
-  { sn: '10',id: 'investment',   title: 'INVESTMENT*' },
+  { sn: '10',id: 'investment',   title: 'INVESTMENT*', isInvestment: true },
 ];
 
 export function buildSheet03_SalesPerformance(data?: any) {
   const beName = data?.beName || memoryStore.beName || 'BANWARI LAL MEENA';
   const hqName = data?.hqName || memoryStore.hqName || 'UDAIPUR';
   const formData = data?.formData || memoryStore.salesPerformanceData || {};
+
+  // Extract breakdowns from KV or memoryStore or localStorage
+  let salesBreakdown: Record<string, any[]> = data?.salesBreakdown || memoryStore.salesBreakdown || {};
+  if (Object.keys(salesBreakdown).length === 0 && typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('dios_draft_sheet_03_sales_perf');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.salesBreakdown) salesBreakdown = parsed.salesBreakdown;
+      }
+    } catch (e) {}
+  }
 
   const wsData: any[][] = [];
 
@@ -67,38 +79,74 @@ export function buildSheet03_SalesPerformance(data?: any) {
     MONTHS.forEach(m => {
       let val = formData[cfg.id]?.[m];
 
-      // Dynamic calculations if not in raw formData
       if (val === undefined || val === '') {
         if (cfg.id === 'prm_ach') {
           const pri = parseFloat(formData.primary_curr?.[m] || '0');
           const bud = parseFloat(formData.budget?.[m] || '0');
           val = (pri > 0 && bud > 0) ? Math.round((pri / bud) * 100) : '';
-        } else if (cfg.id === 'prm_growth') {
-          const curr = parseFloat(formData.primary_curr?.[m] || '0');
-          const prev = parseFloat(formData.primary_prev?.[m] || '0');
-          if (curr > 0 && prev > 0) val = Math.round(((curr - prev) / prev) * 100);
-          else if (prev > 0) val = -100;
-        } else if (cfg.id === 'sec_growth') {
-          const curr = parseFloat(formData.sec_curr?.[m] || '0');
-          const prev = parseFloat(formData.sec_prev?.[m] || '0');
+        } else if (cfg.id === 'prm_growth' || cfg.id === 'sec_growth') {
+          const fieldCurr = cfg.id === 'prm_growth' ? 'primary_curr' : 'sec_curr';
+          const fieldPrev = cfg.id === 'prm_growth' ? 'primary_prev' : 'sec_prev';
+          const curr = parseFloat(formData[fieldCurr]?.[m] || '0');
+          const prev = parseFloat(formData[fieldPrev]?.[m] || '0');
           if (curr > 0 && prev > 0) val = Math.round(((curr - prev) / prev) * 100);
           else if (prev > 0) val = -100;
         }
       }
 
       const displayVal = val !== undefined && val !== null ? val : '';
-      rowCells.push({ v: displayVal, s: standardTheme.cellCenter });
+      const cellObj: any = { v: displayVal, s: standardTheme.cellCenter };
+
+      // 🌟 1. Native Excel Hover Comment for SALES RETURNS (Row 7)
+      if (cfg.isReturn) {
+        const retItems = salesBreakdown[`sales_returns_${m}`] || [];
+        if (retItems.length > 0) {
+          const lines = retItems.map(it => `• ${it.partyName}: ₹${Number(it.amount).toLocaleString()} ${it.note ? '(' + it.note + ')' : ''}`);
+          cellObj.c = [{
+            a: 'DIOS Returns',
+            t: `=== SALES RETURNS (${m} 2026) ===\n${lines.join('\n')}\nTotal: ₹${Number(displayVal).toLocaleString()}`
+          }];
+          cellObj.s = { ...standardTheme.cellCenter, fill: { fgColor: { rgb: 'FEF9C3' } } };
+        }
+      }
+
+      // 🌟 2. Native Excel Hover Comment for EXPIRY (Row 8)
+      if (cfg.isExpiry) {
+        const expItems = salesBreakdown[`expiry_${m}`] || [];
+        if (expItems.length > 0) {
+          const lines = expItems.map(it => `• ${it.partyName}: ₹${Number(it.amount).toLocaleString()} ${it.note ? '(' + it.note + ')' : ''}`);
+          cellObj.c = [{
+            a: 'DIOS Expiry',
+            t: `=== EXPIRY BREAKDOWN (${m} 2026) ===\n${lines.join('\n')}\nTotal: ₹${Number(displayVal).toLocaleString()}`
+          }];
+          cellObj.s = { ...standardTheme.cellCenter, fill: { fgColor: { rgb: 'FEF9C3' } } };
+        }
+      }
+
+      // 🌟 3. Native Excel Hover Comment for INVESTMENT* (Row 10)
+      if (cfg.isInvestment) {
+        const invItems = salesBreakdown[`investment_${m}`] || [];
+        if (invItems.length > 0) {
+          const lines = invItems.map(it => `• ${it.doctorName || it.partyName}: ₹${Number(it.amount).toLocaleString()} - ${it.activityType || 'GIFT CARDS'} ${it.note ? '(' + it.note + ')' : ''}`);
+          const totalAmt = invItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+          cellObj.c = [{
+            a: 'DIOS Doctor Investment',
+            t: `=== DOCTOR INVESTMENT (${m} 2026) ===\n${lines.join('\n')}\nTotal Investment: ₹${totalAmt.toLocaleString()} (${displayVal})`
+          }];
+          cellObj.s = { ...standardTheme.cellCenter, fill: { fgColor: { rgb: 'FEF9C3' } } };
+        }
+      }
+
+      rowCells.push(cellObj);
 
       const n = parseFloat(String(displayVal));
       if (!isNaN(n)) { sum += n; hasNumeric = true; }
     });
 
-    // CUMM Column Calculation
+    // CUMM Column
     let cummVal = formData[cfg.id]?.['CUMM'];
     if (!cummVal) {
-      if (cfg.id === 'budget' || cfg.id === 'primary_prev' || cfg.id === 'sec_prev') {
-        cummVal = sum > 0 ? Number(sum.toFixed(2)) : '';
-      } else if (cfg.id === 'primary_curr' || cfg.id === 'sec_curr') {
+      if (cfg.id === 'budget' || cfg.id === 'primary_prev' || cfg.id === 'sec_prev' || cfg.id === 'primary_curr' || cfg.id === 'sec_curr') {
         cummVal = sum > 0 ? Number(sum.toFixed(2)) : '';
       } else if (cfg.id === 'sales_returns' || cfg.id === 'expiry') {
         cummVal = sum > 0 ? Math.round(sum) : '';
@@ -125,15 +173,15 @@ export function buildSheet03_SalesPerformance(data?: any) {
     wsData,
     sheetName: '3_SALES PERFORMANCE',
     merges: [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }, // BE Name merge
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } }, // HQ merge
-      { s: { r: 0, c: 2 }, e: { r: 1, c: 14 } }, // Top Dark Grey Bar merge across Cols C to O
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
+      { s: { r: 0, c: 2 }, e: { r: 1, c: 14 } },
     ],
     cols: [
-      { wch: 5 },  // S.N.
-      { wch: 24 }, // PARTICULARS
-      ...MONTHS.map(() => ({ wch: 9 })), // Months
-      { wch: 9 }   // CUMM
+      { wch: 5 },
+      { wch: 24 },
+      ...MONTHS.map(() => ({ wch: 9 })),
+      { wch: 9 }
     ]
   };
 }

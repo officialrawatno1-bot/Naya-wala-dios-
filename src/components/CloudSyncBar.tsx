@@ -33,7 +33,6 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
   const [historyList, setHistoryList] = useState<Array<{ snapshotKey: string; timestamp: string }>>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Auto-clear message after 3.5 seconds
   useEffect(() => {
     if (statusMsg) {
       const timer = setTimeout(() => setStatusMsg(null), 3500);
@@ -41,15 +40,11 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
     }
   }, [statusMsg]);
 
-  // Handler: Save Local Draft
   const handleLocalSave = () => {
-    if (onSaveLocal) {
-      onSaveLocal();
-    }
+    if (onSaveLocal) onSaveLocal();
     setStatusMsg({ type: 'success', text: '💾 Local Draft Saved on this iPad!' });
   };
 
-  // Handler: Push / Update to Cloudflare KV
   const handleUpdateToCloud = async () => {
     setIsUpdating(true);
     setStatusMsg(null);
@@ -66,9 +61,7 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
       });
 
       const resData = await res.json();
-      if (!resData.success) {
-        throw new Error(resData.error || 'Cloud sync failed');
-      }
+      if (!resData.success) throw new Error(resData.error || 'Cloud sync failed');
 
       const now = new Date();
       const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' (' + now.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ')';
@@ -76,6 +69,9 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
       try {
         localStorage.setItem(`dios_sync_ts_${storageKey}`, formattedTime);
       } catch (e) {}
+
+      // Save locally too
+      if (onSaveLocal) onSaveLocal();
 
       setStatusMsg({ type: 'success', text: `✅ Cloud Updated Successfully at ${formattedTime}!` });
     } catch (err: any) {
@@ -85,31 +81,37 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
     }
   };
 
-  // Handler: Pull Fresh from Cloudflare KV
+  // 🌟 PULL WITH ANTI-CACHE & IMMEDIATE LOCALSTORAGE OVERWRITE
   const handlePullFromCloud = async () => {
     setIsPulling(true);
     setStatusMsg(null);
     try {
-      const res = await fetch(`/api/cloud-storage?key=${encodeURIComponent(storageKey)}&t=${Date.now()}`);
+      const freshUrl = `/api/cloud-storage?key=${encodeURIComponent(storageKey)}&t=${Date.now()}&_r=${Math.random()}`;
+      const res = await fetch(freshUrl, { cache: 'no-store' });
       const resData = await res.json();
-      if (!resData.success) {
-        throw new Error(resData.error || 'Failed to pull from cloud');
-      }
+      if (!resData.success) throw new Error(resData.error || 'Failed to pull from cloud');
 
       if (resData.data === null || resData.data === undefined) {
-        setStatusMsg({ type: 'error', text: 'ℹ️ No cloud data found yet. Click "Update to Cloud" to push first version!' });
+        setStatusMsg({ type: 'error', text: 'ℹ️ No cloud data found for this sheet yet.' });
         return;
       }
 
+      // 1. Update React State on Screen
       onLoadData(resData.data);
+
+      // 2. 🌟 Immediately Overwrite iPad's LocalStorage Draft!
+      setTimeout(() => {
+        if (onSaveLocal) onSaveLocal();
+      }, 50);
 
       if (resData.updatedAt) {
         const dt = new Date(resData.updatedAt);
         const formattedTime = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' (' + dt.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ')';
         setLastSyncTime(formattedTime);
+        try { localStorage.setItem(`dios_sync_ts_${storageKey}`, formattedTime); } catch (e) {}
       }
 
-      setStatusMsg({ type: 'success', text: '📥 Fresh data loaded from Cloudflare Cloud!' });
+      setStatusMsg({ type: 'success', text: '📥 Fresh data loaded from Cloud & Local Draft Overwritten!' });
     } catch (err: any) {
       setStatusMsg({ type: 'error', text: `❌ Pull Error: ${err.message || String(err)}` });
     } finally {
@@ -117,12 +119,11 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
     }
   };
 
-  // Handler: Fetch History Snapshots
   const handleOpenHistory = async () => {
     setShowHistoryModal(true);
     setLoadingHistory(true);
     try {
-      const res = await fetch(`/api/cloud-storage?action=history&key=${encodeURIComponent(storageKey)}`);
+      const res = await fetch(`/api/cloud-storage?action=history&key=${encodeURIComponent(storageKey)}&t=${Date.now()}`, { cache: 'no-store' });
       const resData = await res.json();
       if (resData.success && Array.isArray(resData.history)) {
         setHistoryList(resData.history);
@@ -136,19 +137,20 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
     }
   };
 
-  // Handler: Restore a specific snapshot
+  // 🌟 RESTORE SNAPSHOT WITH IMMEDIATE LOCAL OVERWRITE
   const handleRestoreSnapshot = async (snapshotKey: string) => {
-    if (!window.confirm("Kya aap is backup snapshot ko screen par restore karna chahte hain?")) {
-      return;
-    }
+    if (!window.confirm("Kya aap is backup snapshot ko screen par restore karna chahte hain?")) return;
     setLoadingHistory(true);
     try {
-      const res = await fetch(`/api/cloud-storage?key=${encodeURIComponent(snapshotKey)}`);
+      const res = await fetch(`/api/cloud-storage?key=${encodeURIComponent(snapshotKey)}&t=${Date.now()}`, { cache: 'no-store' });
       const resData = await res.json();
       if (resData.success && resData.data) {
         onLoadData(resData.data);
+        setTimeout(() => {
+          if (onSaveLocal) onSaveLocal();
+        }, 50);
         setShowHistoryModal(false);
-        setStatusMsg({ type: 'success', text: '🔄 Backup snapshot restored onto screen!' });
+        setStatusMsg({ type: 'success', text: '🔄 Snapshot restored & saved to local draft!' });
       }
     } catch (e: any) {
       alert("Restore failed: " + e.message);
@@ -160,8 +162,6 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-950/90 rounded-xl border border-cyan-500/30 text-xs shadow-md">
-        
-        {/* Left: Indicator & Status */}
         <div className="flex items-center gap-2">
           <span className="p-1.5 bg-cyan-500/10 text-cyan-400 rounded-lg border border-cyan-500/30">
             <Cloud size={15} />
@@ -183,9 +183,7 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
           </div>
         </div>
 
-        {/* Right: Buttons Group */}
         <div className="flex flex-wrap items-center gap-1.5">
-          {/* 1. Local Draft */}
           <button
             type="button"
             onClick={handleLocalSave}
@@ -195,19 +193,17 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
             <Save size={13} /> Draft
           </button>
 
-          {/* 2. Update to Cloud */}
           <button
             type="button"
             onClick={handleUpdateToCloud}
             disabled={isUpdating}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold shadow-md shadow-cyan-600/20 transition cursor-pointer text-xs"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 disabled:opacity-50 text-white rounded-xl font-bold shadow-md transition cursor-pointer text-xs"
             title="Push to Cloudflare KV"
           >
             {isUpdating ? <Loader2 size={13} className="animate-spin" /> : <CloudUpload size={13} />}
             {isUpdating ? 'Uploading...' : '☁️ Update to Cloud'}
           </button>
 
-          {/* 3. Pull from Cloud */}
           <button
             type="button"
             onClick={handlePullFromCloud}
@@ -219,7 +215,6 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
             {isPulling ? 'Loading...' : '📥 Pull Cloud'}
           </button>
 
-          {/* 4. History / Restore */}
           <button
             type="button"
             onClick={handleOpenHistory}
@@ -231,17 +226,15 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
         </div>
       </div>
 
-      {/* Notification Toast */}
       {statusMsg && (
         <div className={`p-2 px-3 rounded-xl text-xs flex items-center justify-between border ${
           statusMsg.type === 'success' ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200' : 'bg-rose-950/80 border-rose-500/50 text-rose-200'
         }`}>
           <span>{statusMsg.text}</span>
-          <button onClick={() => setStatusMsg(null)} className="p-0.5 hover:text-white"><X size={13} /></button>
+          <button onClick={() => setStatusMsg(null)} className="p-0.5 hover:text-white cursor-pointer"><X size={13} /></button>
         </div>
       )}
 
-      {/* History Modal */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-4 space-y-3 shadow-2xl">
@@ -250,7 +243,7 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
                 <History size={16} className="text-cyan-400" />
                 <h4 className="text-sm font-bold text-white">Version History (Time Machine)</h4>
               </div>
-              <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-white"><X size={16} /></button>
+              <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X size={16} /></button>
             </div>
 
             <p className="text-xs text-slate-400">Select any previous backup snapshot to restore on screen:</p>
@@ -262,7 +255,7 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
                 </div>
               ) : historyList.length === 0 ? (
                 <div className="p-4 text-center text-xs text-slate-500 bg-slate-950 rounded-xl">
-                  No backup snapshots found yet. Click "Update to Cloud" to create first snapshot.
+                  No backup snapshots found yet.
                 </div>
               ) : (
                 historyList.map((item, idx) => {
@@ -286,7 +279,7 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
             </div>
 
             <div className="pt-2 border-t border-slate-800 flex justify-end">
-              <button onClick={() => setShowHistoryModal(false)} className="px-4 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-xl">Close</button>
+              <button onClick={() => setShowHistoryModal(false)} className="px-4 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-xl cursor-pointer">Close</button>
             </div>
           </div>
         </div>

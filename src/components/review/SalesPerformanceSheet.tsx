@@ -1,13 +1,14 @@
-import React, { useState, useRef, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useState, useRef, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { 
   TrendingUp, Bot, Loader2, Download, Check, AlertTriangle, 
-  MessageSquare, Plus, Trash2, X, Info, UploadCloud, RefreshCw
+  MessageSquare, Plus, Trash2, X, Info, UploadCloud, RefreshCw,
+  Search, DollarSign, Stethoscope, Sparkles
 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
-import { memoryStore, PartyBreakdownItem, DEFAULT_STOCKISTS } from '../../data/memoryStore';
+import { memoryStore, PartyBreakdownItem, DEFAULT_STOCKISTS, MslDoctor } from '../../data/memoryStore';
+import { MASTER_123_MSL_DOCTORS } from './MslSheet';
 import { unProgressionStore } from '../../data/unProgressionStore';
 import { MASTER_PRODUCTS } from '../../data/masterProducts';
-import '../../data/seedRemarks';
 import { CloudSyncBar } from '../CloudSyncBar';
 
 const MONTHS = ['APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR'];
@@ -27,12 +28,17 @@ const MONTH_OPTIONS = [
   { label: 'Mar-2027', value: 'Mar-2027', code: 'MAR' },
 ];
 
+const INVESTMENT_ACTIVITY_TYPES = [
+  'CASH', 'GIFT CARDS', 'CONFERENCE', 'DINNER', 'IPHONE', 'HOTEL', 'SPECIAL PLAN', 'CHEQUE', 'HARRISON BOOK'
+];
+
 interface MetricConfig {
   sn: string;
   id: string;
   name: string;
   isCalculated?: boolean;
   hasBreakdown?: boolean;
+  isInvestment?: boolean;
 }
 
 const METRICS_CONFIG: MetricConfig[] = [
@@ -47,15 +53,14 @@ const METRICS_CONFIG: MetricConfig[] = [
   { sn: '7', id: 'sales_returns', name: 'SALES RETURNS (₹)', hasBreakdown: true },
   { sn: '8', id: 'expiry', name: 'EXPIRY (₹)', hasBreakdown: true },
   { sn: '9', id: 'closing_stock', name: 'CLOSING STOCK (Lacs)' },
-  { sn: '10', id: 'investment', name: 'INVESTMENT' }
+  { sn: '10', id: 'investment', name: 'INVESTMENT*', isInvestment: true }
 ];
 
 const INITIAL_BASE: Record<string, Record<string, string>> = {
   budget: { APR: '4.34', MAY: '4.55', JUN: '4.89', JUL: '4.83', AUG: '4.98', SEP: '5.28', OCT: '4.70', NOV: '4.93', DEC: '5.30', JAN: '4.97', FEB: '4.69', MAR: '4.55' },
   primary_curr: { APR: '4.34', MAY: '4.75', JUN: '5.07', JUL: '4.84', AUG: '', SEP: '', OCT: '', NOV: '', DEC: '', JAN: '', FEB: '', MAR: '' },
   primary_prev: { APR: '4.34', MAY: '4.66', JUN: '4.89', JUL: '4.36', AUG: '4.98', SEP: '1.82', OCT: '4.70', NOV: '4.01', DEC: '2.83', JAN: '3.50', FEB: '3.66', MAR: '2.22' },
-  prm_ach: {},
-  prm_growth: {},
+  prm_ach: {}, prm_growth: {},
   sec_curr: { APR: '5.11', MAY: '4.74', JUN: '5.28', JUL: '4.80', AUG: '', SEP: '', OCT: '', NOV: '', DEC: '', JAN: '', FEB: '', MAR: '' },
   sec_prev: { APR: '4.06', MAY: '4.44', JUN: '4.48', JUL: '4.95', AUG: '4.51', SEP: '4.28', OCT: '4.53', NOV: '4.47', DEC: '4.72', JAN: '4.73', FEB: '4.04', MAR: '4.51' },
   sec_growth: {},
@@ -67,30 +72,14 @@ const INITIAL_BASE: Record<string, Record<string, string>> = {
 
 class SalesPerformanceErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean, error: any}> {
   state = { hasError: false, error: null };
-  static getDerivedStateFromError(error: any) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("SalesPerformance Error:", error, errorInfo);
-  }
+  static getDerivedStateFromError(error: any) { return { hasError: true, error }; }
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error("SalesPerformance Error:", error, errorInfo); }
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-6 bg-rose-950/90 border-2 border-rose-500 text-rose-200 rounded-3xl space-y-3 shadow-2xl m-4">
-          <h3 className="font-bold text-lg flex items-center gap-2">⚠️ Sales Performance Crash Error</h3>
-          <p className="text-xs text-rose-300">Yeh error blank screen ki vajah ban raha tha:</p>
-          <div className="bg-slate-950 p-4 rounded-2xl border border-rose-900 space-y-2">
-            <div className="text-sm font-bold text-white font-mono">Exact Error Message:</div>
-            <div className="text-sm text-rose-300 font-mono bg-rose-950/50 p-3 rounded-xl border border-rose-800">
-              {String(this.state.error?.message || this.state.error)}
-            </div>
-          </div>
-          <button 
-            onClick={() => { localStorage.clear(); window.location.reload(); }}
-            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold cursor-pointer"
-          >
-            Clear Memory &amp; Reload App
-          </button>
+        <div className="p-6 bg-rose-950/90 border-2 border-rose-500 text-rose-200 rounded-3xl space-y-3 m-4">
+          <h3 className="font-bold text-lg">⚠️ Sales Performance Crash Error</h3>
+          <p className="text-xs font-mono">{String(this.state.error?.message || this.state.error)}</p>
         </div>
       );
     }
@@ -114,79 +103,147 @@ const SalesPerformanceContent: React.FC = () => {
       const draft = localStorage.getItem('dios_draft_sheet_03_sales_perf');
       if (draft) {
         const parsed = JSON.parse(draft);
-        if (parsed.salesBreakdown) {
-          memoryStore.salesBreakdown = { ...memoryStore.salesBreakdown, ...parsed.salesBreakdown };
-        }
+        if (parsed.salesBreakdown) memoryStore.salesBreakdown = { ...memoryStore.salesBreakdown, ...parsed.salesBreakdown };
         if (parsed.formData) return parsed.formData;
       }
     } catch (e) {}
-    if (!memoryStore.salesPerformanceData) {
-      memoryStore.salesPerformanceData = INITIAL_BASE;
-    }
-    return memoryStore.salesPerformanceData;
+    return memoryStore.salesPerformanceData || INITIAL_BASE;
   });
 
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Modal State for Remarks / Party Breakdown
-  const [activeModal, setActiveModal] = useState<{
-    rowId: string;
-    rowName: string;
-    month: string;
-  } | null>(null);
+  // 🌟 Stockist Breakdown Modal State (For Returns & Expiry)
+  const [activeStockistModal, setActiveStockistModal] = useState<{ rowId: string; rowName: string; month: string } | null>(null);
+  const [stockistModalItems, setStockistModalItems] = useState<PartyBreakdownItem[]>([]);
 
-  const [modalItems, setModalItems] = useState<PartyBreakdownItem[]>([]);
+  // 🌟 Doctor Investment Modal State (For INVESTMENT*)
+  const [activeInvestmentModalMonth, setActiveInvestmentModalMonth] = useState<string | null>(null);
+  const [docSearchQuery, setDocSearchQuery] = useState('');
+  const [newInvestmentEntry, setNewInvestmentEntry] = useState<{ doctorName: string; activityType: string; amount: number; note: string }>({
+    doctorName: '', activityType: 'GIFT CARDS', amount: 0, note: ''
+  });
 
-  const openBreakdownModal = (rowId: string, rowName: string, month: string) => {
+  // MSL Master Doctors for Search
+  const allMslDoctors: MslDoctor[] = useMemo(() => {
+    if (memoryStore.mslData && memoryStore.mslData.length > 0) return memoryStore.mslData;
+    try {
+      const saved = localStorage.getItem('dios_msl_schedule_permanent_v5');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return MASTER_123_MSL_DOCTORS || [];
+  }, []);
+
+  const filteredMslDocs = useMemo(() => {
+    if (!docSearchQuery.trim()) return [];
+    const q = docSearchQuery.toLowerCase();
+    return allMslDoctors.filter(d => 
+      d.doctorName.toLowerCase().includes(q) || (d.speciality || '').toLowerCase().includes(q)
+    ).slice(0, 8);
+  }, [allMslDoctors, docSearchQuery]);
+
+  // Handle Stockist Breakdown (Returns / Expiry)
+  const openStockistBreakdown = (rowId: string, rowName: string, month: string) => {
     const key = `${rowId}_${month}`;
     const existing = memoryStore.salesBreakdown[key] || [];
-    setModalItems(JSON.parse(JSON.stringify(existing)));
-    setActiveModal({ rowId, rowName, month });
+    setStockistModalItems(JSON.parse(JSON.stringify(existing)));
+    setActiveStockistModal({ rowId, rowName, month });
   };
 
-  const handleAddModalItem = () => {
-    setModalItems(prev => [
+  const handleAddStockistItem = () => {
+    setStockistModalItems(prev => [
       ...prev,
-      {
-        id: 'item_' + Date.now(),
-        partyName: DEFAULT_STOCKISTS[0],
-        amount: 0,
-        note: ''
-      }
+      { id: 'item_' + Date.now(), partyName: DEFAULT_STOCKISTS[0], amount: 0, note: '' }
     ]);
   };
 
-  const handleModalItemChange = (idx: number, field: keyof PartyBreakdownItem, val: any) => {
-    setModalItems(prev => {
-      const copy = [...prev];
-      copy[idx] = { ...copy[idx], [field]: val };
-      return copy;
+  const handleSaveStockistModal = () => {
+    if (!activeStockistModal) return;
+    const key = `${activeStockistModal.rowId}_${activeStockistModal.month}`;
+    memoryStore.salesBreakdown[key] = stockistModalItems;
+
+    const total = stockistModalItems.reduce((sum, it) => sum + (parseFloat(String(it.amount)) || 0), 0);
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [activeStockistModal.rowId]: {
+          ...prev[activeStockistModal.rowId],
+          [activeStockistModal.month]: total > 0 ? String(total) : '0'
+        }
+      };
+      memoryStore.salesPerformanceData = updated;
+      try {
+        localStorage.setItem('dios_draft_sheet_03_sales_perf', JSON.stringify({ formData: updated, salesBreakdown: memoryStore.salesBreakdown, selectedMonth }));
+      } catch (e) {}
+      return updated;
     });
+    setActiveStockistModal(null);
   };
 
-  const handleRemoveModalItem = (idx: number) => {
-    setModalItems(prev => prev.filter((_, i) => i !== idx));
+  // 🌟 Handle Doctor Investment Entries (Row 10)
+  const handleSelectDoctorForInvestment = (doc: MslDoctor) => {
+    setNewInvestmentEntry({
+      ...newInvestmentEntry,
+      doctorName: doc.doctorName,
+      activityType: doc.activityType ? doc.activityType.toUpperCase() : 'GIFT CARDS'
+    });
+    setDocSearchQuery('');
   };
 
-  const handleSaveModal = () => {
-    if (!activeModal) return;
-    const key = `${activeModal.rowId}_${activeModal.month}`;
-    memoryStore.salesBreakdown[key] = modalItems;
+  const handleAddDoctorInvestment = () => {
+    if (!activeInvestmentModalMonth) return;
+    if (!newInvestmentEntry.doctorName.trim() && newInvestmentEntry.amount <= 0) {
+      alert("Kripya Doctor ka naam aur Amount zaroor dalein!");
+      return;
+    }
 
-    const total = modalItems.reduce((sum, it) => sum + (parseFloat(String(it.amount)) || 0), 0);
-    setFormData(prev => ({
-      ...prev,
-      [activeModal.rowId]: {
-        ...prev[activeModal.rowId],
-        [activeModal.month]: total > 0 ? String(total) : '0'
-      }
-    }));
+    const key = `investment_${activeInvestmentModalMonth}`;
+    const currentList: any[] = memoryStore.salesBreakdown[key] || [];
+    const newItem = {
+      id: 'inv_' + Date.now(),
+      doctorName: newInvestmentEntry.doctorName.trim(),
+      partyName: newInvestmentEntry.doctorName.trim(),
+      activityType: newInvestmentEntry.activityType,
+      amount: newInvestmentEntry.amount,
+      note: newInvestmentEntry.note.trim()
+    };
 
-    setActiveModal(null);
+    const updatedList = [...currentList, newItem];
+    memoryStore.salesBreakdown[key] = updatedList;
+
+    // 🌟 Auto-Calculate Formatted 'k' String (e.g. ₹150,000 -> 150k, ₹12,500 -> 12.5k)
+    const totalAmt = updatedList.reduce((sum, it) => sum + (parseFloat(String(it.amount)) || 0), 0);
+    let formattedStr = '0';
+    if (totalAmt >= 1000) {
+      const inK = totalAmt / 1000;
+      formattedStr = (inK % 1 === 0 ? inK.toFixed(0) : inK.toFixed(1)) + 'k';
+    } else if (totalAmt > 0) {
+      formattedStr = String(totalAmt);
+    }
+
+    handleCellChange('investment', activeInvestmentModalMonth, formattedStr);
+    setNewInvestmentEntry({ doctorName: '', activityType: 'GIFT CARDS', amount: 0, note: '' });
+  };
+
+  const handleDeleteDoctorInvestment = (id: string) => {
+    if (!activeInvestmentModalMonth) return;
+    const key = `investment_${activeInvestmentModalMonth}`;
+    const currentList: any[] = memoryStore.salesBreakdown[key] || [];
+    const updatedList = currentList.filter(it => it.id !== id);
+    memoryStore.salesBreakdown[key] = updatedList;
+
+    const totalAmt = updatedList.reduce((sum, it) => sum + (parseFloat(String(it.amount)) || 0), 0);
+    let formattedStr = '0';
+    if (totalAmt >= 1000) {
+      const inK = totalAmt / 1000;
+      formattedStr = (inK % 1 === 0 ? inK.toFixed(0) : inK.toFixed(1)) + 'k';
+    } else if (totalAmt > 0) {
+      formattedStr = String(totalAmt);
+    }
+
+    handleCellChange('investment', activeInvestmentModalMonth, formattedStr);
   };
 
   const handleCellChange = (rowId: string, month: string, value: string) => {
@@ -199,6 +256,9 @@ const SalesPerformanceContent: React.FC = () => {
         }
       };
       memoryStore.salesPerformanceData = updated;
+      try {
+        localStorage.setItem('dios_draft_sheet_03_sales_perf', JSON.stringify({ formData: updated, salesBreakdown: memoryStore.salesBreakdown, selectedMonth }));
+      } catch (e) {}
       return updated;
     });
   };
@@ -210,9 +270,7 @@ const SalesPerformanceContent: React.FC = () => {
 
     MONTHS.forEach(code => {
       const monthGrid = gridData[code] || {};
-      let secTotalVal = 0;
-      let closingTotalVal = 0;
-
+      let secTotalVal = 0, closingTotalVal = 0;
       MASTER_PRODUCTS.forEach(p => {
         const item = monthGrid[p.sn];
         if (item) {
@@ -220,25 +278,15 @@ const SalesPerformanceContent: React.FC = () => {
           closingTotalVal += (item.closing || 0) * p.pts;
         }
       });
-
-      if (secTotalVal > 0) {
-        newSecCurr[code] = (secTotalVal / 100000).toFixed(2);
-      }
-      if (closingTotalVal > 0) {
-        newClosingStock[code] = (closingTotalVal / 100000).toFixed(2);
-      }
+      if (secTotalVal > 0) newSecCurr[code] = (secTotalVal / 100000).toFixed(2);
+      if (closingTotalVal > 0) newClosingStock[code] = (closingTotalVal / 100000).toFixed(2);
     });
 
     setFormData(prev => {
-      const updated = {
-        ...prev,
-        sec_curr: newSecCurr,
-        closing_stock: newClosingStock
-      };
+      const updated = { ...prev, sec_curr: newSecCurr, closing_stock: newClosingStock };
       memoryStore.salesPerformanceData = updated;
       return updated;
     });
-
     setStatusMsg('🎉 Successfully auto-synced Secondary 26-27 & Closing Stock from Data Hub!');
     setTimeout(() => setStatusMsg(''), 3500);
   };
@@ -249,7 +297,6 @@ const SalesPerformanceContent: React.FC = () => {
       const bud = parseFloat(formData.budget?.[month] || '0');
       return (pri > 0 && bud > 0) ? Math.round((pri / bud) * 100) + '%' : '-';
     }
-
     if (rowId === 'prm_growth') {
       const curr = parseFloat(formData.primary_curr?.[month] || '0');
       const prev = parseFloat(formData.primary_prev?.[month] || '0');
@@ -259,7 +306,6 @@ const SalesPerformanceContent: React.FC = () => {
       }
       return '-';
     }
-
     if (rowId === 'sec_growth') {
       const curr = parseFloat(formData.sec_curr?.[month] || '0');
       const prev = parseFloat(formData.sec_prev?.[month] || '0');
@@ -269,7 +315,6 @@ const SalesPerformanceContent: React.FC = () => {
       }
       return '-';
     }
-
     return formData[rowId]?.[month] || '';
   };
 
@@ -283,20 +328,13 @@ const SalesPerformanceContent: React.FC = () => {
       });
       return totBud > 0 ? Math.round((totPri / totBud) * 100) + '%' : '0%';
     }
-    if (rowId === 'prm_growth') {
+    if (rowId === 'prm_growth' || rowId === 'sec_growth') {
+      const fieldCurr = rowId === 'prm_growth' ? 'primary_curr' : 'sec_curr';
+      const fieldPrev = rowId === 'prm_growth' ? 'primary_prev' : 'sec_prev';
       let totCurr = 0, totPrev = 0;
       MONTHS.forEach(m => {
-        const c = parseFloat(formData.primary_curr?.[m] || '0');
-        const p = parseFloat(formData.primary_prev?.[m] || '0');
-        if (c > 0) { totCurr += c; totPrev += p; }
-      });
-      return totPrev > 0 ? ((totCurr - totPrev) / totPrev * 100).toFixed(0) + '%' : '-';
-    }
-    if (rowId === 'sec_growth') {
-      let totCurr = 0, totPrev = 0;
-      MONTHS.forEach(m => {
-        const c = parseFloat(formData.sec_curr?.[m] || '0');
-        const p = parseFloat(formData.sec_prev?.[m] || '0');
+        const c = parseFloat(formData[fieldCurr]?.[m] || '0');
+        const p = parseFloat(formData[fieldPrev]?.[m] || '0');
         if (c > 0) { totCurr += c; totPrev += p; }
       });
       return totPrev > 0 ? ((totCurr - totPrev) / totPrev * 100).toFixed(0) + '%' : '-';
@@ -315,7 +353,6 @@ const SalesPerformanceContent: React.FC = () => {
     setLoading(true);
     setErrorMsg(null);
     setStatusMsg(`CBO se ${selectedMonth} ka data fetch ho raha hai...`);
-
     const opt = MONTH_OPTIONS.find(m => m.value === selectedMonth);
     const targetCode = opt ? opt.code : 'AUG';
 
@@ -323,15 +360,9 @@ const SalesPerformanceContent: React.FC = () => {
       const res = await fetch('/api/fetch-sales-performance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from_month: selectedMonth,
-          to_month: selectedMonth,
-          fy_year: '2026-2027'
-        })
+        body: JSON.stringify({ from_month: selectedMonth, to_month: selectedMonth, fy_year: '2026-2027' })
       });
-
       const data = await res.json();
-
       if (data && data.success) {
         setFormData(prev => ({
           ...prev,
@@ -339,179 +370,17 @@ const SalesPerformanceContent: React.FC = () => {
           sales_returns: { ...prev.sales_returns, [targetCode]: String(data.sales_return || '0') },
           expiry: { ...prev.expiry, [targetCode]: String(data.expiry || '0') },
         }));
-
-        if (data.sales_return_breakdown) {
-          memoryStore.salesBreakdown[`sales_returns_${targetCode}`] = data.sales_return_breakdown;
-        }
-        if (data.expiry_breakdown) {
-          memoryStore.salesBreakdown[`expiry_${targetCode}`] = data.expiry_breakdown;
-        }
-
-        setStatusMsg(`🎉 SUCCESS! ${selectedMonth} auto-filled: Net Primary ${data.net_sales_lacs}L, Returns ₹${data.sales_return}, Expiry ₹${data.expiry}!`);
+        if (data.sales_return_breakdown) memoryStore.salesBreakdown[`sales_returns_${targetCode}`] = data.sales_return_breakdown;
+        if (data.expiry_breakdown) memoryStore.salesBreakdown[`expiry_${targetCode}`] = data.expiry_breakdown;
+        setStatusMsg(`🎉 SUCCESS! Net Primary ${data.net_sales_lacs}L, Returns ₹${data.sales_return}, Expiry ₹${data.expiry}!`);
       } else {
-        throw new Error(data?.error || 'Failed to fetch sales performance data');
+        throw new Error(data?.error || 'Failed to fetch');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'CBO fetch error');
-      setStatusMsg('');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleUploadSpoExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setLoading(true);
-    setStatusMsg(`Reading & Parsing ${file.name}...`);
-    setErrorMsg(null);
-
-    const opt = MONTH_OPTIONS.find(m => m.value === selectedMonth);
-    const targetCode = opt ? opt.code : 'AUG';
-
-    try {
-      const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(buffer, { type: 'array' });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-      let totalNetSales = 0;
-      let totalGoodsReturn = 0;
-      let totalBreakageExpiry = 0;
-
-      const returnBreakdown: PartyBreakdownItem[] = [];
-      const expiryBreakdown: PartyBreakdownItem[] = [];
-
-      for (let r = 0; r < rows.length; r++) {
-        const row = rows[r];
-        if (!row || row.length < 5) continue;
-
-        const stockistName = String(row[1] || '').trim();
-        if (!stockistName) continue;
-
-        const uName = stockistName.toUpperCase();
-        if (uName.includes('STOCKIST') || uName.includes('REPORT') || uName.includes('SRNO') || uName.includes('DIOS') || uName === 'TOTAL') continue;
-
-        const parseNum = (val: any) => {
-          if (!val) return 0;
-          const clean = String(val).replace(/,/g, '').replace(/₹/g, '').trim();
-          const n = parseFloat(clean);
-          return isNaN(n) ? 0 : n;
-        };
-
-        const goodsReturn = parseNum(row[5]) || parseNum(row[7]);
-        const breakageExpiry = parseNum(row[11]) || parseNum(row[9]);
-        const netSales = parseNum(row[14]);
-
-        if (goodsReturn > 0) {
-          totalGoodsReturn += goodsReturn;
-          returnBreakdown.push({
-            id: 'ret_' + r,
-            partyName: stockistName,
-            amount: goodsReturn,
-            note: 'Goods Return'
-          });
-        }
-
-        if (breakageExpiry > 0) {
-          totalBreakageExpiry += breakageExpiry;
-          expiryBreakdown.push({
-            id: 'exp_' + r,
-            partyName: stockistName,
-            amount: breakageExpiry,
-            note: 'Expiry Return'
-          });
-        }
-
-        if (netSales !== 0) {
-          totalNetSales += netSales;
-        }
-      }
-
-      const netSalesLacs = (totalNetSales / 100000).toFixed(2);
-
-      setFormData(prev => ({
-        ...prev,
-        primary_curr: { ...prev.primary_curr, [targetCode]: netSalesLacs },
-        sales_returns: { ...prev.sales_returns, [targetCode]: String(Math.round(totalGoodsReturn)) },
-        expiry: { ...prev.expiry, [targetCode]: String(Math.round(totalBreakageExpiry)) }
-      }));
-
-      memoryStore.salesBreakdown[`sales_returns_${targetCode}`] = returnBreakdown;
-      memoryStore.salesBreakdown[`expiry_${targetCode}`] = expiryBreakdown;
-
-      setStatusMsg(`🎉 SUCCESS! '${file.name}' parsed: Net Primary ${netSalesLacs}L, Returns ₹${totalGoodsReturn.toLocaleString()}, Expiry ₹${totalBreakageExpiry.toLocaleString()}!`);
-    } catch (err: any) {
-      setErrorMsg(`Excel reading error: ${err.message || String(err)}`);
-      setStatusMsg('');
-    } finally {
-      setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  // 100% UNTOUCHED Export Excel with Comments
-  const handleExportExcelWithComments = () => {
-    const wb = XLSX.utils.book_new();
-    const headers = ['S.N.', 'PARTICULARS', ...MONTHS, 'CUMM'];
-    const wsData: any[][] = [];
-
-    wsData.push([{ v: 'DIOS LIFESCIENCES PVT LTD', s: { font: { sz: 14, bold: true } } }]);
-    wsData.push([{ v: '3. SALES PERFORMANCE (WITH STOCKIST-WISE REMARKS COMMENTS)', s: { font: { sz: 12, bold: true, color: { rgb: '0284C7' } } } }]);
-    wsData.push(headers.map(h => ({
-      v: h,
-      s: {
-        font: { bold: true, color: { rgb: 'FFFFFF' } },
-        fill: { fgColor: { rgb: '0F172A' } },
-        alignment: { horizontal: 'center' }
-      }
-    })));
-
-    METRICS_CONFIG.forEach(row => {
-      const rCells: any[] = [
-        { v: row.sn, s: { alignment: { horizontal: 'center' } } },
-        { v: row.name, s: { font: { bold: true } } }
-      ];
-
-      MONTHS.forEach(m => {
-        const val = row.isCalculated ? calculateCell(row.id, m) : (formData[row.id]?.[m] || '');
-        const cellObj: any = {
-          v: val,
-          s: { alignment: { horizontal: 'center' } }
-        };
-
-        if (row.hasBreakdown) {
-          const key = `${row.id}_${m}`;
-          const items = memoryStore.salesBreakdown[key];
-          if (items && items.length > 0) {
-            const commentLines = items.map(it => `• ${it.partyName}: ₹${Number(it.amount).toLocaleString()} ${it.note ? '(' + it.note + ')' : ''}`);
-            cellObj.c = [
-              {
-                a: 'DIOS Review System',
-                t: `Party-wise Breakdown (${row.name} - ${m}):\n${commentLines.join('\n')}\nTotal: ₹${Number(val).toLocaleString()}`
-              }
-            ];
-            cellObj.s.fill = { fgColor: { rgb: 'FEF3C7' } };
-          }
-        }
-
-        rCells.push(cellObj);
-      });
-
-      rCells.push({
-        v: calculateCumm(row.id),
-        s: { font: { bold: true, color: { rgb: '059669' } }, alignment: { horizontal: 'center' } }
-      });
-
-      wsData.push(rCells);
-    });
-
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    ws['!cols'] = [{ wch: 6 }, { wch: 32 }, ...MONTHS.map(() => ({ wch: 11 })), { wch: 14 }];
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Sales Performance');
-    XLSX.writeFile(wb, `Sales_Performance_Review_${selectedMonth}.xlsx`);
   };
 
   return (
@@ -524,11 +393,11 @@ const SalesPerformanceContent: React.FC = () => {
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               3. SALES PERFORMANCE
-              <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
-                <MessageSquare size={10} /> Dual Mode + Cloud Sync
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
+                <Sparkles size={10} /> Auto-Breakdown &amp; Investment Manager
               </span>
             </h2>
-            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA • HQ: UDAIPUR • Net Primary Engine</p>
+            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA • HQ: UDAIPUR • Returns, Expiry &amp; Doctor Investment Notes</p>
           </div>
         </div>
 
@@ -538,92 +407,55 @@ const SalesPerformanceContent: React.FC = () => {
             <select
               value={selectedMonth}
               onChange={e => setSelectedMonth(e.target.value)}
-              disabled={loading}
               className="bg-transparent text-xs font-bold text-cyan-400 focus:outline-none cursor-pointer"
             >
               {MONTH_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
-                  {opt.label}
-                </option>
+                <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">{opt.label}</option>
               ))}
             </select>
           </div>
 
           <button
             onClick={handleAutoSyncFromDataHub}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold shadow-md shadow-cyan-600/20 transition cursor-pointer"
-            title="Auto-sync Secondary 26-27 & Closing Stock from Data Hub"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
           >
             <RefreshCw size={14} /> Auto-Sync Sec &amp; Stock
           </button>
 
-          <label className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition cursor-pointer">
-            <UploadCloud size={14} />
-            Upload SPO Excel
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleUploadSpoExcel}
-              className="hidden"
-            />
-          </label>
-
           <button
             onClick={handleFetchFromCbo}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-600/20 transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 text-white rounded-xl text-xs font-bold shadow-lg transition cursor-pointer"
           >
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />}
             Auto-Fetch {selectedMonth}
           </button>
-
-          {/* 100% UNTOUCHED Export Excel */}
-          <button
-            onClick={handleExportExcelWithComments}
-            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition cursor-pointer"
-            title="Download Excel with native hover comments"
-          >
-            <Download size={14} /> Export Excel
-          </button>
         </div>
       </div>
 
-      {/* ☁️ DEDICATED CLOUD SYNC TOOLBAR */}
+      {/* CloudSyncBar */}
       <CloudSyncBar
         storageKey="review/sheet_03_sales_performance"
         sheetTitle="3. Sales Performance"
-        getData={() => ({
-          formData,
-          salesBreakdown: memoryStore.salesBreakdown,
-          selectedMonth
-        })}
+        getData={() => ({ formData, salesBreakdown: memoryStore.salesBreakdown, selectedMonth })}
         onLoadData={(cloudData: any) => {
           if (!cloudData) return;
           if (cloudData.formData) {
             setFormData(cloudData.formData);
             memoryStore.salesPerformanceData = cloudData.formData;
           }
-          if (cloudData.salesBreakdown) {
-            memoryStore.salesBreakdown = cloudData.salesBreakdown;
-          }
-          if (cloudData.selectedMonth) {
-            setSelectedMonth(cloudData.selectedMonth);
-          }
+          if (cloudData.salesBreakdown) memoryStore.salesBreakdown = cloudData.salesBreakdown;
+          if (cloudData.selectedMonth) setSelectedMonth(cloudData.selectedMonth);
         }}
         onSaveLocal={() => {
           memoryStore.salesPerformanceData = formData;
           try {
-            localStorage.setItem('dios_draft_sheet_03_sales_perf', JSON.stringify({
-              formData,
-              salesBreakdown: memoryStore.salesBreakdown,
-              selectedMonth
-            }));
+            localStorage.setItem('dios_draft_sheet_03_sales_perf', JSON.stringify({ formData, salesBreakdown: memoryStore.salesBreakdown, selectedMonth }));
           } catch (e) {}
         }}
       />
 
-      {statusMsg && !errorMsg && (
+      {statusMsg && (
         <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs flex items-center gap-2">
           <Check size={16} className="text-emerald-400" />
           <span>{statusMsg}</span>
@@ -637,13 +469,7 @@ const SalesPerformanceContent: React.FC = () => {
         </div>
       )}
 
-      <div className="flex items-center gap-2 px-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-slate-400">
-        <Info size={14} className="text-amber-400 shrink-0" />
-        <span>
-          Aap chahe <b>"Auto-Fetch"</b> karein ya CBO se download ki hui <b>"Upload SPO Excel"</b> karein — dono se <b>Net Primary (4.32L)</b>, <b>Returns (₹5,590)</b> aur <b>Expiry (₹21,498)</b> stockist-wise load ho jayenge!
-        </span>
-      </div>
-
+      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
@@ -664,9 +490,9 @@ const SalesPerformanceContent: React.FC = () => {
                 <td className="p-2 text-center text-slate-500 font-mono">{row.sn}</td>
                 <td className="p-2 font-medium text-slate-200 flex items-center justify-between">
                   <span>{row.name}</span>
-                  {row.hasBreakdown && (
-                    <span className="text-[10px] text-amber-400/80 bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-500/20 font-mono">
-                      Breakdown
+                  {(row.hasBreakdown || row.isInvestment) && (
+                    <span className="text-[10px] text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30 font-mono font-bold">
+                      {row.isInvestment ? 'Dr. Manager' : 'Stockist Note'}
                     </span>
                   )}
                 </td>
@@ -676,38 +502,76 @@ const SalesPerformanceContent: React.FC = () => {
                   const breakdownKey = `${row.id}_${m}`;
                   const items = memoryStore.salesBreakdown[breakdownKey] || [];
                   const hasItems = items.length > 0;
-                  const isSelectedCol = m === selectedMonth.substring(0,3).toUpperCase();
 
-                  return (
-                    <td key={m} className={`p-1 text-center ${isSelectedCol ? 'bg-cyan-950/10' : ''}`}>
-                      {row.isCalculated ? (
-                        <div className="w-full py-1.5 px-2 bg-slate-950/80 rounded-lg font-mono font-bold text-cyan-400 border border-slate-800/60 text-center">
-                          {val}
-                        </div>
-                      ) : row.hasBreakdown ? (
+                  // 🌟 Investment Row 10 Click Handler
+                  if (row.isInvestment) {
+                    return (
+                      <td key={m} className="p-1 text-center">
                         <div className="relative">
                           <input
                             type="text"
                             value={val}
-                            onClick={() => openBreakdownModal(row.id, row.name, m)}
+                            onClick={() => { setActiveInvestmentModalMonth(m); setDocSearchQuery(''); }}
                             onChange={(e) => handleCellChange(row.id, m, e.target.value)}
                             placeholder="-"
-                            className={`w-full py-1.5 px-2 bg-slate-950 rounded-lg font-mono border focus:outline-none text-center transition text-xs cursor-pointer ${
+                            className={`w-full py-1.5 px-2 rounded-lg font-mono text-xs border text-center transition cursor-pointer ${
                               hasItems 
-                                ? 'text-amber-300 font-bold border-amber-500/50 hover:bg-amber-950/30 shadow-sm shadow-amber-950/40' 
-                                : 'text-slate-100 border-slate-800 hover:border-slate-600'
+                                ? 'bg-amber-950/40 text-amber-300 font-bold border-amber-500/60 shadow-sm' 
+                                : 'bg-slate-950 text-slate-100 border-slate-800 hover:border-slate-600'
                             }`}
-                            title="Click to view/edit stockist remarks breakdown"
+                            title="Click to open Doctor Investment Manager"
                           />
                           {hasItems && (
                             <span 
-                              onClick={() => openBreakdownModal(row.id, row.name, m)}
-                              className="absolute -top-1.5 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 shadow cursor-pointer"
-                              title={`${items.length} stockists breakdown`}
+                              onClick={() => { setActiveInvestmentModalMonth(m); setDocSearchQuery(''); }}
+                              className="absolute -top-1.5 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 cursor-pointer shadow"
+                              title={`${items.length} Doctors Investment`}
                             >
                               {items.length}
                             </span>
                           )}
+                        </div>
+                      </td>
+                    );
+                  }
+
+                  // 🌟 Sales Returns (Row 7) & Expiry (Row 8) Stockist Breakdown Click Handler
+                  if (row.hasBreakdown) {
+                    return (
+                      <td key={m} className="p-1 text-center">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={val}
+                            onClick={() => openStockistBreakdown(row.id, row.name, m)}
+                            onChange={(e) => handleCellChange(row.id, m, e.target.value)}
+                            placeholder="-"
+                            className={`w-full py-1.5 px-2 rounded-lg font-mono border text-center transition text-xs cursor-pointer ${
+                              hasItems 
+                                ? 'bg-amber-950/40 text-amber-300 font-bold border-amber-500/60 shadow-sm' 
+                                : 'bg-slate-950 text-slate-100 border-slate-800 hover:border-slate-600'
+                            }`}
+                            title="Click to view/edit stockist breakdown"
+                          />
+                          {hasItems && (
+                            <span 
+                              onClick={() => openStockistBreakdown(row.id, row.name, m)}
+                              className="absolute -top-1.5 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 cursor-pointer shadow"
+                              title={`${items.length} Stockists`}
+                            >
+                              {items.length}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  }
+
+                  return (
+                    <td key={m} className="p-1 text-center">
+                      {row.isCalculated ? (
+                        <div className="w-full py-1.5 px-2 bg-slate-950/80 rounded-lg font-mono font-bold text-cyan-400 border border-slate-800/60 text-center">
+                          {val}
                         </div>
                       ) : (
                         <input
@@ -715,7 +579,7 @@ const SalesPerformanceContent: React.FC = () => {
                           value={val}
                           onChange={(e) => handleCellChange(row.id, m, e.target.value)}
                           placeholder="-"
-                          className="w-full py-1.5 px-2 bg-slate-950 rounded-lg font-mono text-slate-100 border border-slate-800 focus:border-purple-500 focus:bg-slate-900 focus:outline-none text-center transition text-xs"
+                          className="w-full py-1.5 px-2 bg-slate-950 rounded-lg font-mono text-slate-100 border border-slate-800 focus:border-purple-500 text-center transition text-xs"
                         />
                       )}
                     </td>
@@ -731,116 +595,270 @@ const SalesPerformanceContent: React.FC = () => {
         </table>
       </div>
 
-      {/* Stockist Remarks Modal */}
-      {activeModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-amber-500/40 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
+      {/* 🌟 1. STOCKIST BREAKDOWN MODAL (FOR RETURNS & EXPIRY) */}
+      {activeStockistModal && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-amber-500/50 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <span className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
                   <MessageSquare size={20} />
                 </span>
                 <div>
-                  <h3 className="text-base font-bold text-white">
-                    Stockist Remarks &amp; Breakdown
-                  </h3>
-                  <p className="text-xs text-slate-400 font-mono">
-                    {activeModal.rowName} • <span className="text-amber-400 font-bold">{activeModal.month} 2026</span>
-                  </p>
+                  <h3 className="text-base font-bold text-white">Stockist Breakdown &amp; Notes</h3>
+                  <p className="text-xs text-slate-400 font-mono">{activeStockistModal.rowName} • {activeStockistModal.month} 2026</p>
                 </div>
               </div>
-              <button 
-                onClick={() => setActiveModal(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
-              >
-                <X size={20} />
-              </button>
+              <button onClick={() => setActiveStockistModal(null)} className="text-slate-400 hover:text-white p-1 cursor-pointer"><X size={20} /></button>
             </div>
 
             <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-              {modalItems.length === 0 ? (
-                <div className="py-8 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-2xl">
-                  Koi stockist breakdown add nahi hai. Click "+ Add Stockist" to add manual remarks.
+              {stockistModalItems.map((item, idx) => (
+                <div key={item.id || idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-3 bg-slate-950 rounded-2xl border border-slate-800">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-slate-400 font-semibold block mb-1">Distributor / Stockist</label>
+                    <select
+                      value={item.partyName}
+                      onChange={(e) => {
+                        const copy = [...stockistModalItems];
+                        copy[idx].partyName = e.target.value;
+                        setStockistModalItems(copy);
+                      }}
+                      className="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-2.5 py-1.5 focus:border-amber-400 focus:outline-none"
+                    >
+                      {DEFAULT_STOCKISTS.map(st => <option key={st} value={st}>{st}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="w-full sm:w-32">
+                    <label className="text-[10px] text-slate-400 font-semibold block mb-1">Amount (₹)</label>
+                    <input
+                      type="number"
+                      value={item.amount || ''}
+                      onChange={(e) => {
+                        const copy = [...stockistModalItems];
+                        copy[idx].amount = parseFloat(e.target.value) || 0;
+                        setStockistModalItems(copy);
+                      }}
+                      placeholder="0"
+                      className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-mono font-bold text-xs rounded-xl px-2.5 py-1.5 focus:border-amber-400 focus:outline-none text-right"
+                    />
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="text-[10px] text-slate-400 font-semibold block mb-1">Remarks / Note</label>
+                    <input
+                      type="text"
+                      value={item.note || ''}
+                      onChange={(e) => {
+                        const copy = [...stockistModalItems];
+                        copy[idx].note = e.target.value;
+                        setStockistModalItems(copy);
+                      }}
+                      placeholder="e.g. Batch Pullback or Expiry return"
+                      className="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-xl px-2.5 py-1.5 focus:border-amber-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setStockistModalItems(stockistModalItems.filter((_, i) => i !== idx))}
+                    className="p-2 text-slate-500 hover:text-rose-400 self-end sm:self-center mt-2 cursor-pointer"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={handleAddStockistItem}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold rounded-xl cursor-pointer"
+              >
+                <Plus size={14} /> Add Stockist
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveStockistModal}
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg cursor-pointer"
+              >
+                Save &amp; Update Cell
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 2. DOCTOR INVESTMENT MANAGER MODAL (WITH MASTER DOCTOR SEARCH) */}
+      {activeInvestmentModalMonth && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-5">
+          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl max-w-2xl w-full p-5 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40">
+                  <DollarSign size={20} />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    Doctor Investment Manager ({activeInvestmentModalMonth} 2026)
+                  </h3>
+                  <p className="text-xs text-slate-400">Search 123 Master Doctors • Select Activity • Auto-Calculates 'k'</p>
+                </div>
+              </div>
+              <button onClick={() => setActiveInvestmentModalMonth(null)} className="text-slate-400 hover:text-white p-1 cursor-pointer"><X size={20} /></button>
+            </div>
+
+            {/* Add Doctor Form */}
+            <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-3 text-xs relative">
+              <div className="text-xs font-bold text-amber-400 flex items-center justify-between">
+                <span>Add Doctor Investment Entry:</span>
+                {newInvestmentEntry.doctorName && (
+                  <span className="text-emerald-400 font-mono flex items-center gap-1">
+                    <Check size={12} /> Selected: {newInvestmentEntry.doctorName}
+                  </span>
+                )}
+              </div>
+
+              {/* Master Doctor Search Autocomplete */}
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search Master Doctor (e.g. Jayesh, Baldev, Abhay, DC Sharma)..."
+                  value={docSearchQuery}
+                  onChange={e => setDocSearchQuery(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl pl-9 pr-3 py-2 text-xs focus:border-amber-400 focus:outline-none"
+                />
+
+                {filteredMslDocs.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border-2 border-amber-500/60 rounded-xl shadow-2xl p-1.5 z-50 max-h-44 overflow-y-auto space-y-1">
+                    {filteredMslDocs.map(doc => (
+                      <div
+                        key={doc.srNo}
+                        onClick={() => handleSelectDoctorForInvestment(doc)}
+                        className="flex items-center justify-between p-2 rounded-lg bg-slate-950 hover:bg-amber-950/60 border border-transparent hover:border-amber-500/40 text-xs cursor-pointer transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-slate-500 text-[10px]">#{doc.srNo}</span>
+                          <span className="font-bold text-white">{doc.doctorName}</span>
+                          <span className="text-[10px] text-cyan-300 bg-cyan-950/60 px-1.5 py-0.2 rounded">{doc.speciality || '-'}</span>
+                          {doc.activityType && <span className="text-[10px] text-amber-300 bg-amber-950/60 px-1.5 py-0.2 rounded font-bold">{doc.activityType}</span>}
+                        </div>
+                        <span className="text-[10px] text-amber-400 font-bold">Pick ➔</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-semibold mb-1">Doctor Name</label>
+                  <input
+                    type="text"
+                    value={newInvestmentEntry.doctorName}
+                    onChange={e => setNewInvestmentEntry({ ...newInvestmentEntry, doctorName: e.target.value })}
+                    placeholder="Doctor Name"
+                    className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-bold rounded-xl px-2.5 py-1.5 text-xs focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-semibold mb-1">Activity / Support</label>
+                  <select
+                    value={newInvestmentEntry.activityType}
+                    onChange={e => setNewInvestmentEntry({ ...newInvestmentEntry, activityType: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 text-white font-bold rounded-xl px-2 py-1.5 text-xs focus:outline-none cursor-pointer"
+                  >
+                    {INVESTMENT_ACTIVITY_TYPES.map(act => <option key={act} value={act}>{act}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-semibold mb-1">Amount (₹)</label>
+                  <input
+                    type="number"
+                    value={newInvestmentEntry.amount || ''}
+                    onChange={e => setNewInvestmentEntry({ ...newInvestmentEntry, amount: parseFloat(e.target.value) || 0 })}
+                    placeholder="50000"
+                    className="w-full bg-slate-900 border border-slate-700 text-emerald-400 font-mono font-bold rounded-xl px-2.5 py-1.5 text-xs focus:outline-none text-right"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newInvestmentEntry.note}
+                  onChange={e => setNewInvestmentEntry({ ...newInvestmentEntry, note: e.target.value })}
+                  placeholder="Remarks / Note (e.g. Annual Support, Clinic Expansion)..."
+                  className="flex-1 bg-slate-900 border border-slate-700 text-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddDoctorInvestment}
+                  className="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition cursor-pointer shrink-0 flex items-center gap-1"
+                >
+                  <Plus size={14} /> Add Entry
+                </button>
+              </div>
+            </div>
+
+            {/* List of Added Investment Entries */}
+            <div className="flex-1 overflow-y-auto space-y-2 border border-slate-800 rounded-2xl p-2 bg-slate-950/60 max-h-[220px]">
+              {(memoryStore.salesBreakdown[`investment_${activeInvestmentModalMonth}`] || []).length === 0 ? (
+                <div className="py-6 text-center text-slate-500 text-xs font-mono">
+                  No doctor investment entries recorded yet for {activeInvestmentModalMonth}.
                 </div>
               ) : (
-                modalItems.map((item, idx) => (
-                  <div key={item.id || idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-3 bg-slate-950 rounded-2xl border border-slate-800">
-                    <div className="flex-1">
-                      <label className="text-[10px] text-slate-400 font-semibold block mb-1">Distributor / Stockist</label>
-                      <select
-                        value={item.partyName}
-                        onChange={(e) => handleModalItemChange(idx, 'partyName', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-amber-400"
+                (memoryStore.salesBreakdown[`investment_${activeInvestmentModalMonth}`] || []).map((it: any) => (
+                  <div key={it.id} className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2 text-xs">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white">{it.doctorName || it.partyName}</span>
+                        <span className="font-mono text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.2 rounded border border-amber-500/30 font-bold">
+                          {it.activityType || 'GIFT CARDS'}
+                        </span>
+                        {it.note && <span className="text-[11px] text-slate-400">({it.note})</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold text-emerald-400">₹{Number(it.amount).toLocaleString()}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDoctorInvestment(it.id)}
+                        className="p-1 text-slate-500 hover:text-rose-400 rounded cursor-pointer"
                       >
-                        {DEFAULT_STOCKISTS.map(st => (
-                          <option key={st} value={st}>{st}</option>
-                        ))}
-                      </select>
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-
-                    <div className="w-full sm:w-32">
-                      <label className="text-[10px] text-slate-400 font-semibold block mb-1">Amount (₹)</label>
-                      <input
-                        type="number"
-                        value={item.amount || ''}
-                        onChange={(e) => handleModalItemChange(idx, 'amount', parseFloat(e.target.value) || 0)}
-                        placeholder="0"
-                        className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-mono font-bold text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-amber-400 text-right"
-                      />
-                    </div>
-
-                    <div className="flex-1">
-                      <label className="text-[10px] text-slate-400 font-semibold block mb-1">Reason / Remarks Note</label>
-                      <input
-                        type="text"
-                        value={item.note || ''}
-                        onChange={(e) => handleModalItemChange(idx, 'note', e.target.value)}
-                        placeholder="e.g. Goods Return or Expiry batch"
-                        className="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-amber-400"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveModalItem(idx)}
-                      className="p-2 text-slate-500 hover:text-rose-400 self-end sm:self-center mt-2 sm:mt-4 cursor-pointer"
-                    >
-                      <Trash2 size={16} />
-                    </button>
                   </div>
                 ))
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-800">
+            {/* Modal Footer */}
+            <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+              <div className="font-mono text-slate-400">
+                Cell Value Preview: <b className="text-amber-400">{formData.investment?.[activeInvestmentModalMonth] || '0'}</b>
+              </div>
               <button
                 type="button"
-                onClick={handleAddModalItem}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-xs font-semibold rounded-xl transition cursor-pointer"
+                onClick={() => setActiveInvestmentModalMonth(null)}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow cursor-pointer"
               >
-                <Plus size={14} /> Add Stockist
+                Done &amp; Close
               </button>
-
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Total Breakdown</div>
-                  <div className="text-sm font-bold text-amber-400 font-mono">
-                    ₹ {modalItems.reduce((s, it) => s + (parseFloat(String(it.amount)) || 0), 0).toLocaleString()}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSaveModal}
-                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition cursor-pointer"
-                >
-                  Save Remarks &amp; Update Cell
-                </button>
-              </div>
             </div>
+
           </div>
         </div>
       )}
+
     </div>
   );
 };
