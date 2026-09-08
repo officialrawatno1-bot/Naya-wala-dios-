@@ -45,7 +45,8 @@ const REVIEW_NAV = [
 ];
 
 export const ReviewFormatWorkspace: React.FC<Props> = ({ onBack }) => {
-  const [activeTab, setActiveTab] = useState('15');
+  // 🌟 FIX: डिफ़ॉल्ट अब '1' (Effort Level) ही खुलेगा!
+  const [activeTab, setActiveTab] = useState('1');
 
   const renderSheetContent = () => {
     switch (activeTab) {
@@ -80,7 +81,7 @@ export const ReviewFormatWorkspace: React.FC<Props> = ({ onBack }) => {
 
         <div className="flex items-center gap-3">
           <span className="text-[11px] bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-full font-mono font-bold flex items-center gap-1.5 shadow-lg shadow-emerald-950/50">
-            <Sparkles size={13} className="text-emerald-400 animate-pulse" /> DIOS V59.0 REVIEW HUB (AUTO MEMORY SYNC)
+            <Sparkles size={13} className="text-emerald-400 animate-pulse" /> DIOS REVIEW HUB
           </span>
         </div>
       </div>
