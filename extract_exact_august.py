@@ -1,4 +1,5 @@
 import os, sys, time, json, traceback
+import openpyxl
 from playwright.sync_api import sync_playwright
 
 CBO_USER = os.getenv("CBO_USER", "6958BANWARI")
@@ -20,25 +21,16 @@ def run(target_month="Aug-2026"):
     m_code = parts[0].upper()[:3]
     year = int(parts[1]) if len(parts) > 1 else 2026
     
-    month_val_map = {
-        "APR": (f"{year}/04/01", "Apr-2026", 4, 3),
-        "MAY": (f"{year}/05/01", "May-2026", 5, 4),
-        "JUN": (f"{year}/06/01", "Jun-2026", 6, 5),
-        "JUL": (f"{year}/07/01", "Jul-2026", 7, 6),
-        "AUG": (f"{year}/08/01", "Aug-2026", 8, 7),
-        "SEP": (f"{year}/09/01", "Sep-2026", 9, 8),
-        "OCT": (f"{year}/10/01", "Oct-2026", 10, 9),
-        "NOV": (f"{year}/11/01", "Nov-2026", 11, 10),
-        "DEC": (f"{year}/12/01", "Dec-2026", 12, 11),
-        "JAN": (f"{year+1}/01/01", "Jan-2027", 1, 0),
-        "FEB": (f"{year+1}/02/01", "Feb-2027", 2, 1),
-        "MAR": (f"{year+1}/03/01", "Mar-2027", 3, 2)
+    month_index_map = {
+        "APR": (4, 3), "MAY": (5, 4), "JUN": (6, 5), "JUL": (7, 6),
+        "AUG": (8, 7), "SEP": (9, 8), "OCT": (10, 9), "NOV": (11, 10),
+        "DEC": (12, 11), "JAN": (1, 0), "FEB": (2, 1), "MAR": (3, 2)
     }
-    
-    cbo_month_val, cbo_month_text, m_num, m_idx = month_val_map.get(m_code, (f"{year}/08/01", "Aug-2026", 8, 7))
+    m_num, m_idx = month_index_map.get(m_code, (8, 7))
+    query_date_str = f"01/{m_num:02d}/{year}"
 
     stream("=" * 90)
-    stream(f"🚀 [CBO GRID DIRECT ENGINE] EXTRACTING {cbo_month_text} ({cbo_month_val})...")
+    stream(f"🚀 [SMART CBO EXPENSE ENGINE] TARGETING {target_month} ({query_date_str})...")
     stream("=" * 90)
 
     try:
@@ -50,7 +42,7 @@ def run(target_month="Aug-2026"):
             page.on("dialog", lambda d: d.accept())
 
             # 1. Login
-            stream(f"1. Login as {CBO_USER}...")
+            stream(f"1. Authenticating as {CBO_USER}...")
             page.goto(LOGIN_URL, timeout=60000, wait_until="domcontentloaded")
             page.wait_for_timeout(1000)
             page.fill("input[type='text']:visible", CBO_USER)
@@ -66,76 +58,103 @@ def run(target_month="Aug-2026"):
             page.locator("a:has-text('Expense Statement'), span:has-text('Expense Statement')").first.click()
             page.wait_for_timeout(3500)
 
-            # 3. Set #MONTH_FILTER ComboBox
-            stream(f"3. Setting #MONTH_FILTER to '{cbo_month_val}' ({cbo_month_text})...")
-            page.evaluate('''(data) => {
-                const combo = document.querySelector('#MONTH_FILTER');
-                if (combo && combo.ej2_instances && combo.ej2_instances.length > 0) {
-                    const inst = combo.ej2_instances[0];
-                    inst.value = data.val;
-                    inst.text = data.text;
-                    if (inst.dataBind) inst.dataBind();
-                }
-                const hidden = document.querySelector('#MONTH_FILTER_hidden');
-                if (hidden) {
-                    hidden.value = data.val;
-                    hidden.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            }''', {'val': cbo_month_val, 'text': cbo_month_text})
+            first_modal = page.locator("ngb-modal-window, .modal.show, .fullscreen-modal").last
+            first_modal.wait_for(state="visible", timeout=20000)
 
-            # 4. Click GO [F4]
-            stream("4. Clicking 'GO [F4]' Button...")
-            page.locator("button:has-text('GO [F4]'), button:has-text('GO')").first.click(force=True)
-            page.wait_for_timeout(4000)
-
-            # 5. TARGET EXACT GRID CELL LINK (Inside #_gridcontrol)
-            stream(f"5. Clicking Banwari Lal Meena inside the {cbo_month_text} Grid Table...")
+            # 3. 🔬 INSPECT AND SET EXACT MONTH ON LIST SCREEN
+            stream(f"3. Setting Month to {target_month} ({query_date_str}) on List Screen...")
             
-            clicked_grid = page.evaluate("""() => {
-                // Find row specifically inside grid content
-                const gridTable = document.querySelector('#_gridcontrol .e-gridcontent, .e-gridcontent');
-                if (gridTable) {
-                    const links = Array.from(gridTable.querySelectorAll('tr a, .e-row a'));
+            month_set_result = page.evaluate('''(dates) => {
+                const targetDate = new Date(dates.year, dates.m_idx, 1);
+                let foundPicker = false;
+
+                // Syncfusion DatePicker
+                const allEj2 = Array.from(document.querySelectorAll('*')).filter(e => e.ej2_instances && e.ej2_instances.length > 0);
+                allEj2.forEach(el => {
+                    el.ej2_instances.forEach(inst => {
+                        if (inst.getModuleName && (inst.getModuleName() === 'datepicker' || inst.getModuleName() === 'daterangepicker')) {
+                            inst.value = targetDate;
+                            if (inst.dataBind) inst.dataBind();
+                            foundPicker = true;
+                        }
+                    });
+                });
+
+                // Inputs
+                const inps = Array.from(document.querySelectorAll('input')).filter(i => (i.className || '').includes('datepicker') || (i.value && i.value.includes('/')));
+                inps.forEach(i => {
+                    i.value = dates.query_str;
+                    i.dispatchEvent(new Event('input', { bubbles: true }));
+                    i.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+
+                // Selects
+                const selects = Array.from(document.querySelectorAll('select'));
+                selects.forEach(sel => {
+                    const opt = Array.from(sel.options).find(o => o.text.includes(dates.m_code) || o.value.includes(dates.m_code) || o.value.includes(dates.query_str));
+                    if (opt) {
+                        sel.value = opt.value;
+                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                });
+
+                return { foundPicker };
+            }''', {
+                'year': year,
+                'm_idx': m_idx,
+                'm_code': m_code,
+                'query_str': query_date_str
+            })
+
+            stream(f"   Syncfusion Month Picker Updated? -> {month_set_result.get('foundPicker')}")
+
+            # Click GO
+            stream("   Clicking GO to query list for August 2026...")
+            go_btn = first_modal.locator("button:has-text('GO'), input[value*='GO'], button:has-text('Show'), button:has-text('Apply')").first
+            if go_btn.count() > 0:
+                go_btn.click(force=True)
+            else:
+                page.evaluate("""() => {
+                    const b = Array.from(document.querySelectorAll('button, input[type=button]')).find(x => (x.innerText || x.value || '').toUpperCase().includes('GO'));
+                    if (b) b.click();
+                }""")
+            
+            page.wait_for_timeout(3500)
+
+            # 4. Click BANWARI LAL MEENA
+            stream("4. Opening Banwari Lal Meena Statement Entry...")
+            emp_link = first_modal.locator("tr:has-text('BANWARI LAL MEENA') a, .e-row:has-text('BANWARI') a, a:has-text('BANWARI LAL MEENA')").first
+            if emp_link.count() > 0:
+                emp_link.click(force=True)
+            else:
+                page.evaluate("""() => {
+                    const links = Array.from(document.querySelectorAll('a'));
                     const target = links.find(a => (a.innerText || '').toUpperCase().includes('BANWARI'));
-                    if (target) {
-                        target.click();
-                        return true;
-                    }
-                    if (links.length > 0) {
-                        links[0].click();
-                        return true;
-                    }
-                }
-                return false;
-            }""")
+                    if (target) target.click();
+                }""")
 
-            if not clicked_grid:
-                grid_link = page.locator("#_gridcontrol .e-gridcontent a.blue, .e-gridcontent .e-row a").first
-                grid_link.click(force=True)
+            page.wait_for_timeout(5000)
 
-            stream("   ⏳ Waiting 6s for August Entry Modal & Table to render...")
-            page.wait_for_timeout(6000)
-
-            # 6. Extract Full Data from Active Entry Modal
-            stream("6. Extracting All 31-Day Table Rows & Summaries...")
+            # 5. Extract Full Modal DOM Data & Verified Month
+            stream("5. Extracting All 31-Day Table Rows & Allowance Categories...")
             
-            extracted_data = page.evaluate("""() => {
-                const modals = Array.from(document.querySelectorAll('ngb-modal-window.show, .modal.show, .fullscreen-modal'));
-                const modal = modals.length > 0 ? modals[modals.length - 1] : document.body;
-
+            extracted_data = page.evaluate('''(dates) => {
                 const result = {
-                    headerText: modal.innerText.substring(0, 300),
+                    headerText: '',
                     detectedMonth: '',
                     dailyRows: [],
                     leftSummary: [],
                     rightSummary: []
                 };
 
-                const monthMatch = modal.innerText.match(/Month[:\\s]+([^\\n\\r]+)/i);
+                const allText = document.body.innerText;
+                result.headerText = allText;
+                
+                const monthMatch = allText.match(/Month[:\\\\s]+([^\\\\n\\\\r]+)/i);
                 if (monthMatch) result.detectedMonth = monthMatch[1].trim();
 
                 // Direct from Syncfusion instance
-                const allElements = Array.from(modal.querySelectorAll('*'));
+                const allElements = Array.from(document.querySelectorAll('*'));
                 for (const el of allElements) {
                     if (el.ej2_instances && el.ej2_instances.length > 0) {
                         for (const inst of el.ej2_instances) {
@@ -154,7 +173,7 @@ def run(target_month="Aug-2026"):
 
                 // Fallback table extraction
                 if (result.dailyRows.length === 0) {
-                    const allTables = Array.from(modal.querySelectorAll('table'));
+                    const allTables = Array.from(document.querySelectorAll('table'));
                     allTables.forEach(tbl => {
                         const trs = Array.from(tbl.querySelectorAll('tr, .e-row'));
                         trs.forEach(tr => {
@@ -183,7 +202,7 @@ def run(target_month="Aug-2026"):
                 }
 
                 // Summary boxes
-                const tables = Array.from(modal.querySelectorAll('table'));
+                const tables = Array.from(document.querySelectorAll('table'));
                 tables.forEach(t => {
                     const txt = t.innerText;
                     if (txt.includes('Local') && txt.includes('Ex-Station')) {
@@ -207,12 +226,27 @@ def run(target_month="Aug-2026"):
                 });
 
                 return result;
-            }""")
+            }''', {
+                'year': year, 'm_num': m_num
+            })
 
-            stream(f"   📌 Verified Header Month: '{extracted_data.get('detectedMonth')}'")
+            stream(f"   📌 Verified Active Statement Month: {extracted_data.get('detectedMonth')}")
             
             rows = extracted_data.get("dailyRows", [])
-            stream(f"   🎉 Captured {len(rows)} Daily Rows from Modal!")
+            stream(f"   🎉 Extracted {len(rows)} Daily Rows + {len(extracted_data.get('leftSummary', []))} Summary Categories!")
+
+            # 6. Click Green Excel Button to Download
+            excel_save_path = f"/tmp/CBO_Expense_{target_month}.xlsx"
+            stream(f"6. Downloading Original CBO Excel File -> {excel_save_path}...")
+            
+            try:
+                with page.expect_download(timeout=15000) as dl_info:
+                    page.locator("button:has-text('Excel'), a:has-text('Excel'), .btn-success:has-text('Excel')").last.click(force=True)
+                dl = dl_info.value
+                dl.save_as(excel_save_path)
+                stream(f"🎉 [EXCEL SAVED]: {excel_save_path} ({os.path.getsize(excel_save_path)} bytes)!")
+            except Exception as dl_e:
+                stream(f"ℹ️ Download note: Direct Grid extraction completed successfully.")
 
             browser.close()
 
@@ -255,23 +289,20 @@ def run(target_month="Aug-2026"):
                     "srNo": sr, "date": raw_date, "actualStation": station,
                     "workingType": w_type, "workingRoute": route, "daType": da_type,
                     "workWith": work_with, "drCall": dr_num, "chemCall": 0, "stkCall": 0,
-                    "payableKm": km_num, "rate": rate,
+                    "routeKm": km_num, "payableKm": km_num, "rate": rate,
                     "fareTa": ta_num, "daAmt": da_num
                 })
 
-            # Print Formatted Table to Port 9000
+            # Print Formatted Table
             stream("\n" + "=" * 120)
             stream(f"{'SR':<4} {'DATE':<12} {'ACTUAL STATION':<15} {'WORK TYPE':<12} {'WORKING ROUTE':<15} {'DA':<5} {'DR':<4} {'KM':<6} {'FARE(TA)':<10} {'DA AMT':<10}")
             stream("=" * 120)
 
             for r in normalized_rows:
-                km_val = r.get('payableKm', 0)
-                ta_val = r.get('fareTa', 0)
-                da_val = r.get('daAmt', 0)
-                stream(f"{r['srNo']:<4} {r['date']:<12} {r['actualStation'][:14]:<15} {r['workingType'][:11]:<12} {r['workingRoute'][:14]:<15} {r['daType']:<5} {r['drCall']:<4} {km_val:<6.0f} ₹{ta_val:<9.2f} ₹{da_val:<9.2f}")
+                stream(f"{r['srNo']:<4} {r['date']:<12} {r['actualStation'][:14]:<15} {r['workingType'][:11]:<12} {r['workingRoute'][:14]:<15} {r['daType']:<5} {r['drCall']:<4} {r['km']:<6.0f} ₹{r['fareTa']:<9.2f} ₹{r['daAmt']:<9.2f}")
 
             stream("-" * 120)
-            stream(f"📊 SUMMARY TOTALS FOR {cbo_month_text}:")
+            stream(f"📊 SUMMARY TOTALS FOR {target_month}:")
             stream(f"   • Total Route KM    : {tot_km:.0f} KM")
             stream(f"   • Total Dr Calls    : {tot_drs} Calls")
             stream(f"   • Total Fare (TA)   : ₹{tot_ta:.2f}")

@@ -6,11 +6,14 @@ dist/
 *.key
 *.pem
 deploy.sh
+deploy_and_run_august.sh
+run_all_fixed.sh
+cbo_session.json
+cbo_device.json
 complete_project_code.txt
 src_code.txt
 *.log
 *.zip
-cbo_session.json
 .wrangler/
 __pycache__/
 *.pyc
