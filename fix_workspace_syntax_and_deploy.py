@@ -1,4 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import os, subprocess
+
+print("==========================================================================")
+print("🛠️ [REBUILDING ExpenseWorkspace.tsx CLEANLY - ZERO SYNTAX ERRORS]...")
+print("==========================================================================")
+
+clean_component = '''import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Wallet, Calendar, Download, 
   CheckCircle2, AlertTriangle, UploadCloud, 
@@ -490,8 +496,8 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
     csvLines.push('');
     csvLines.push(`Net Expense Claimed: ${totals.totClaim.toFixed(0)},,,,,,,,,,,,,,,,,,`);
 
-    const csvContent = csvLines.join('\r\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const csvContent = csvLines.join('\\r\\n');
+    const blob = new Blob(['\\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1427,3 +1433,9 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
     </div>
   );
 };
+'''
+
+with open('src/components/ExpenseWorkspace.tsx', 'w', encoding='utf-8') as f:
+    f.write(clean_component)
+
+print("✅ src/components/ExpenseWorkspace.tsx written with 100% clean syntax.")
