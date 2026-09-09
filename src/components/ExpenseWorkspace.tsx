@@ -111,6 +111,9 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
   const [smartItems, setSmartItems] = useState<SmartExpenseItem[]>([]);
   const [doctorSearchQuery, setDoctorSearchQuery] = useState('');
   const [activeDoctorSearchCategory, setActiveDoctorSearchCategory] = useState<'DOB' | 'DOA' | 'FRUITS' | null>(null);
+  // 🌟 MANUAL / CUSTOM CATEGORY STATE
+  const [customCategoryName, setCustomCategoryName] = useState('');
+  const [customCategoryAmount, setCustomCategoryAmount] = useState('');
 
   const allMslDoctors: MslDoctor[] = useMemo(() => {
     if (memoryStore.mslData && memoryStore.mslData.length > 0) return memoryStore.mslData;
@@ -270,6 +273,26 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
   };
 
   // 🌟 FIX: PERSIST ITEMS IN ROW OBJECT & UPDATE REMARK INSTANTLY!
+  // 🌟 MANUAL / CUSTOM CATEGORY ADD HANDLER
+  const handleAddCustomCategory = () => {
+    if (!customCategoryName.trim()) {
+      alert("Kripya Category ka naam (e.g. Toll, Courier, Room) zaroor likhein!");
+      return;
+    }
+    const amt = customCategoryAmount === '' ? '' : (parseFloat(customCategoryAmount) || '');
+    setSmartItems(prev => [
+      ...prev,
+      {
+        id: 'custom_' + Date.now() + Math.random().toString(36).substring(2, 6),
+        category: 'Custom',
+        label: customCategoryName.trim(),
+        amount: amt
+      }
+    ]);
+    setCustomCategoryName('');
+    setCustomCategoryAmount('');
+  };
+
   const handleApplySmartExpense = () => {
     if (activeSmartRowIdx === null) return;
     
@@ -1196,6 +1219,40 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
                 >
                   <Stethoscope size={13} /> 🍏 Fruits Doctor
                 </button>
+              </div>
+            </div>
+
+                        {/* 🌟 MANUAL / CUSTOM CATEGORY INPUT ROW */}
+            <div className="p-3 bg-slate-950 rounded-2xl border border-amber-500/40 space-y-2 text-xs">
+              <div className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <Plus size={13} className="text-amber-300" />
+                <span>Custom / Manual Category (Inke alawa kuch aur kharcha):</span>
+              </div>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Category Name (e.g. Toll Tax, Courier, Station Tea, Room)..."
+                  value={customCategoryName}
+                  onChange={e => setCustomCategoryName(e.target.value)}
+                  className="flex-1 bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
+                />
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 font-bold">₹</span>
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={customCategoryAmount}
+                    onChange={e => setCustomCategoryAmount(e.target.value)}
+                    className="w-24 bg-slate-900 border border-slate-700 text-yellow-300 font-mono font-bold text-right rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomCategory}
+                    className="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow cursor-pointer transition flex items-center gap-1 shrink-0"
+                  >
+                    <Plus size={13} /> Add
+                  </button>
+                </div>
               </div>
             </div>
 
