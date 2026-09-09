@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   ArrowLeft, Globe, FileText, FileSpreadsheet, Download, 
-  CheckCircle2, Sparkles, Loader2, Award, Coins, Wallet, DollarSign
+  CheckCircle2, Sparkles, Loader2, Award, Coins, Wallet, DollarSign, Gift, Layers
 } from 'lucide-react';
 import { generateMasterReviewWorkbook } from '../exporters/masterReviewWorkbook';
 import { StockwiseStatementVault } from './StockwiseStatementVault';
+import { FreeGoodsVault } from './FreeGoodsVault';
+import { PartywiseAggregatorVault } from './PartywiseAggregatorVault';
 import { IncentiveWorkspace } from './IncentiveWorkspace';
 import { ExpenseWorkspace } from './ExpenseWorkspace';
 
@@ -12,31 +14,11 @@ interface Props {
   onBack: () => void;
 }
 
-type ViewState = 'web-data' | 'statement' | 'stockwise-statement' | 'earn' | 'incentive' | 'expense';
+type ViewState = 'web-data' | 'statement' | 'stockwise-statement' | 'free-goods' | 'partywise-analysis' | 'earn' | 'incentive' | 'expense';
 
 export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
   const [currentView, setCurrentView] = useState<ViewState>('web-data');
-
-  const setAndSaveView = (v: ViewState) => {
-    setCurrentView(v);
-    try {
-      sessionStorage.setItem('dios_web_data_view', v);
-    } catch {}
-  };
   const [isDownloading, setIsDownloading] = useState(false);
-  const [kvStatus, setKvStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/cloud-storage?key=review/sheet_01_effort_level')
-      .then(r => r.json())
-      .then(d => {
-        if (d.success && d.updatedAt) {
-          const dt = new Date(d.updatedAt);
-          setKvStatus(dt.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   const handleDownloadMaster = async () => {
     setIsDownloading(true);
@@ -56,7 +38,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <button
           onClick={() => {
-            if (currentView === 'stockwise-statement') setCurrentView('statement');
+            if (currentView === 'stockwise-statement' || currentView === 'free-goods' || currentView === 'partywise-analysis') setCurrentView('statement');
             else if (currentView === 'statement') setCurrentView('web-data');
             else if (currentView === 'incentive') setCurrentView('earn');
             else if (currentView === 'earn') setCurrentView('web-data');
@@ -65,7 +47,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
           className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 transition cursor-pointer text-xs font-semibold"
         >
           <ArrowLeft size={16} /> 
-          {currentView === 'stockwise-statement' 
+          {currentView === 'stockwise-statement' || currentView === 'free-goods' || currentView === 'partywise-analysis'
             ? 'Back to Statement' 
             : currentView === 'statement' 
             ? 'Back to Web Data' 
@@ -83,7 +65,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* 1️⃣ LEVEL 1: WEB DATA HOME (3 MAIN MODULES) */}
+      {/* 1️⃣ LEVEL 1: WEB DATA HOME */}
       {currentView === 'web-data' && (
         <div className="space-y-6">
           <div>
@@ -94,7 +76,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
               Web Data &amp; Statements Hub
             </h1>
             <p className="text-slate-400 text-xs md:text-sm mt-1">
-              Archived Stockist Statements, 14-in-1 Master Review Workbook &amp; Performance Earnings.
+              Archived Stockist Statements, Free Goods Vault, Partywise Retailer Intelligence &amp; Master Review.
             </p>
           </div>
 
@@ -113,7 +95,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
                 </div>
                 <h3 className="text-lg font-bold text-white">Statement</h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Access 7-stockist statements and secondary sales repositories across 12 months.
+                  Access stockist statements, Free Goods Repository and Partywise Retailer Analysis.
                 </p>
               </div>
               <button
@@ -124,7 +106,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
               </button>
             </div>
 
-            {/* MODULE 2: 🌟 EARN (NEW INCENTIVE & EXPENSE) */}
+            {/* MODULE 2: EARN */}
             <div className="bg-slate-900 border-2 border-emerald-500/50 hover:border-emerald-400 rounded-2xl p-6 transition shadow-2xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -135,9 +117,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
                     NEW • EARNINGS
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  Earn
-                </h3>
+                <h3 className="text-lg font-bold text-white">Earn</h3>
                 <p className="text-xs text-slate-400 mt-1">
                   Quarterly &amp; Monthly Incentive calculations (Q1 to Q4) and Expense management.
                 </p>
@@ -150,7 +130,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
               </button>
             </div>
 
-            {/* MODULE 3: 14-in-1 MASTER REVIEW EXCEL */}
+            {/* MODULE 3: MASTER EXCEL */}
             <div className="bg-slate-900 border border-slate-800 hover:border-cyan-500/60 rounded-2xl p-6 transition shadow-xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -184,7 +164,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 2️⃣ LEVEL 2 (A): STATEMENT REPOSITORIES */}
+      {/* 2️⃣ LEVEL 2 (A): STATEMENT REPOSITORIES (STOCKWISE + FREE GOODS + PARTYWISE) */}
       {currentView === 'statement' && (
         <div className="space-y-6">
           <div>
@@ -195,36 +175,54 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
               Statement Repositories
             </h1>
             <p className="text-slate-400 text-xs md:text-sm mt-1">
-              Select available stockist statements and secondary repositories.
+              Select stockist statements vault, Free Goods Repository, or Partywise Retailer Analysis.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
-            <div className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-2xl p-6 transition shadow-xl space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
-                  <FileSpreadsheet size={22} />
-                </span>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded font-mono">Archive Active</span>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
+            {/* CARD 1: STOCKWISE */}
+            <div className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-2xl p-6 transition shadow-xl space-y-4 flex flex-col justify-between">
               <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl"><FileSpreadsheet size={22} /></span>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded font-mono">Archive Active</span>
+                </div>
                 <h3 className="text-lg font-bold text-white">Stockwise Statement</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Archived 7-distributor statements across all 12 months with product-level details.
-                </p>
+                <p className="text-xs text-slate-400 mt-1">Archived 7-distributor statements across all 12 months with product-level details.</p>
               </div>
-              <button
-                onClick={() => setCurrentView('stockwise-statement')}
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition cursor-pointer"
-              >
-                Stockwise Statement &rarr;
-              </button>
+              <button onClick={() => setCurrentView('stockwise-statement')} className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition cursor-pointer">Open Stockwise Statement &rarr;</button>
+            </div>
+
+            {/* CARD 2: FREE GOODS */}
+            <div className="bg-slate-900 border border-slate-800 hover:border-cyan-500/60 rounded-2xl p-6 transition shadow-xl space-y-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl"><Gift size={22} /></span>
+                  <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded font-mono font-bold">73 Master Products</span>
+                </div>
+                <h3 className="text-lg font-bold text-white">Free Goods Repository</h3>
+                <p className="text-xs text-slate-400 mt-1">Party-wise free goods quantity entry, PTS rate validation &amp; CSV export.</p>
+              </div>
+              <button onClick={() => setCurrentView('free-goods')} className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg transition cursor-pointer">Open Free Goods &rarr;</button>
+            </div>
+
+            {/* CARD 3: PARTYWISE ANALYSIS */}
+            <div className="bg-slate-900 border-2 border-cyan-500/50 hover:border-cyan-400 rounded-2xl p-6 transition shadow-2xl space-y-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl"><Layers size={22} /></span>
+                  <span className="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded font-mono font-bold">RETAILER INTELLIGENCE</span>
+                </div>
+                <h3 className="text-lg font-bold text-white">Partywise Analysis</h3>
+                <p className="text-xs text-slate-400 mt-1">Consolidate retailer bills across stockists, parse addresses and link to MSL doctors.</p>
+              </div>
+              <button onClick={() => setCurrentView('partywise-analysis')} className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg transition cursor-pointer">Open Partywise Analysis &rarr;</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 2️⃣ LEVEL 2 (B): 🌟 EARN HUB (1. INCENTIVE | 2. EXPENSE) */}
+      {/* 2️⃣ LEVEL 2 (B): EARN HUB */}
       {currentView === 'earn' && (
         <div className="space-y-6">
           <div>
@@ -240,72 +238,50 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-            
-            {/* OPTION 1: INCENTIVE */}
             <div className="bg-slate-900 border-2 border-emerald-500/60 hover:border-emerald-400 rounded-2xl p-6 transition shadow-2xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
-                    <Award size={22} />
-                  </span>
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded font-mono font-bold">
-                    Q1 to Q4 Active
-                  </span>
+                  <span className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl"><Award size={22} /></span>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded font-mono font-bold">Q1 to Q4 Active</span>
                 </div>
                 <h3 className="text-lg font-bold text-white">1. Incentive</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Quarterly &amp; monthly incentive calculations for Rajasthan Zone with live auto-fill for Udaipur HQ (Banwari Lal Meena).
-                </p>
+                <p className="text-xs text-slate-400 mt-1">Quarterly &amp; monthly incentive calculations for Rajasthan Zone with live auto-fill for Udaipur HQ.</p>
               </div>
-
-              <button
-                onClick={() => setCurrentView('incentive')}
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 transition cursor-pointer"
-              >
-                Open Incentive &rarr;
-              </button>
+              <button onClick={() => setCurrentView('incentive')} className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition cursor-pointer">Open Incentive &rarr;</button>
             </div>
 
-            {/* OPTION 2: 🌟 ACTIVE EXPENSE WORKSPACE */}
             <div className="bg-slate-900 border-2 border-cyan-500/50 hover:border-cyan-400 rounded-2xl p-6 transition shadow-2xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl">
-                    <Wallet size={22} />
-                  </span>
-                  <span className="text-[10px] text-cyan-300 font-bold bg-cyan-950 px-2 py-0.5 rounded border border-cyan-500/30 font-mono">
-                    LIVE CBO EXPENSE
-                  </span>
+                  <span className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl"><Wallet size={22} /></span>
+                  <span className="text-[10px] bg-cyan-300 font-bold bg-cyan-950 px-2 py-0.5 rounded border border-cyan-500/30 font-mono">LIVE CBO EXPENSE</span>
                 </div>
                 <h3 className="text-lg font-bold text-white">2. Expense Statement</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Daily allowance (DA), travel fare (TA), doctor calls &amp; monthly tour claim submissions auto-synced with CBO.
-                </p>
+                <p className="text-xs text-slate-400 mt-1">Daily allowance (DA), travel fare (TA), doctor calls &amp; monthly tour claim submissions.</p>
               </div>
-
-              <button
-                onClick={() => setCurrentView('expense')}
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-950 transition cursor-pointer"
-              >
-                Open Expense Statement &rarr;
-              </button>
+              <button onClick={() => setCurrentView('expense')} className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg transition cursor-pointer">Open Expense Statement &rarr;</button>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* 3️⃣ LEVEL 3 (A): STOCKWISE STATEMENT VAULT */}
+      {/* VIEWS RENDER */}
       {currentView === 'stockwise-statement' && (
         <StockwiseStatementVault onBack={() => setCurrentView('statement')} />
       )}
 
-      {/* 3️⃣ LEVEL 3 (B): 🌟 INCENTIVE WORKSPACE */}
+      {currentView === 'free-goods' && (
+        <FreeGoodsVault onBack={() => setCurrentView('statement')} />
+      )}
+
+      {currentView === 'partywise-analysis' && (
+        <PartywiseAggregatorVault onBack={() => setCurrentView('statement')} />
+      )}
+
       {currentView === 'incentive' && (
         <IncentiveWorkspace onBack={() => setCurrentView('earn')} />
       )}
 
-      {/* 3️⃣ LEVEL 3 (C): 🌟 EXPENSE STATEMENT WORKSPACE */}
       {currentView === 'expense' && (
         <ExpenseWorkspace onBack={() => setCurrentView('earn')} />
       )}
