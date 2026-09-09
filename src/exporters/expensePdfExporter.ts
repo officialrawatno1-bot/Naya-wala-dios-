@@ -160,12 +160,12 @@ export function exportExpenseStatementToPdf(options: ExpensePdfExportOptions) {
       fontSize: 5.8,
       cellPadding: 0.4,
       overflow: 'linebreak', // 🌟 NO OVERLAPPING TEXT!
-      lineColor: [148, 163, 184], // Clean gridlines
+      lineColor: [0, 0, 0], // Clean gridlines
       lineWidth: 0.1,
       textColor: [0, 0, 0]
     },
     headStyles: {
-      fillColor: [180, 198, 231], // 🌟 Exact Lavender #B4C6E7 from Screenshot 1!
+      fillColor: [204, 208, 238], // 🌟 Exact Lavender #B4C6E7 from Screenshot 1!
       textColor: [0, 0, 0],
       fontStyle: 'bold',
       fontSize: 6.0,
@@ -173,7 +173,7 @@ export function exportExpenseStatementToPdf(options: ExpensePdfExportOptions) {
       valign: 'middle'
     },
     footStyles: {
-      fillColor: [241, 245, 249], // Clean subtle footer
+      fillColor: [204, 208, 238], // Clean subtle footer
       textColor: [0, 0, 0],
       fontStyle: 'bold',
       fontSize: 6.0,
@@ -245,8 +245,8 @@ export function exportExpenseStatementToPdf(options: ExpensePdfExportOptions) {
     margin: { left: marginX },
     tableWidth: 105,
     theme: 'grid',
-    styles: { font: 'helvetica', fontSize: 6.5, cellPadding: 0.7, lineColor: [148, 163, 184], lineWidth: 0.1, textColor: [0, 0, 0] },
-    headStyles: { fillColor: [180, 198, 231], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
+    styles: { font: 'helvetica', fontSize: 6.5, cellPadding: 0.7, lineColor: [0, 0, 0], lineWidth: 0.1, textColor: [0, 0, 0] },
+    headStyles: { fillColor: [204, 208, 238], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
     columnStyles: {
       0: { cellWidth: 10, halign: 'center' },
       1: { cellWidth: 45, halign: 'left' },
@@ -301,14 +301,14 @@ export function exportExpenseStatementToPdf(options: ExpensePdfExportOptions) {
       font: 'helvetica',
       fontSize: 6.8,
       cellPadding: 1.0,
-      lineColor: [100, 116, 139],
+      lineColor: [0, 0, 0],
       lineWidth: 0.15,
       halign: 'center',
       valign: 'middle',
       textColor: [0, 0, 0]
     },
     headStyles: {
-      fillColor: [180, 198, 231], // 🌟 Exact Lavender #B4C6E7 from Screenshot 1!
+      fillColor: [204, 208, 238], // 🌟 Exact Lavender #B4C6E7 from Screenshot 1!
       textColor: [0, 0, 0],
       fontStyle: 'bold',
       fontSize: 7.0,
@@ -335,9 +335,9 @@ export function exportExpenseStatementToPdf(options: ExpensePdfExportOptions) {
   // ==========================================
   // 6. NET EXPENSE CLAIMED (LAVENDER BOX - EXACT SCREENSHOT 1)
   // ==========================================
-  doc.setFillColor(217, 225, 242); // 🌟 Exact Lavender #D9E1F2
+  doc.setFillColor(204, 208, 238); // 🌟 Exact Lavender #D9E1F2
   doc.rect(marginX, finalTableY, 65, 8, 'F');
-  doc.setDrawColor(180, 198, 231);
+  doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.2);
   doc.rect(marginX, finalTableY, 65, 8, 'S');
 
