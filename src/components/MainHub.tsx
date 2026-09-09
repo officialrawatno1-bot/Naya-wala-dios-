@@ -1,3 +1,5 @@
+import { SettingsModal } from './SettingsModal';
+import { Settings } from 'lucide-react';
 import React, { useState } from 'react';
 import { 
   Search, FolderGit2, Activity, ShieldCheck, Database, 
@@ -12,6 +14,7 @@ interface Props {
 }
 
 export const MainHub: React.FC<Props> = ({ onOpenProject }) => {
+  const [showSettings, setShowSettings] = useState(false);
   const [hubSearch, setHubSearch] = useState('');
   const [isMasterBackingUp, setIsMasterBackingUp] = useState(false);
   const [isMasterRestoring, setIsMasterRestoring] = useState(false);
@@ -275,7 +278,21 @@ export const MainHub: React.FC<Props> = ({ onOpenProject }) => {
           </h1>
           <p className="text-slate-400 text-sm mt-1">Udaipur HQ Pharma Analytics &amp; Permanent Cloud Reporting Platform</p>
         </div>
+
+        <button
+          onClick={() => setShowSettings(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border-2 border-cyan-500/50 hover:border-cyan-400 text-cyan-300 font-bold text-xs rounded-2xl shadow-lg transition cursor-pointer self-start md:self-auto"
+        >
+          <Settings size={16} className="text-cyan-400" />
+          <span>⚙️ Settings &amp; Master Setup</span>
+        </button>
       </header>
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
 
       <div className="relative mb-8">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
