@@ -1,4 +1,10 @@
-import jsPDF from 'jspdf';
+import os, sys
+
+print("==========================================================================")
+print("🎨 [RESTORING OFFICIAL CBO PDF COLORS & 1-PAGE A4 LAYOUT]...")
+print("==========================================================================")
+
+official_pdf_code = """import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ExpenseDayRow } from '../parsers/expenseParser';
 
@@ -354,3 +360,10 @@ export function exportExpenseStatementToPdf(options: ExpensePdfExportOptions) {
   const fileName = `Expense_Statement_${selectedMonth}_Official.pdf`;
   doc.save(fileName);
 }
+"""
+
+with open('src/exporters/expensePdfExporter.ts', 'w', encoding='utf-8') as f:
+    f.write(official_pdf_code)
+
+print("✅ src/exporters/expensePdfExporter.ts restored with official CBO colors & 1-page layout.")
+
