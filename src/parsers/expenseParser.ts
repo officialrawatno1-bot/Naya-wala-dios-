@@ -20,6 +20,7 @@ export interface ExpenseDayRow {
   total: number | string;
   remark: string;
   attachment: string;
+  otherExpenseItems?: Array<{ id: string; category: string; doctorName?: string; label: string; amount: number | '' }>;
 }
 
 export interface CboExpenseParsedData {

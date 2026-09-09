@@ -1,4 +1,24 @@
-import React, { useState, useMemo } from 'react';
+import os, sys
+
+print("==========================================================================")
+print("🛠️ [UPDATING SMART OTHER EXPENSES] ENABLING PERMANENT MULTI-ITEM MEMORY...")
+print("==========================================================================")
+
+# 1. Update src/parsers/expenseParser.ts to include otherExpenseItems array in ExpenseDayRow
+with open('src/parsers/expenseParser.ts', 'r', encoding='utf-8') as f:
+    parser_code = f.read()
+
+if "otherExpenseItems?:" not in parser_code:
+    parser_code = parser_code.replace(
+        "  attachment: string;\n}",
+        "  attachment: string;\n  otherExpenseItems?: Array<{ id: string; category: string; doctorName?: string; label: string; amount: number | '' }>;\n}"
+    )
+    with open('src/parsers/expenseParser.ts', 'w', encoding='utf-8') as f:
+        f.write(parser_code)
+    print("✅ 1. src/parsers/expenseParser.ts updated with otherExpenseItems type.")
+
+# 2. Update src/components/ExpenseWorkspace.tsx with full persistent list & auto-remark
+workspace_ui_code = """import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Wallet, Calendar, Download, 
   CheckCircle2, AlertTriangle, UploadCloud, 
@@ -446,8 +466,8 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
     csvLines.push('');
     csvLines.push(`Net Expense Claimed: ${totals.totClaim.toFixed(0)},,,,,,,,,,,,,,,,,,`);
 
-    const csvContent = csvLines.join('\r\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const csvContent = csvLines.join('\\r\\n');
+    const blob = new Blob(['\\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1267,3 +1287,9 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
     </div>
   );
 };
+"""
+
+with open('src/components/ExpenseWorkspace.tsx', 'w', encoding='utf-8') as f:
+    f.write(workspace_ui_code)
+print("✅ 2. src/components/ExpenseWorkspace.tsx updated with permanent item memory & live remark sync.")
+
