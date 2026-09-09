@@ -23,7 +23,7 @@ export interface ExpenseDayRow {
 }
 
 export interface CboExpenseParsedData {
-  monthCode: string; // e.g. "Aug-2026", "Jul-2026"
+  monthCode: string;
   header: {
     name: string;
     division: string;
@@ -87,7 +87,7 @@ export async function parseCboExpenseFile(file: File): Promise<CboExpenseParsedD
     const row = rawRows[r] || [];
     const lineText = row.map((c: any) => String(c || '').trim()).join(' | ');
 
-    // 1. Parse Header Fields & Detect Month
+    // 1. Header & Month
     if (section === 'HEADER') {
       row.forEach((cell: any) => {
         const str = String(cell || '').trim();
@@ -118,12 +118,11 @@ export async function parseCboExpenseFile(file: File): Promise<CboExpenseParsedD
       }
     }
 
-    // 2. Parse 19-Column Day-Wise Rows
+    // 2. 19-Column Day-Wise Rows
     if (section === 'DAILY') {
       const col0 = String(row[0] || '').trim();
       const col1 = String(row[1] || '').trim();
 
-      // End of Daily section (Reached Total Row or next table)
       if (col1.toLowerCase() === 'total' || col0.toLowerCase() === 'total' || col1 === 'Head') {
         if (col1 === 'Head') section = 'ALLOWANCE';
         continue;
@@ -141,9 +140,24 @@ export async function parseCboExpenseFile(file: File): Promise<CboExpenseParsedD
           return isNaN(n) ? 0 : n;
         };
 
-        const km = parseNum(row[11] || row[10]);
+        const station = String(row[2] || '').trim();
+        const route = String(row[4] || '').trim();
         const rate = parseNum(row[12]) || 2.50;
-        const fare = parseNum(row[13]) || (km > 0 ? Number((km * rate).toFixed(2)) : 0);
+
+        // 🌟 RULE 3: BANSWARA / BANSWADA ALWAYS 372 KM
+        let km = parseNum(row[11] || row[10]);
+        const isBanswara = station.toUpperCase().includes('BANSWA') || route.toUpperCase().includes('BANSWA');
+        if (isBanswara) {
+          km = 372;
+        }
+
+        let fare = parseNum(row[13]);
+        if (isBanswara) {
+          fare = Number((372 * rate).toFixed(2));
+        } else if (!fare && km > 0) {
+          fare = Number((km * rate).toFixed(2));
+        }
+
         const da = parseNum(row[14]);
         const other = parseNum(row[15]);
         const tot = parseNum(row[16]) || (fare + da + other);
@@ -151,15 +165,15 @@ export async function parseCboExpenseFile(file: File): Promise<CboExpenseParsedD
         result.rows.push({
           srNo: col0,
           date: col1,
-          actualStation: String(row[2] || '').trim(),
+          actualStation: station,
           workingType: String(row[3] || '').trim(),
-          workingRoute: String(row[4] || '').trim(),
+          workingRoute: route,
           daType: String(row[5] || '').trim(),
           workWith: String(row[6] || '').trim(),
           drCall: parseNum(row[7]),
           chemCall: parseNum(row[8]),
           stkCall: parseNum(row[9]),
-          routeKm: parseNum(row[10]),
+          routeKm: isBanswara ? 372 : parseNum(row[10]),
           payableKm: km,
           rate: rate.toFixed(2),
           fareTa: fare,
@@ -173,7 +187,7 @@ export async function parseCboExpenseFile(file: File): Promise<CboExpenseParsedD
       continue;
     }
 
-    // 3. Parse Allowance Summary Box
+    // 3. Allowance Summary Box
     if (section === 'ALLOWANCE') {
       const col0 = String(row[0] || '').trim();
       const col1 = String(row[1] || '').trim();
@@ -192,7 +206,7 @@ export async function parseCboExpenseFile(file: File): Promise<CboExpenseParsedD
       }
     }
 
-    // 4. Parse Misc Expense Box
+    // 4. Misc Expense Box
     if (section === 'MISC') {
       const col0 = String(row[0] || '').trim();
       const col1 = String(row[1] || '').trim();
@@ -209,7 +223,7 @@ export async function parseCboExpenseFile(file: File): Promise<CboExpenseParsedD
       }
     }
 
-    // 5. Parse Performance Summary & Net Claim
+    // 5. Performance Summary
     if (section === 'PERF') {
       const col0 = String(row[0] || '').trim();
       if (/^[0-9]+$/.test(col0) && row[1]) {
@@ -227,14 +241,12 @@ export async function parseCboExpenseFile(file: File): Promise<CboExpenseParsedD
       }
     }
 
-    // Net Expense Claimed line
     if (lineText.includes('Net Expense Claimed:')) {
       const match = lineText.match(/Net Expense Claimed:\s*([0-9.]+)/i);
       if (match) result.netClaimed = parseFloat(match[1]) || 0;
     }
   }
 
-  // If netClaimed wasn't in text, calculate from rows + misc
   if (!result.netClaimed && result.rows.length > 0) {
     const sumRows = result.rows.reduce((acc, r) => acc + (Number(r.total) || 0), 0);
     result.netClaimed = sumRows;
