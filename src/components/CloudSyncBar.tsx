@@ -99,10 +99,7 @@ export const CloudSyncBar: React.FC<CloudSyncBarProps> = ({
       // 1. Update React State on Screen
       onLoadData(resData.data);
 
-      // 2. 🌟 Immediately Overwrite iPad's LocalStorage Draft!
-      setTimeout(() => {
-        if (onSaveLocal) onSaveLocal();
-      }, 50);
+      // Clean pull without stale closure overwrite
 
       if (resData.updatedAt) {
         const dt = new Date(resData.updatedAt);
