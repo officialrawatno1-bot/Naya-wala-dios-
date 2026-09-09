@@ -15,7 +15,22 @@ interface Props {
 type ViewState = 'web-data' | 'statement' | 'stockwise-statement' | 'earn' | 'incentive' | 'expense';
 
 export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
-  const [currentView, setCurrentView] = useState<ViewState>('web-data');
+  const [currentView, setCurrentView] = useState<ViewState>(() => {
+    try {
+      const saved = sessionStorage.getItem('dios_web_data_view') as ViewState;
+      if (saved && ['web-data', 'statement', 'stockwise-statement', 'earn', 'incentive', 'expense'].includes(saved)) {
+        return saved;
+      }
+    } catch {}
+    return 'web-data';
+  });
+
+  const setAndSaveView = (v: ViewState) => {
+    setAndSaveView(v);
+    try {
+      sessionStorage.setItem('dios_web_data_view', v);
+    } catch {}
+  };
   const [isDownloading, setIsDownloading] = useState(false);
   const [kvStatus, setKvStatus] = useState<string | null>(null);
 
@@ -49,10 +64,10 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <button
           onClick={() => {
-            if (currentView === 'stockwise-statement') setCurrentView('statement');
-            else if (currentView === 'statement') setCurrentView('web-data');
-            else if (currentView === 'incentive') setCurrentView('earn');
-            else if (currentView === 'earn') setCurrentView('web-data');
+            if (currentView === 'stockwise-statement') setAndSaveView('statement');
+            else if (currentView === 'statement') setAndSaveView('web-data');
+            else if (currentView === 'incentive') setAndSaveView('earn');
+            else if (currentView === 'earn') setAndSaveView('web-data');
             else onBack();
           }}
           className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 transition cursor-pointer text-xs font-semibold"
@@ -110,7 +125,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
                 </p>
               </div>
               <button
-                onClick={() => setCurrentView('statement')}
+                onClick={() => setAndSaveView('statement')}
                 className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition cursor-pointer"
               >
                 Open Statement &rarr;
@@ -136,7 +151,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
                 </p>
               </div>
               <button
-                onClick={() => setCurrentView('earn')}
+                onClick={() => setAndSaveView('earn')}
                 className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 transition cursor-pointer"
               >
                 Open Earn &rarr;
@@ -207,7 +222,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
                 </p>
               </div>
               <button
-                onClick={() => setCurrentView('stockwise-statement')}
+                onClick={() => setAndSaveView('stockwise-statement')}
                 className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition cursor-pointer"
               >
                 Stockwise Statement &rarr;
@@ -252,7 +267,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
               </div>
 
               <button
-                onClick={() => setCurrentView('incentive')}
+                onClick={() => setAndSaveView('incentive')}
                 className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 transition cursor-pointer"
               >
                 Open Incentive &rarr;
@@ -277,7 +292,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
               </div>
 
               <button
-                onClick={() => setCurrentView('expense')}
+                onClick={() => setAndSaveView('expense')}
                 className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-950 transition cursor-pointer"
               >
                 Open Expense Statement &rarr;
@@ -290,17 +305,17 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
 
       {/* 3️⃣ LEVEL 3 (A): STOCKWISE STATEMENT VAULT */}
       {currentView === 'stockwise-statement' && (
-        <StockwiseStatementVault onBack={() => setCurrentView('statement')} />
+        <StockwiseStatementVault onBack={() => setAndSaveView('statement')} />
       )}
 
       {/* 3️⃣ LEVEL 3 (B): 🌟 INCENTIVE WORKSPACE */}
       {currentView === 'incentive' && (
-        <IncentiveWorkspace onBack={() => setCurrentView('earn')} />
+        <IncentiveWorkspace onBack={() => setAndSaveView('earn')} />
       )}
 
       {/* 3️⃣ LEVEL 3 (C): 🌟 EXPENSE STATEMENT WORKSPACE */}
       {currentView === 'expense' && (
-        <ExpenseWorkspace onBack={() => setCurrentView('earn')} />
+        <ExpenseWorkspace onBack={() => setAndSaveView('earn')} />
       )}
 
     </div>

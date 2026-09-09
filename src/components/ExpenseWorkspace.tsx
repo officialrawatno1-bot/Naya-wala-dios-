@@ -44,6 +44,8 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  // 🌟 IN-APP PDF PREVIEW MODAL STATE
+  const [pdfPreviewModal, setPdfPreviewModal] = useState<{ doc: any; blobUrl: string; fileName: string } | null>(null);
 
   // 🌟 OPTION: PRINT PERFORMANCE SUMMARY AS BLANK VALUES OR REAL VALUES
   const [blankPerfValues, setBlankPerfValues] = useState<boolean>(false);
@@ -432,21 +434,26 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
     setRows([]);
   };
 
-  // 🌟 EXPORT CRYSTAL CLEAR A4 LANDSCAPE VECTOR PDF
+  // 🌟 IN-APP PREVIEW & SAFE DOWNLOAD (SAFARI SAFE - NO REDIRECT TO HOME!)
   const handleExportPDF = () => {
-    exportExpenseStatementToPdf({
-      selectedMonth,
-      headerInfo,
-      rows,
-      totals,
-      allowanceSummary,
-      miscSummary,
-      performanceMetrics,
-      hideMiscValues,
-      blankPerfValues
-    });
-    setStatusMsg(`🎉 PDF Generated: 'Expense_Statement_${selectedMonth}_Official.pdf' downloaded!`);
-    setTimeout(() => setStatusMsg(null), 3500);
+    try {
+      const res = exportExpenseStatementToPdf({
+        selectedMonth,
+        headerInfo,
+        rows,
+        totals,
+        allowanceSummary,
+        miscSummary,
+        performanceMetrics,
+        hideMiscValues,
+        blankPerfValues
+      });
+      setPdfPreviewModal(res);
+      setStatusMsg("🎉 In-App PDF Preview Ready! Check preview modal below.");
+      setTimeout(() => setStatusMsg(null), 3500);
+    } catch (e: any) {
+      alert("PDF Error: " + e.message);
+    }
   };
 
   // Export CSV matching exact 5-block CBO layout
@@ -1362,6 +1369,63 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
                   <Check size={15} /> Save &amp; Update Remark
                 </button>
               </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+    </div
+      {/* 🌟 IN-APP PDF PREVIEW MODAL (SAFARI-SAFE, NO REDIRECT TO MAIN SCREEN) */}
+      {pdfPreviewModal && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-2 md:p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border-2 border-purple-500/70 rounded-3xl w-full max-w-6xl h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            
+            {/* Modal Header Toolbar */}
+            <div className="flex items-center justify-between px-5 py-3 bg-slate-950 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="p-1.5 bg-purple-500/20 text-purple-300 rounded-lg"><FileText size={16} /></span>
+                <div>
+                  <h3 className="text-xs md:text-sm font-bold text-white flex items-center gap-2">
+                    PDF Preview: {pdfPreviewModal.fileName}
+                    <span className="text-[10px] bg-purple-950 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
+                      A4 Landscape
+                    </span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-mono">Tapping Close keeps you right inside Expense Statement!</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    pdfPreviewModal.doc.save(pdfPreviewModal.fileName);
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-950 transition cursor-pointer"
+                >
+                  <Download size={14} /> ⬇️ Save to iPad
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try { URL.revokeObjectURL(pdfPreviewModal.blobUrl); } catch(e) {}
+                    setPdfPreviewModal(null);
+                  }}
+                  className="flex items-center gap-1 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  <X size={16} /> ✕ Wapas Jayein (Close)
+                </button>
+              </div>
+            </div>
+
+            {/* In-App PDF Viewer Frame */}
+            <div className="flex-1 bg-slate-950 p-2 overflow-hidden">
+              <iframe
+                src={pdfPreviewModal.blobUrl}
+                title="Expense Statement PDF Preview"
+                className="w-full h-full rounded-2xl border border-slate-800"
+              />
             </div>
 
           </div>

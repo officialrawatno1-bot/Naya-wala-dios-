@@ -39,7 +39,7 @@ export interface ExpensePdfExportOptions {
   blankPerfValues: boolean;
 }
 
-export function exportExpenseStatementToPdf(options: ExpensePdfExportOptions) {
+export function exportExpenseStatementToPdf(options: ExpensePdfExportOptions): { doc: jsPDF; blobUrl: string; fileName: string } {
   const {
     selectedMonth,
     headerInfo,
@@ -350,7 +350,10 @@ export function exportExpenseStatementToPdf(options: ExpensePdfExportOptions) {
   doc.setFontSize(11);
   doc.text(`${Math.round(totals.totClaim)}`, marginX + 43, finalTableY + 5.5);
 
-  // Save PDF
+  // Create Blob & URL for in-app safe preview (No Safari Tab Overwrite)
   const fileName = `Expense_Statement_${selectedMonth}_Official.pdf`;
-  doc.save(fileName);
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+
+  return { doc, blobUrl, fileName };
 }
