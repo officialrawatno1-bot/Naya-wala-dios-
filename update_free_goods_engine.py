@@ -1,17 +1,207 @@
-import React, { useState, useMemo } from 'react';
+import os, sys, subprocess
+
+print("==========================================================================")
+print("🧠 [1/3] UPDATING FREE GOODS STORE WITH PARTYWISE SYNC & BREAKDOWN ENGINE...")
+print("==========================================================================")
+
+# 1. Update src/data/freeGoodsStore.ts
+store_code = """import { MASTER_PRODUCTS } from './masterProducts';
+import { partywiseAggregatorStore } from './partywiseAggregatorStore';
+
+export interface FreeGoodsItem {
+  sn: number;
+  productName: string;
+  pts: number;
+  qty: number | '';
+  amount: number;
+  chemistCount?: number;
+}
+
+export interface ChemistFreeDistributionItem {
+  retailerName: string;
+  address: string;
+  salesQty: number;
+  freeQty: number;
+  totalUnits: number;
+  rate: number;
+  freeAmount: number;
+}
+
+export interface PartyFreeGoodsSummary {
+  partyName: string;
+  monthCode: string;
+  items: Record<number, FreeGoodsItem>;
+  totalQty: number;
+  totalAmount: number;
+}
+
+export const FREE_GOODS_PARTIES = [
+  { id: 'dwarika', name: 'Dwarika Medicals', tag: 'Dwarika' },
+  { id: 'modi', name: 'Modi Distributors', tag: 'Modi' },
+  { id: 'vardhman', name: 'Shree Vardhman', tag: 'Vardhman' },
+  { id: 'nagda', name: 'Nagda Distributors', tag: 'Nagda' },
+  { id: 'sun', name: 'Sun Distributors', tag: 'Sun' },
+  { id: 'rp', name: 'R.P. Agencies', tag: 'R.P.' },
+];
+
+const STORAGE_KEY = 'dios_free_goods_vault_v1';
+
+export class FreeGoodsStore {
+  public data: Record<string, Record<string, Record<number, number>>>;
+
+  constructor() {
+    this.data = this.loadFromStorage();
+  }
+
+  private loadFromStorage() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {};
+  }
+
+  // 🌟 AUTO-SYNC FROM PARTYWISE ANALYSIS (Dwarika / All Stockists)
+  public syncFromPartywise(monthCode: string, partyId: string = 'dwarika'): { syncedCount: number; totalFreeUnits: number } {
+    if (!this.data[monthCode]) this.data[monthCode] = {};
+    if (!this.data[monthCode][partyId]) this.data[monthCode][partyId] = {};
+
+    const partyRecords = partywiseAggregatorStore.data[monthCode] || [];
+    let syncedCount = 0;
+    let totalFreeUnits = 0;
+
+    const productFreeMap: Record<number, number> = {};
+
+    partyRecords.forEach(r => {
+      if (r.freeQty > 0) {
+        productFreeMap[r.productSn] = (productFreeMap[r.productSn] || 0) + r.freeQty;
+        totalFreeUnits += r.freeQty;
+      }
+    });
+
+    MASTER_PRODUCTS.forEach(p => {
+      if (productFreeMap[p.sn] !== undefined && productFreeMap[p.sn] > 0) {
+        this.data[monthCode][partyId][p.sn] = productFreeMap[p.sn];
+        syncedCount++;
+      }
+    });
+
+    this.persist();
+    return { syncedCount, totalFreeUnits };
+  }
+
+  // 🌟 GET SPECIFIC CHEMISTS WHO RECEIVED FREE GOODS FOR A PRODUCT
+  public getChemistFreeDistribution(monthCode: string, partyId: string, productSn: number): ChemistFreeDistributionItem[] {
+    const partyRecords = partywiseAggregatorStore.data[monthCode] || [];
+    const list: ChemistFreeDistributionItem[] = [];
+
+    partyRecords.forEach(r => {
+      if (r.productSn === productSn && r.freeQty > 0) {
+        const rate = r.rate || 0;
+        list.push({
+          retailerName: r.retailerName,
+          address: r.address,
+          salesQty: r.salesQty || 0,
+          freeQty: r.freeQty,
+          totalUnits: (r.salesQty || 0) + r.freeQty,
+          rate: rate,
+          freeAmount: Number((r.freeQty * rate).toFixed(2))
+        });
+      }
+    });
+
+    return list.sort((a, b) => b.freeQty - a.freeQty);
+  }
+
+  public getPartySummary(monthCode: string, partyId: string, partyName: string): PartyFreeGoodsSummary {
+    if (!this.data[monthCode]) this.data[monthCode] = {};
+    if (!this.data[monthCode][partyId]) {
+      this.data[monthCode][partyId] = {};
+      // Attempt auto-fill from partywise if available
+      this.syncFromPartywise(monthCode, partyId);
+    }
+
+    const partyQtys = this.data[monthCode][partyId] || {};
+    const items: Record<number, FreeGoodsItem> = {};
+    let totalQty = 0;
+    let totalAmount = 0;
+
+    const partyRecords = partywiseAggregatorStore.data[monthCode] || [];
+
+    MASTER_PRODUCTS.forEach(p => {
+      const q = partyQtys[p.sn] !== undefined ? partyQtys[p.sn] : '';
+      const qtyNum = typeof q === 'number' ? q : 0;
+      const amount = Number((qtyNum * p.pts).toFixed(2));
+
+      // Calculate how many distinct chemists got this free item
+      const chemistsForThisProduct = partyRecords.filter(r => r.productSn === p.sn && r.freeQty > 0).length;
+
+      items[p.sn] = {
+        sn: p.sn,
+        productName: p.name,
+        pts: p.pts,
+        qty: q,
+        amount,
+        chemistCount: chemistsForThisProduct
+      };
+
+      totalQty += qtyNum;
+      totalAmount += amount;
+    });
+
+    return {
+      partyName,
+      monthCode,
+      items,
+      totalQty,
+      totalAmount: Number(totalAmount.toFixed(2))
+    };
+  }
+
+  public updateCell(monthCode: string, partyId: string, sn: number, qtyVal: any) {
+    if (!this.data[monthCode]) this.data[monthCode] = {};
+    if (!this.data[monthCode][partyId]) this.data[monthCode][partyId] = {};
+
+    const num = qtyVal === '' ? 0 : (parseFloat(qtyVal) || 0);
+    if (num === 0) {
+      delete this.data[monthCode][partyId][sn];
+    } else {
+      this.data[monthCode][partyId][sn] = num;
+    }
+    this.persist();
+  }
+
+  public clearMonth(monthCode: string, partyId: string) {
+    if (this.data[monthCode]) {
+      this.data[monthCode][partyId] = {};
+      this.persist();
+    }
+  }
+
+  public persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
+    } catch (e) {}
+  }
+}
+
+export const freeGoodsStore = new FreeGoodsStore();
+"""
+
+with open('src/data/freeGoodsStore.ts', 'w', encoding='utf-8') as f:
+    f.write(store_code)
+print("✅ 1. freeGoodsStore.ts updated.")
+
+# 2. Update src/components/FreeGoodsVault.tsx with Auto-Sync & Tap Breakdown Modal
+vault_code = """import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Download, RefreshCw, Search, 
   CheckCircle2, Layers, FileSpreadsheet, Sparkles, Building2, 
-  Trash2, Calendar, Eye, Zap, X, Gift, Store, TrendingUp, Filter,
-  Check, ChevronDown, SlidersHorizontal
+  Trash2, Calendar, Eye, Zap, X, Gift, Store, TrendingUp, HelpCircle
 } from 'lucide-react';
 import { MASTER_PRODUCTS, MasterProduct } from '../data/masterProducts';
 import { freeGoodsStore, FREE_GOODS_PARTIES, ChemistFreeDistributionItem } from '../data/freeGoodsStore';
-import { 
-  exportFreeGoodsPartyCSV, 
-  exportFreeGoodsStockwiseMultiSheetExcel,
-  exportFreeGoodsSinglePartyExcel 
-} from '../exporters/freeGoodsExporter';
+import { exportFreeGoodsPartyCSV, exportFreeGoodsMasterExcel } from '../exporters/freeGoodsExporter';
 import { CloudSyncBar } from './CloudSyncBar';
 
 const MONTH_OPTIONS = [
@@ -34,14 +224,11 @@ interface Props {
 }
 
 export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
-  // 🌟 CUSTOM MULTI-MONTH SELECTION STATE
-  const [selectedMonthCodes, setSelectedMonthCodes] = useState<string[]>(['JUN']);
-  const [showMonthPickerModal, setShowMonthPickerModal] = useState(false);
+  const [selectedMonthCode, setSelectedMonthCode] = useState('AUG');
   const [activeTab, setActiveTab] = useState<string>('dwarika');
   const [search, setSearch] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [onlyActiveQtyInExcel, setOnlyActiveQtyInExcel] = useState(true);
 
   // 🌟 BREAKDOWN MODAL STATE
   const [breakdownTargetProduct, setBreakdownTargetProduct] = useState<MasterProduct | null>(null);
@@ -49,13 +236,13 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
   const currentPartyMeta = FREE_GOODS_PARTIES.find(p => p.id === activeTab) || FREE_GOODS_PARTIES[0];
 
   const currentSummary = useMemo(() => {
-    return freeGoodsStore.getMultiMonthPartySummary(selectedMonthCodes, activeTab, currentPartyMeta.name);
-  }, [selectedMonthCodes, activeTab, currentPartyMeta, refreshTrigger]);
+    return freeGoodsStore.getPartySummary(selectedMonthCode, activeTab, currentPartyMeta.name);
+  }, [selectedMonthCode, activeTab, currentPartyMeta, refreshTrigger]);
 
   const chemistBreakdownList = useMemo(() => {
     if (!breakdownTargetProduct) return [];
-    return freeGoodsStore.getMultiMonthChemistFreeDistribution(selectedMonthCodes, activeTab, breakdownTargetProduct.sn);
-  }, [selectedMonthCodes, activeTab, breakdownTargetProduct, refreshTrigger]);
+    return freeGoodsStore.getChemistFreeDistribution(selectedMonthCode, activeTab, breakdownTargetProduct.sn);
+  }, [selectedMonthCode, activeTab, breakdownTargetProduct, refreshTrigger]);
 
   const filteredProducts = useMemo(() => {
     return MASTER_PRODUCTS.filter(p => 
@@ -64,46 +251,27 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
   }, [search]);
 
   const handleQtyChange = (sn: number, val: string) => {
-    // If single month, update directly. If multiple, update first month in selection
-    const targetMonth = selectedMonthCodes[0] || 'JUN';
-    freeGoodsStore.updateCell(targetMonth, activeTab, sn, val);
+    freeGoodsStore.updateCell(selectedMonthCode, activeTab, sn, val);
     setRefreshTrigger(prev => prev + 1);
   };
 
-  // 🌟 MULTI-MONTH AUTO-SYNC FROM PARTYWISE ANALYSIS
   const handleAutoSyncFromPartywise = () => {
-    const { syncedCount, totalFreeUnits } = freeGoodsStore.syncMultiMonthFromPartywise(selectedMonthCodes, activeTab);
+    const { syncedCount, totalFreeUnits } = freeGoodsStore.syncFromPartywise(selectedMonthCode, activeTab);
     setRefreshTrigger(prev => prev + 1);
     if (syncedCount > 0) {
-      setStatusMsg(`🎉 SUCCESS! Partywise Analysis se [${selectedMonthCodes.join(', ')}] ke ${syncedCount} Products (${totalFreeUnits} Free Units) auto-fetch ho gaye!`);
+      setStatusMsg(`🎉 SUCCESS! Partywise Analysis se ${syncedCount} Products ke ${totalFreeUnits} Free Units auto-fetch ho gaye!`);
     } else {
-      setStatusMsg(`ℹ️ Partywise Analysis me [${selectedMonthCodes.join(', ')}] ke liye koi Free Goods record nahi mila.`);
+      setStatusMsg(`ℹ️ Partywise Analysis me ${selectedMonthCode} ke liye koi Free Goods record nahi mila.`);
     }
     setTimeout(() => setStatusMsg(null), 3500);
   };
 
   const handleClearParty = () => {
-    if (window.confirm(`Kya aap ${currentPartyMeta.name} ke [${selectedMonthCodes.join(', ')}] ke saare Free Goods clear karna chahte hain?`)) {
-      freeGoodsStore.clearMultiMonth(selectedMonthCodes, activeTab);
+    if (window.confirm(`Kya aap ${currentPartyMeta.name} ke ${selectedMonthCode} ke saare Free Goods clear karna chahte hain?`)) {
+      freeGoodsStore.clearMonth(selectedMonthCode, activeTab);
       setRefreshTrigger(prev => prev + 1);
-      setStatusMsg(`🧹 ${currentPartyMeta.name} data cleared for [${selectedMonthCodes.join(', ')}].`);
+      setStatusMsg(`🧹 ${currentPartyMeta.name} data cleared.`);
       setTimeout(() => setStatusMsg(null), 2500);
-    }
-  };
-
-  // Quick Quarter Selection Handlers
-  const handleQuickSelectQuarter = (qMonths: string[]) => {
-    setSelectedMonthCodes(qMonths);
-    setShowMonthPickerModal(false);
-  };
-
-  const handleToggleMonth = (code: string) => {
-    if (selectedMonthCodes.includes(code)) {
-      if (selectedMonthCodes.length > 1) {
-        setSelectedMonthCodes(selectedMonthCodes.filter(c => c !== code));
-      }
-    } else {
-      setSelectedMonthCodes([...selectedMonthCodes, code]);
     }
   };
 
@@ -111,18 +279,12 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
     let totQ = 0;
     let totA = 0;
     FREE_GOODS_PARTIES.forEach(pt => {
-      const s = freeGoodsStore.getMultiMonthPartySummary(selectedMonthCodes, pt.id, pt.name);
+      const s = freeGoodsStore.getPartySummary(selectedMonthCode, pt.id, pt.name);
       totQ += s.totalQty;
       totA += s.totalAmount;
     });
     return { totQ, totA: Number(totA.toFixed(2)) };
-  }, [selectedMonthCodes, refreshTrigger]);
-
-  const selectedMonthsLabel = useMemo(() => {
-    if (selectedMonthCodes.length === 1) return selectedMonthCodes[0];
-    if (selectedMonthCodes.length === 12) return 'Full Year (12M)';
-    return `${selectedMonthCodes.join('+')}`;
-  }, [selectedMonthCodes]);
+  }, [selectedMonthCode, refreshTrigger]);
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-xl space-y-5">
@@ -140,60 +302,60 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               FREE GOODS REPOSITORY (73 MASTER PRODUCTS)
               <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
-                <Sparkles size={10} /> Multi-Month Mix &bull; Dedicated Stockist Sheets
+                <Sparkles size={10} /> Auto-Fetch &bull; Tap Qty for Breakdown
               </span>
             </h2>
             <p className="text-xs text-slate-400">
-              BE: BANWARI LAL MEENA &bull; HQ: UDAIPUR &bull; Screenshot Exact Yellow/Black Template &bull; Multi-Sheet Excel
+              BE: BANWARI LAL MEENA &bull; HQ: UDAIPUR &bull; Auto-Synced with Partywise Analysis Chemist Distribution
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* 🌟 CUSTOM MULTI-MONTH TRIGGER BUTTON */}
-          <button
-            type="button"
-            onClick={() => setShowMonthPickerModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-amber-500/50 text-amber-300 rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
-          >
+          <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-amber-500/40">
             <Calendar size={13} className="text-amber-400" />
-            <span>Month: <b className="text-white font-mono">{selectedMonthsLabel}</b> ({selectedMonthCodes.length}M)</span>
-            <ChevronDown size={12} className="text-slate-400" />
-          </button>
+            <span className="text-xs text-slate-400 font-semibold">Month:</span>
+            <select
+              value={selectedMonthCode}
+              onChange={(e) => setSelectedMonthCode(e.target.value)}
+              className="bg-transparent text-xs font-bold text-amber-300 focus:outline-none cursor-pointer"
+            >
+              {MONTH_OPTIONS.map(opt => (
+                <option key={opt.code} value={opt.code} className="bg-slate-900 text-white">
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          {/* AUTO-SYNC BUTTON */}
           <button
             onClick={handleAutoSyncFromPartywise}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 text-slate-950 rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
-            title="Auto-fetch free quantities directly from Partywise Analysis for selected months"
+            title="Auto-fetch free quantities directly from Partywise Analysis"
           >
-            <Zap size={14} /> ⚡ Auto-Sync ({selectedMonthCodes.length}M)
+            <Zap size={14} /> ⚡ Auto-Sync from Partywise
           </button>
 
-          {/* EXCEL EXPORT (SINGLE STOCKIST - EXACT TEMPLATE) */}
           <button
-            onClick={() => exportFreeGoodsSinglePartyExcel(selectedMonthCodes, activeTab, currentPartyMeta.name, currentPartyMeta.tag, onlyActiveQtyInExcel)}
+            onClick={() => exportFreeGoodsPartyCSV(selectedMonthCode, activeTab, currentPartyMeta.name)}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow"
-            title="Export this Stockist in Exact Yellow/Black Template format"
           >
-            <Download size={14} /> Export {currentPartyMeta.tag} Excel
+            <Download size={14} /> Export Party CSV
           </button>
 
-          {/* 🌟 MULTI-SHEET MASTER EXCEL (ALL 6 STOCKISTS SEPARATE SHEETS) */}
           <button
-            onClick={() => exportFreeGoodsStockwiseMultiSheetExcel(selectedMonthCodes, onlyActiveQtyInExcel)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
-            title="Download Master Excel where every stockist has its own separate tab sheet!"
+            onClick={() => exportFreeGoodsMasterExcel(selectedMonthCode)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow"
           >
-            <FileSpreadsheet size={14} /> 📊 Master Excel (All Sheets)
+            <FileSpreadsheet size={14} /> Master Excel
           </button>
         </div>
       </div>
 
       <CloudSyncBar
-        storageKey={`statements/free_goods_${selectedMonthsLabel}_2026`}
-        sheetTitle={`Free Goods Repository (${selectedMonthsLabel})`}
-        getData={() => ({ selectedMonthCodes, store: freeGoodsStore.data })}
+        storageKey={`statements/free_goods_${selectedMonthCode}_2026`}
+        sheetTitle={`Free Goods Repository (${selectedMonthCode})`}
+        getData={() => ({ selectedMonthCode, store: freeGoodsStore.data })}
         onLoadData={(cloudData: any) => {
           if (!cloudData) return;
           if (cloudData.store) {
@@ -242,51 +404,38 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
         </div>
 
         <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-          <div className="text-[10px] text-emerald-400 uppercase font-semibold">All Stockists Grand Total</div>
+          <div className="text-[10px] text-emerald-400 uppercase font-semibold">Grand Total ({selectedMonthCode})</div>
           <div className="text-lg font-bold text-emerald-400 font-mono mt-0.5">
             {grandMetrics.totQ.toLocaleString()} Units &bull; ₹{grandMetrics.totA.toLocaleString()}
           </div>
         </div>
       </div>
 
-      {/* Party Switcher Tabs & Excel Options Strip */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {FREE_GOODS_PARTIES.map(party => {
-            const isSelected = activeTab === party.id;
-            const sum = freeGoodsStore.getMultiMonthPartySummary(selectedMonthCodes, party.id, party.name);
-            const hasQty = sum.totalQty > 0;
+      {/* Party Switcher Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar border-b border-slate-800">
+        {FREE_GOODS_PARTIES.map(party => {
+          const isSelected = activeTab === party.id;
+          const sum = freeGoodsStore.getPartySummary(selectedMonthCode, party.id, party.name);
+          const hasQty = sum.totalQty > 0;
 
-            return (
-              <button
-                key={party.id}
-                onClick={() => setActiveTab(party.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer border ${
-                  isSelected 
-                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md' 
-                    : hasQty
-                    ? 'bg-slate-950 text-slate-200 border-slate-800 hover:border-slate-700'
-                    : 'bg-slate-950 text-slate-500 border-slate-900 hover:text-slate-400'
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${hasQty ? 'bg-emerald-400' : 'bg-slate-600'}`}></span>
-                <span>{party.name}</span>
-                {hasQty && <span className="text-[10px] font-mono opacity-85">({sum.totalQty})</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Excel Filter Checkbox */}
-        <label className="flex items-center gap-2 text-xs text-slate-300 font-semibold cursor-pointer bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 shrink-0">
-          <input
-            type="checkbox"
-            checked={onlyActiveQtyInExcel}
-            onChange={e => setOnlyActiveQtyInExcel(e.target.checked)}
-            className="rounded text-amber-500"
-          />
-          <span>Excel me sirf Free Qty &gt; 0 wale products export karein</span>
-        </label>
+          return (
+            <button
+              key={party.id}
+              onClick={() => setActiveTab(party.id)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer border ${
+                isSelected 
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md' 
+                  : hasQty
+                  ? 'bg-slate-950 text-slate-200 border-slate-800 hover:border-slate-700'
+                  : 'bg-slate-950 text-slate-500 border-slate-900 hover:text-slate-400'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${hasQty ? 'bg-emerald-400' : 'bg-slate-600'}`}></span>
+              <span>{party.name}</span>
+              {hasQty && <span className="text-[10px] font-mono opacity-85">({sum.totalQty})</span>}
+            </button>
+          );
+        })}
       </div>
 
       {/* Search & Clear Bar */}
@@ -390,7 +539,7 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
           <tfoot className="sticky bottom-0 bg-slate-950 border-t-2 border-amber-500/40 font-bold z-10 text-xs font-mono">
             <tr>
               <td className="p-3 text-center text-amber-400">Σ</td>
-              <td className="p-3 text-white uppercase font-sans" colSpan={2}>TOTAL FOR {currentSummary.partyName} ({selectedMonthsLabel})</td>
+              <td className="p-3 text-white uppercase font-sans" colSpan={2}>TOTAL FOR {currentSummary.partyName}</td>
               <td className="p-3 text-center font-black text-amber-300 bg-amber-950/40 text-sm">
                 {currentSummary.totalQty.toLocaleString()} Units
               </td>
@@ -402,114 +551,6 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
           </tfoot>
         </table>
       </div>
-
-      {/* 🌟 CUSTOM MULTI-MONTH SELECTION MODAL POPUP */}
-      {showMonthPickerModal && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl max-w-lg w-full p-5 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
-            
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <span className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
-                  <Calendar size={20} />
-                </span>
-                <div>
-                  <h3 className="text-base font-bold text-white">Custom Multi-Month Selector</h3>
-                  <p className="text-xs text-slate-400">Pick any custom mix of months or standard quarters</p>
-                </div>
-              </div>
-              <button onClick={() => setShowMonthPickerModal(false)} className="text-slate-400 hover:text-white p-1">
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Quick Quarter Chips */}
-            <div className="space-y-2">
-              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Quick Presets:</span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => handleQuickSelectQuarter(['APR', 'MAY', 'JUN'])}
-                  className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-400 text-amber-300 font-bold"
-                >
-                  Q1 (Apr-Jun)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickSelectQuarter(['JUL', 'AUG', 'SEP'])}
-                  className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-400 text-amber-300 font-bold"
-                >
-                  Q2 (Jul-Sep)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickSelectQuarter(['OCT', 'NOV', 'DEC'])}
-                  className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-400 text-amber-300 font-bold"
-                >
-                  Q3 (Oct-Dec)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickSelectQuarter(['JAN', 'FEB', 'MAR'])}
-                  className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-400 text-amber-300 font-bold"
-                >
-                  Q4 (Jan-Mar)
-                </button>
-              </div>
-            </div>
-
-            {/* Checkbox Grid for All 12 Months */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                <span>Select Custom Month Mix:</span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedMonthCodes(MONTH_OPTIONS.map(m => m.code))}
-                  className="text-cyan-400 hover:underline"
-                >
-                  Select All (12M)
-                </button>
-              </div>
-
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {MONTH_OPTIONS.map(m => {
-                  const isChecked = selectedMonthCodes.includes(m.code);
-                  return (
-                    <button
-                      key={m.code}
-                      type="button"
-                      onClick={() => handleToggleMonth(m.code)}
-                      className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-between ${
-                        isChecked 
-                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md' 
-                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
-                      }`}
-                    >
-                      <span>{m.label}</span>
-                      {isChecked && <Check size={14} />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
-              <div className="text-xs font-mono text-slate-300">
-                Selected: <b className="text-amber-400">{selectedMonthCodes.join(', ')}</b> ({selectedMonthCodes.length} Months)
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowMonthPickerModal(false)}
-                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg cursor-pointer"
-              >
-                Apply Months
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
 
       {/* 🌟 CHEMIST FREE GOODS DISTRIBUTION BREAKDOWN MODAL */}
       {breakdownTargetProduct && (
@@ -530,7 +571,7 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Free Goods Distribution Breakdown &bull; {currentPartyMeta.name} ({selectedMonthsLabel} 2026)
+                    Free Goods Distribution Breakdown &bull; {currentPartyMeta.name} ({selectedMonthCode} 2026)
                   </p>
                 </div>
               </div>
@@ -567,7 +608,6 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
                 <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800">
                   <tr>
                     <th className="p-2.5 text-center w-10">#</th>
-                    <th className="p-2.5 text-center w-16 text-amber-400">Month</th>
                     <th className="p-2.5 min-w-[200px]">Chemist / Retailer Name</th>
                     <th className="p-2.5 min-w-[120px] text-cyan-300">Location</th>
                     <th className="p-2.5 text-center w-24 text-cyan-400">Billed Qty</th>
@@ -579,15 +619,14 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
                 <tbody className="divide-y divide-slate-800/60 font-mono text-xs bg-slate-900">
                   {chemistBreakdownList.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-slate-500 font-sans">
-                        Selected months me kisi chemist ko is product par free goods nahi gaye ya Partywise Analysis me Dwarika statement upload nahi hai.
+                      <td colSpan={7} className="p-8 text-center text-slate-500 font-sans">
+                        Is month me kisi chemist ko is product par free goods nahi gaye ya Partywise Analysis me Dwarika statement upload nahi hai.
                       </td>
                     </tr>
                   ) : (
                     chemistBreakdownList.map((c, idx) => (
                       <tr key={idx} className="hover:bg-slate-800/40 transition">
                         <td className="p-2.5 text-center text-slate-500">{idx + 1}</td>
-                        <td className="p-2.5 text-center text-amber-300 font-bold">{c.monthCode}</td>
                         <td className="p-2.5 font-sans font-bold text-white">{c.retailerName}</td>
                         <td className="p-2.5 text-cyan-300">{c.address}</td>
                         <td className="p-2.5 text-center font-bold text-cyan-300">{c.salesQty}</td>
@@ -604,7 +643,7 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
             {/* Modal Footer */}
             <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs font-mono">
               <span className="text-slate-400">
-                Stockist: <b className="text-white">{currentPartyMeta.name}</b> &bull; Months: <b className="text-amber-400">{selectedMonthsLabel}</b>
+                Stockist: <b className="text-white">{currentPartyMeta.name}</b> &bull; Month: <b className="text-amber-400">{selectedMonthCode} 2026</b>
               </span>
               <button
                 type="button"
@@ -622,3 +661,22 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
     </div>
   );
 };
+"""
+
+with open('src/components/FreeGoodsVault.tsx', 'w', encoding='utf-8') as f:
+    f.write(vault_code)
+print("✅ 2. FreeGoodsVault.tsx updated.")
+
+# 3. Build Production Bundle & Deploy
+print("\n📦 [2/3] Compiling Production Bundle (npm run build)...")
+subprocess.run(["npm", "run", "build"], check=True)
+print("✅ Build Successful.")
+
+print("\n☁️ [3/3] Deploying to Cloudflare Pages (dios-hub)...")
+if os.path.exists("./deploy.sh"):
+    subprocess.run(["chmod", "+x", "./deploy.sh"])
+    subprocess.run(["./deploy.sh"])
+else:
+    subprocess.run(["npx", "wrangler", "pages", "deploy", "dist", "--project-name", "dios-hub", "--commit-dirty=true"])
+
+print("\n🎉 ALL DONE! Free Goods Auto-Fetch & Chemist Distribution Tap Feature Live on Cloudflare!")

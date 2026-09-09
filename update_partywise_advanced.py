@@ -1,18 +1,335 @@
-import React, { useState, useMemo, useRef } from 'react';
+import os, sys, subprocess
+
+print("==========================================================================")
+print("🧠 [1/3] UPDATING PARTYWISE DATA STORE WITH DUAL-QTY & MSL DOCTOR ENGINE...")
+print("==========================================================================")
+
+# 1. Update partywiseAggregatorStore.ts
+store_code = """import { MASTER_PRODUCTS, MasterProduct } from '../data/masterProducts';
+import { RetailerSaleRecord } from '../parsers/retailerParsers/dwarikaRetailerParser';
+
+const STORAGE_KEY = 'dios_partywise_aggregator_vault_v1';
+const MAPPINGS_KEY = 'dios_retailer_doctor_mappings_v2';
+
+export interface RetailerConsolidatedProfile {
+  key: string;
+  retailerName: string;
+  address: string;
+  linkedDoctor?: string;
+  stockists: string[];
+  salesQty: number;
+  freeQty: number;
+  totalQty: number;
+  salesAmount: number;
+  freeAmount: number;
+  grossAmount: number;
+  items: Record<number, { 
+    productName: string; 
+    salesQty: number; 
+    freeQty: number; 
+    totalQty: number; 
+    rate: number; 
+    salesAmount: number; 
+    freeAmount: number; 
+    grossAmount: number; 
+    stockists: string[] 
+  }>;
+}
+
+export interface DoctorLinkedAnalyticsProfile {
+  doctorName: string;
+  speciality: string;
+  linkedRetailers: Array<{ retailerName: string; address: string }>;
+  salesQty: number;
+  freeQty: number;
+  totalQty: number;
+  salesAmount: number;
+  freeAmount: number;
+  grossAmount: number;
+  products: Record<number, {
+    productName: string;
+    salesQty: number;
+    freeQty: number;
+    totalQty: number;
+    salesAmount: number;
+    grossAmount: number;
+  }>;
+}
+
+export class PartywiseAggregatorStore {
+  public data: Record<string, RetailerSaleRecord[]>;
+
+  constructor() {
+    this.data = this.loadFromStorage();
+  }
+
+  private loadFromStorage() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {};
+  }
+
+  public setPartyRecords(monthCode: string, records: RetailerSaleRecord[]) {
+    this.data[monthCode] = records;
+    this.persist();
+  }
+
+  public clearMonth(monthCode: string) {
+    delete this.data[monthCode];
+    this.persist();
+  }
+
+  public getMonthRetailers(monthCode: string): RetailerConsolidatedProfile[] {
+    const records = this.data[monthCode] || [];
+    const map: Record<string, RetailerConsolidatedProfile> = {};
+
+    records.forEach(r => {
+      const cleanKey = `${r.retailerName} (${r.address})`.toUpperCase().trim();
+      const linkedDoc = this.getLinkedDoctor(cleanKey);
+
+      if (!map[cleanKey]) {
+        map[cleanKey] = {
+          key: cleanKey,
+          retailerName: r.retailerName,
+          address: r.address,
+          linkedDoctor: linkedDoc,
+          stockists: ['Dwarika'],
+          salesQty: 0,
+          freeQty: 0,
+          totalQty: 0,
+          salesAmount: 0,
+          freeAmount: 0,
+          grossAmount: 0,
+          items: {}
+        };
+      }
+
+      const prof = map[cleanKey];
+      const sQty = r.salesQty || 0;
+      const fQty = r.freeQty || 0;
+      const totU = sQty + fQty;
+      const rate = r.rate || 0;
+      const sAmt = r.amount || Number((sQty * rate).toFixed(2));
+      const fAmt = Number((fQty * rate).toFixed(2));
+      const gAmt = Number((sAmt + fAmt).toFixed(2));
+
+      prof.salesQty += sQty;
+      prof.freeQty += fQty;
+      prof.totalQty += totU;
+      prof.salesAmount = Number((prof.salesAmount + sAmt).toFixed(2));
+      prof.freeAmount = Number((prof.freeAmount + fAmt).toFixed(2));
+      prof.grossAmount = Number((prof.grossAmount + gAmt).toFixed(2));
+
+      if (!prof.items[r.productSn]) {
+        prof.items[r.productSn] = {
+          productName: r.productName,
+          salesQty: 0,
+          freeQty: 0,
+          totalQty: 0,
+          rate: rate,
+          salesAmount: 0,
+          freeAmount: 0,
+          grossAmount: 0,
+          stockists: ['Dwarika']
+        };
+      }
+
+      const item = prof.items[r.productSn];
+      item.salesQty += sQty;
+      item.freeQty += fQty;
+      item.totalQty += totU;
+      item.rate = rate || item.rate;
+      item.salesAmount = Number((item.salesAmount + sAmt).toFixed(2));
+      item.freeAmount = Number((item.freeAmount + fAmt).toFixed(2));
+      item.grossAmount = Number((item.grossAmount + gAmt).toFixed(2));
+    });
+
+    return Object.values(map).sort((a, b) => b.salesAmount - a.salesAmount);
+  }
+
+  // 🌟 MSL DOCTOR LINKED INTELLIGENCE AGGREGATOR
+  public getDoctorLinkedAnalytics(monthCode: string, allMslDocs: any[]): DoctorLinkedAnalyticsProfile[] {
+    const retailers = this.getMonthRetailers(monthCode);
+    const docMap: Record<string, DoctorLinkedAnalyticsProfile> = {};
+
+    retailers.forEach(r => {
+      const docName = r.linkedDoctor;
+      if (!docName || docName === '-' || docName === '-- Select MSL Doctor --') return;
+
+      const cleanDocKey = docName.toUpperCase().trim();
+      const mslMeta = allMslDocs.find((d: any) => d.doctorName.toUpperCase().trim() === cleanDocKey);
+
+      if (!docMap[cleanDocKey]) {
+        docMap[cleanDocKey] = {
+          doctorName: docName,
+          speciality: mslMeta?.speciality || 'CONSULTANT',
+          linkedRetailers: [],
+          salesQty: 0,
+          freeQty: 0,
+          totalQty: 0,
+          salesAmount: 0,
+          freeAmount: 0,
+          grossAmount: 0,
+          products: {}
+        };
+      }
+
+      const dProf = docMap[cleanDocKey];
+      if (!dProf.linkedRetailers.some(lr => lr.retailerName === r.retailerName)) {
+        dProf.linkedRetailers.push({ retailerName: r.retailerName, address: r.address });
+      }
+
+      dProf.salesQty += r.salesQty;
+      dProf.freeQty += r.freeQty;
+      dProf.totalQty += r.totalQty;
+      dProf.salesAmount = Number((dProf.salesAmount + r.salesAmount).toFixed(2));
+      dProf.freeAmount = Number((dProf.freeAmount + r.freeAmount).toFixed(2));
+      dProf.grossAmount = Number((dProf.grossAmount + r.grossAmount).toFixed(2));
+
+      Object.entries(r.items).forEach(([snStr, it]) => {
+        const sn = Number(snStr);
+        if (!dProf.products[sn]) {
+          dProf.products[sn] = {
+            productName: it.productName,
+            salesQty: 0,
+            freeQty: 0,
+            totalQty: 0,
+            salesAmount: 0,
+            grossAmount: 0
+          };
+        }
+        const p = dProf.products[sn];
+        p.salesQty += it.salesQty;
+        p.freeQty += it.freeQty;
+        p.totalQty += it.totalQty;
+        p.salesAmount = Number((p.salesAmount + it.salesAmount).toFixed(2));
+        p.grossAmount = Number((p.grossAmount + it.grossAmount).toFixed(2));
+      });
+    });
+
+    return Object.values(docMap).sort((a, b) => b.salesAmount - a.salesAmount);
+  }
+
+  public linkDoctorToRetailer(monthCode: string, retailerKey: string, doctorName: string) {
+    try {
+      const mappings = JSON.parse(localStorage.getItem(MAPPINGS_KEY) || '{}');
+      if (!doctorName || doctorName === '-') {
+        delete mappings[retailerKey];
+      } else {
+        mappings[retailerKey] = doctorName;
+      }
+      localStorage.setItem(MAPPINGS_KEY, JSON.stringify(mappings));
+    } catch (e) {}
+  }
+
+  public getLinkedDoctor(retailerKey: string): string {
+    try {
+      const mappings = JSON.parse(localStorage.getItem(MAPPINGS_KEY) || '{}');
+      return mappings[retailerKey] || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  public persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
+    } catch (e) {}
+  }
+}
+
+export const partywiseAggregatorStore = new PartywiseAggregatorStore();
+"""
+
+with open('src/data/partywiseAggregatorStore.ts', 'w', encoding='utf-8') as f:
+    f.write(store_code)
+print("✅ 1. src/data/partywiseAggregatorStore.ts updated.")
+
+# 2. Update partywiseExporter.ts with Detailed Qty, Free, Gross Amounts & Doctor Analytics Export
+exporter_code = """import * as XLSX from 'xlsx-js-style';
+import { partywiseAggregatorStore } from '../data/partywiseAggregatorStore';
+import { standardTheme } from './styles/standardTheme';
+
+export function exportPartywiseConsolidatedExcel(monthCode: string) {
+  const retailers = partywiseAggregatorStore.getMonthRetailers(monthCode);
+  const wsData: any[][] = [];
+
+  wsData.push([
+    { v: 'S.N.', s: standardTheme.colHeader },
+    { v: 'RETAILER / CHEMIST NAME', s: standardTheme.colHeader },
+    { v: 'ADDRESS / LOCATION', s: standardTheme.colHeader },
+    { v: 'LINKED DOCTOR (MSL)', s: standardTheme.colHeader },
+    { v: 'SALES QTY', s: standardTheme.colHeader },
+    { v: 'FREE QTY', s: standardTheme.colHeader },
+    { v: 'TOTAL UNITS', s: standardTheme.colHeader },
+    { v: 'SALES AMOUNT (₹)', s: standardTheme.colHeader },
+    { v: 'FREE VALUE (₹)', s: standardTheme.colHeader },
+    { v: 'GROSS AMOUNT (₹)', s: standardTheme.colHeader }
+  ]);
+
+  retailers.forEach((r, idx) => {
+    const doc = partywiseAggregatorStore.getLinkedDoctor(r.key) || '-';
+    wsData.push([
+      { v: idx + 1, s: standardTheme.cellCenter },
+      { v: r.retailerName, s: standardTheme.cellLeft },
+      { v: r.address, s: standardTheme.cellCenter },
+      { v: doc, s: standardTheme.cellCenterBold },
+      { v: r.salesQty, s: standardTheme.cellCenter },
+      { v: r.freeQty > 0 ? r.freeQty : '-', s: standardTheme.cellCenter },
+      { v: r.totalQty, s: standardTheme.cellCenterBold },
+      { v: r.salesAmount, s: standardTheme.cellRight },
+      { v: r.freeAmount > 0 ? r.freeAmount : '-', s: standardTheme.cellRight },
+      { v: r.grossAmount, s: standardTheme.cellRight }
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{ wch: 6 }, { wch: 30 }, { wch: 18 }, { wch: 24 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 18 }];
+  
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `Retailers_${monthCode}`);
+  XLSX.writeFile(wb, `Partywise_Retailer_Analysis_${monthCode}_2026.xlsx`);
+}
+
+export function exportPartywiseConsolidatedCSV(monthCode: string) {
+  const retailers = partywiseAggregatorStore.getMonthRetailers(monthCode);
+  const lines: string[] = [];
+
+  lines.push('S.N.,RETAILER / CHEMIST NAME,ADDRESS / LOCATION,LINKED DOCTOR (MSL),SALES QTY,FREE QTY,TOTAL UNITS,SALES AMOUNT (₹),FREE VALUE (₹),GROSS AMOUNT (₹)');
+
+  retailers.forEach((r, idx) => {
+    const doc = partywiseAggregatorStore.getLinkedDoctor(r.key) || '-';
+    const q = (v: any) => `"${String(v || '').replace(/"/g, '""')}"`;
+    lines.push(`${idx + 1},${q(r.retailerName)},${q(r.address)},${q(doc)},${r.salesQty},${r.freeQty},${r.totalQty},${r.salesAmount},${r.freeAmount},${r.grossAmount}`);
+  });
+
+  const csvContent = lines.join('\\r\\n');
+  const blob = new Blob(['\\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `Partywise_Retailer_Analysis_${monthCode}_2026.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+"""
+
+with open('src/exporters/partywiseExporter.ts', 'w', encoding='utf-8') as f:
+    f.write(exporter_code)
+print("✅ 2. src/exporters/partywiseExporter.ts updated.")
+
+# 3. Update PartywiseAggregatorVault.tsx with Searchable Doctor Modal, Doctor Intelligence Sheet Tab & Dual Totals
+vault_code = """import React, { useState, useMemo, useRef } from 'react';
 import { 
   ArrowLeft, Download, RefreshCw, Search, 
   CheckCircle2, Layers, FileSpreadsheet, Sparkles, Building2, 
   Upload, Stethoscope, Eye, X, Calendar, Trash2, RotateCcw, 
-  FileText, Link2, UserCheck, ShieldCheck, ChevronRight,
-  Plus, Check, AlertCircle, Edit3, Award, Gift, DollarSign
+  FileText, Link2, UserCheck, ShieldCheck, ChevronRight
 } from 'lucide-react';
-import { 
-  partywiseAggregatorStore, 
-  RetailerConsolidatedProfile, 
-  DoctorLinkedAnalyticsProfile,
-  DoctorAllocation,
-  ProductAllocation
-} from '../data/partywiseAggregatorStore';
+import { partywiseAggregatorStore, RetailerConsolidatedProfile, DoctorLinkedAnalyticsProfile } from '../data/partywiseAggregatorStore';
 import { parseDwarikaRetailerPdf, RetailerSaleRecord } from '../parsers/retailerParsers/dwarikaRetailerParser';
 import { exportPartywiseConsolidatedExcel, exportPartywiseConsolidatedCSV } from '../exporters/partywiseExporter';
 import { memoryStore, MslDoctor } from '../data/memoryStore';
@@ -48,11 +365,9 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Multi-Doctor Allocation Modal State
-  const [allocatingRetailer, setAllocatingRetailer] = useState<RetailerConsolidatedProfile | null>(null);
-  const [modalAllocations, setModalAllocations] = useState<DoctorAllocation[]>([]);
-  const [activeDocIndex, setActiveDocIndex] = useState<number>(0);
-  const [doctorSearchQuery, setDoctorSearchQuery] = useState('');
+  // Searchable Doctor Selector Modal State
+  const [linkingTargetRetailer, setLinkingTargetRetailer] = useState<RetailerConsolidatedProfile | null>(null);
+  const [doctorSearchText, setDoctorSearchText] = useState('');
 
   // 360° Detail Modals
   const [selectedRetailer, setSelectedRetailer] = useState<RetailerConsolidatedProfile | null>(null);
@@ -64,14 +379,15 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
   }, []);
 
   const filteredMslDocsForSelector = useMemo(() => {
-    const q = doctorSearchQuery.toLowerCase().trim();
-    if (!q) return allMslDoctors.slice(0, 15);
+    const q = doctorSearchText.toLowerCase().trim();
+    if (!q) return allMslDoctors.slice(0, 20);
     return allMslDoctors.filter(d => 
       d.doctorName.toLowerCase().includes(q) || 
       (d.speciality || '').toLowerCase().includes(q) ||
+      (d.activityType || '').toLowerCase().includes(q) ||
       String(d.srNo).includes(q)
-    ).slice(0, 10);
-  }, [allMslDoctors, doctorSearchQuery]);
+    ).slice(0, 15);
+  }, [allMslDoctors, doctorSearchText]);
 
   const retailersList = useMemo(() => {
     return partywiseAggregatorStore.getMonthRetailers(selectedMonthCode);
@@ -85,7 +401,8 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
     const q = search.toLowerCase();
     return retailersList.filter(r => 
       r.retailerName.toLowerCase().includes(q) || 
-      r.address.toLowerCase().includes(q)
+      r.address.toLowerCase().includes(q) ||
+      (r.linkedDoctor || '').toLowerCase().includes(q)
     );
   }, [retailersList, search]);
 
@@ -115,9 +432,6 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
       totGrossAmt += r.grossAmount;
     });
 
-    const monthAllocations = partywiseAggregatorStore.getAllocationsForMonth(selectedMonthCode);
-    const allocatedChemistsCount = Object.keys(monthAllocations).length;
-
     return {
       totSalesQty,
       totFreeQty,
@@ -125,9 +439,9 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
       totSalesAmt: Number(totSalesAmt.toFixed(2)),
       totFreeAmt: Number(totFreeAmt.toFixed(2)),
       totGrossAmt: Number(totGrossAmt.toFixed(2)),
-      allocatedChemistsCount
+      linkedChemistsCount: retailersList.filter(r => !!r.linkedDoctor && r.linkedDoctor !== '-').length
     };
-  }, [retailersList, selectedMonthCode, refreshTrigger]);
+  }, [retailersList]);
 
   const handleFileUpload = async (file: File) => {
     setIsParsing(true);
@@ -156,7 +470,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
   };
 
   const handleResetMonthData = () => {
-    if (window.confirm(`⚠️ Kya aap ${selectedMonthCode} 2026 ka poora Partywise & Doctor Allocation data clear karna chahte hain?`)) {
+    if (window.confirm(`⚠️ Kya aap ${selectedMonthCode} 2026 ka poora Partywise data clear karna chahte hain?`)) {
       partywiseAggregatorStore.clearMonth(selectedMonthCode);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setRefreshTrigger(prev => prev + 1);
@@ -165,136 +479,14 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  const handleOpenAllocationModal = (retailer: RetailerConsolidatedProfile) => {
-    setAllocatingRetailer(retailer);
-    const existingAllocations = partywiseAggregatorStore.getAllocationsForRetailer(selectedMonthCode, retailer.key);
-    
-    if (existingAllocations && existingAllocations.length > 0) {
-      setModalAllocations(JSON.parse(JSON.stringify(existingAllocations)));
-    } else {
-      setModalAllocations([]);
-    }
-
-    setActiveDocIndex(0);
-    setDoctorSearchQuery('');
-  };
-
-  const handleAddDoctorToChemist = (doc: MslDoctor) => {
-    if (modalAllocations.some(a => a.doctorName.toUpperCase().trim() === doc.doctorName.toUpperCase().trim())) {
-      alert(`Dr. ${doc.doctorName} pehle se is chemist me added hain!`);
-      return;
-    }
-
-    const newDocAlloc: DoctorAllocation = {
-      doctorName: doc.doctorName,
-      speciality: doc.speciality || 'CONSULTANT',
-      allocatedProducts: {}
-    };
-
-    const updated = [...modalAllocations, newDocAlloc];
-    setModalAllocations(updated);
-    setActiveDocIndex(updated.length - 1);
-    setDoctorSearchQuery('');
-  };
-
-  const handleRemoveDoctorFromChemist = (docIdx: number) => {
-    const updated = modalAllocations.filter((_, i) => i !== docIdx);
-    setModalAllocations(updated);
-    setActiveDocIndex(Math.max(0, docIdx - 1));
-  };
-
-  const getOtherDoctorsAllocatedQty = (productSn: number, currentDocIdx: number) => {
-    let otherSales = 0;
-    let otherFree = 0;
-
-    modalAllocations.forEach((doc, idx) => {
-      if (idx !== currentDocIdx && doc.allocatedProducts[productSn]) {
-        otherSales += doc.allocatedProducts[productSn].salesQty || 0;
-        otherFree += doc.allocatedProducts[productSn].freeQty || 0;
-      }
-    });
-
-    return { otherSales, otherFree };
-  };
-
-  // 🌟 1-Click Full Remaining (Fills 100% of remaining Sales & Free)
-  const handleToggleProductForDoctor = (productSn: number, itemMeta: any) => {
-    if (!modalAllocations[activeDocIndex]) return;
-    const currentDoc = { ...modalAllocations[activeDocIndex] };
-    const { otherSales, otherFree } = getOtherDoctorsAllocatedQty(productSn, activeDocIndex);
-
-    if (currentDoc.allocatedProducts[productSn]) {
-      delete currentDoc.allocatedProducts[productSn];
-    } else {
-      const remSales = Math.max(0, itemMeta.salesQty - otherSales);
-      const remFree = Math.max(0, itemMeta.freeQty - otherFree);
-      const rate = itemMeta.rate || 0;
-      const sAmt = Number((remSales * rate).toFixed(2));
-      const fAmt = Number((remFree * rate).toFixed(2));
-      const totQ = remSales + remFree;
-
-      currentDoc.allocatedProducts[productSn] = {
-        productSn,
-        productName: itemMeta.productName,
-        salesQty: remSales,
-        freeQty: remFree,
-        totalQty: totQ,
-        rate: rate,
-        salesAmount: sAmt,
-        freeAmount: fAmt,
-        grossAmount: Number((sAmt + fAmt).toFixed(2))
-      };
-    }
-
-    const copy = [...modalAllocations];
-    copy[activeDocIndex] = currentDoc;
-    setModalAllocations(copy);
-  };
-
-  // 🌟 Freely Editable Sales Qty and Free Qty Inputs
-  const handleSetCustomQty = (productSn: number, itemMeta: any, customSalesStr: string, customFreeStr: string) => {
-    if (!modalAllocations[activeDocIndex]) return;
-    const currentDoc = { ...modalAllocations[activeDocIndex] };
-    const { otherSales, otherFree } = getOtherDoctorsAllocatedQty(productSn, activeDocIndex);
-
-    const maxSales = Math.max(0, itemMeta.salesQty - otherSales);
-    const maxFree = Math.max(0, itemMeta.freeQty - otherFree);
-
-    const sQty = Math.min(maxSales, Math.max(0, parseFloat(customSalesStr) || 0));
-    const fQty = Math.min(maxFree, Math.max(0, parseFloat(customFreeStr) || 0));
-    const rate = itemMeta.rate || 0;
-    const sAmt = Number((sQty * rate).toFixed(2));
-    const fAmt = Number((fQty * rate).toFixed(2));
-    const totQ = sQty + fQty;
-
-    if (totQ > 0) {
-      currentDoc.allocatedProducts[productSn] = {
-        productSn,
-        productName: itemMeta.productName,
-        salesQty: sQty,
-        freeQty: fQty,
-        totalQty: totQ,
-        rate: rate,
-        salesAmount: sAmt,
-        freeAmount: fAmt,
-        grossAmount: Number((sAmt + fAmt).toFixed(2))
-      };
-    } else {
-      delete currentDoc.allocatedProducts[productSn];
-    }
-
-    const copy = [...modalAllocations];
-    copy[activeDocIndex] = currentDoc;
-    setModalAllocations(copy);
-  };
-
-  const handleSaveAllocations = () => {
-    if (!allocatingRetailer) return;
-    partywiseAggregatorStore.saveRetailerAllocations(selectedMonthCode, allocatingRetailer.key, modalAllocations);
-    setAllocatingRetailer(null);
+  const handleSelectDoctorFromModal = (docName: string) => {
+    if (!linkingTargetRetailer) return;
+    partywiseAggregatorStore.linkDoctorToRetailer(selectedMonthCode, linkingTargetRetailer.key, docName);
+    setLinkingTargetRetailer(null);
+    setDoctorSearchText('');
     setRefreshTrigger(prev => prev + 1);
-    setStatusMsg(`💾 ${allocatingRetailer.retailerName} ke ${modalAllocations.length} Doctors ki Product Allocations save ho gayi hain!`);
-    setTimeout(() => setStatusMsg(null), 3500);
+    setStatusMsg(`🔗 ${linkingTargetRetailer.retailerName} ko Dr. ${docName} se permanently link kar diya gaya!`);
+    setTimeout(() => setStatusMsg(null), 3000);
   };
 
   return (
@@ -313,11 +505,11 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               PARTYWISE &amp; MSL DOCTOR LINKED INTELLIGENCE
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
-                <Sparkles size={10} /> Dual Qty &amp; Free Splitting Active
+                <Sparkles size={10} /> Dual Qty &amp; Amount Engine
               </span>
             </h2>
             <p className="text-xs text-slate-400">
-              BE: BANWARI LAL MEENA • HQ: UDAIPUR • Total Pool (Sales + Free) Multi-Doctor Attribution
+              BE: BANWARI LAL MEENA • HQ: UDAIPUR • Distinct Sales &amp; Free Units + Doctor Level Revenue Rollup
             </p>
           </div>
         </div>
@@ -367,6 +559,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
           <button
             onClick={() => exportPartywiseConsolidatedCSV(selectedMonthCode)}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow"
+            title="Download Clean CSV of Partywise Analysis"
           >
             <Download size={14} /> Export CSV
           </button>
@@ -383,25 +576,14 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
       <CloudSyncBar
         storageKey={`statements/partywise_aggregator_${selectedMonthCode}_2026`}
         sheetTitle={`Partywise Analysis (${selectedMonthCode})`}
-        getData={() => ({ 
-          selectedMonthCode, 
-          store: partywiseAggregatorStore.data,
-          allocations: partywiseAggregatorStore.getAllocationsForMonth(selectedMonthCode)
-        })}
+        getData={() => ({ selectedMonthCode, store: partywiseAggregatorStore.data })}
         onLoadData={(cloudData: any) => {
           if (!cloudData) return;
           if (cloudData.store) {
             partywiseAggregatorStore.data = cloudData.store;
             partywiseAggregatorStore.persist();
+            setRefreshTrigger(prev => prev + 1);
           }
-          if (cloudData.allocations) {
-            try {
-              const all = JSON.parse(localStorage.getItem('dios_chemist_doctor_allocations_v3') || '{}');
-              all[selectedMonthCode] = cloudData.allocations;
-              localStorage.setItem('dios_chemist_doctor_allocations_v3', JSON.stringify(all));
-            } catch (e) {}
-          }
-          setRefreshTrigger(prev => prev + 1);
         }}
         onSaveLocal={() => {
           partywiseAggregatorStore.persist();
@@ -419,7 +601,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 4 DUAL-METRIC KPI STAT CARDS */}
+      {/* 🌟 4 DUAL-METRIC KPI STAT CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 shadow-md">
           <div className="text-[10px] text-slate-400 uppercase font-semibold">Total Unique Retailers</div>
@@ -427,7 +609,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
             {retailersList.length} <span className="text-xs font-normal text-slate-400">Chemists</span>
           </div>
           <div className="text-xs text-amber-400 font-mono mt-0.5">
-            👨‍⚕️ {grandMetrics.allocatedChemistsCount} Chemists Allocated to MSL Drs
+            🔗 {grandMetrics.linkedChemistsCount} Chemists Linked to MSL
           </div>
         </div>
 
@@ -462,7 +644,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* VIEW SWITCHER TABS */}
+      {/* 🌟 VIEW SWITCHER TABS: CHEMIST DIRECTORY VS MSL DOCTOR LINKED SHEET */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
         <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 shadow-inner">
           <button
@@ -502,7 +684,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* VIEW 1: CHEMIST DIRECTORY TABLE */}
+      {/* 🌟 VIEW 1: CHEMIST DIRECTORY TABLE */}
       {activeTabMode === 'CHEMISTS' ? (
         <div className="overflow-x-auto max-h-[550px] border border-slate-800 rounded-2xl shadow-xl bg-slate-950">
           <table className="w-full text-left text-xs border-collapse">
@@ -511,7 +693,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                 <th className="p-3 text-center w-12">#</th>
                 <th className="p-3 min-w-[220px]">Retailer / Chemist Name</th>
                 <th className="p-3 min-w-[130px] text-cyan-300">Address</th>
-                <th className="p-3 min-w-[260px] text-amber-400">Allocated MSL Doctors</th>
+                <th className="p-3 min-w-[220px] text-amber-400">Linked MSL Doctor</th>
                 <th className="p-3 text-center w-24 text-cyan-400">Sales Qty</th>
                 <th className="p-3 text-center w-20 text-amber-400">Free Qty</th>
                 <th className="p-3 text-center w-24 text-slate-200">Total Units</th>
@@ -528,63 +710,50 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                   </td>
                 </tr>
               ) : (
-                filteredRetailers.map((r, idx) => {
-                  const allocs = partywiseAggregatorStore.getAllocationsForRetailer(selectedMonthCode, r.key);
-                  const hasAllocs = allocs.length > 0;
+                filteredRetailers.map((r, idx) => (
+                  <tr key={r.key} className="hover:bg-slate-800/40 transition">
+                    <td className="p-2.5 text-center text-slate-500">{idx + 1}</td>
+                    <td className="p-2.5 font-sans font-bold text-white">{r.retailerName}</td>
+                    <td className="p-2.5 text-cyan-300">{r.address}</td>
+                    
+                    {/* SEARCHABLE DOCTOR LINK BUTTON */}
+                    <td className="p-2 font-sans">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLinkingTargetRetailer(r);
+                          setDoctorSearchText('');
+                        }}
+                        className={`w-full py-1 px-2.5 rounded-xl border text-xs font-semibold transition cursor-pointer flex items-center justify-between gap-1 text-left ${
+                          r.linkedDoctor && r.linkedDoctor !== '-'
+                            ? 'bg-amber-950/70 border-amber-500/50 text-amber-300 hover:bg-amber-900'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <span className="truncate">
+                          {r.linkedDoctor && r.linkedDoctor !== '-' ? `👨‍⚕️ Dr. ${r.linkedDoctor}` : '+ Link MSL Doctor'}
+                        </span>
+                        <Link2 size={13} className="shrink-0 text-amber-400" />
+                      </button>
+                    </td>
 
-                  return (
-                    <tr key={r.key} className="hover:bg-slate-800/40 transition">
-                      <td className="p-2.5 text-center text-slate-500">{idx + 1}</td>
-                      <td className="p-2.5 font-sans font-bold text-white">{r.retailerName}</td>
-                      <td className="p-2.5 text-cyan-300">{r.address}</td>
-                      
-                      <td className="p-2 font-sans">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenAllocationModal(r)}
-                          className={`w-full py-1.5 px-3 rounded-xl border text-xs font-semibold transition cursor-pointer flex items-center justify-between gap-1.5 text-left ${
-                            hasAllocs
-                              ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 hover:bg-amber-900 shadow-sm'
-                              : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                          }`}
-                        >
-                          <div className="truncate flex items-center gap-1.5">
-                            {hasAllocs ? (
-                              <>
-                                <Stethoscope size={13} className="text-amber-400 shrink-0" />
-                                <span className="truncate">
-                                  {allocs.length === 1 
-                                    ? `Dr. ${allocs[0].doctorName} (${Object.keys(allocs[0].allocatedProducts).length} SKUs)`
-                                    : `${allocs.length} Doctors Allocated (${allocs.map(a => a.doctorName.split(' ')[0]).join(', ')})`
-                                  }
-                                </span>
-                              </>
-                            ) : (
-                              <span>+ Allocate Doctors &amp; SKUs</span>
-                            )}
-                          </div>
-                          <ChevronRight size={14} className="shrink-0 text-amber-400" />
-                        </button>
-                      </td>
-
-                      <td className="p-2.5 text-center font-bold text-cyan-300">{r.salesQty}</td>
-                      <td className="p-2.5 text-center font-bold text-amber-300">{r.freeQty > 0 ? r.freeQty : '-'}</td>
-                      <td className="p-2.5 text-center font-black text-white bg-slate-950/40">{r.totalQty}</td>
-                      <td className="p-2.5 text-right font-bold text-emerald-400">₹{r.salesAmount.toLocaleString()}</td>
-                      <td className="p-2.5 text-right font-black text-emerald-300 bg-emerald-950/20">₹{r.grossAmount.toLocaleString()}</td>
-                      
-                      <td className="p-2.5 text-center">
-                        <button
-                          onClick={() => setSelectedRetailer(r)}
-                          className="p-1.5 text-cyan-400 hover:bg-cyan-500/20 rounded-lg transition cursor-pointer"
-                          title="View 360° Breakdown"
-                        >
-                          <Eye size={15} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
+                    <td className="p-2.5 text-center font-bold text-cyan-300">{r.salesQty}</td>
+                    <td className="p-2.5 text-center font-bold text-amber-300">{r.freeQty > 0 ? r.freeQty : '-'}</td>
+                    <td className="p-2.5 text-center font-black text-white bg-slate-950/40">{r.totalQty}</td>
+                    <td className="p-2.5 text-right font-bold text-emerald-400">₹{r.salesAmount.toLocaleString()}</td>
+                    <td className="p-2.5 text-right font-black text-emerald-300 bg-emerald-950/20">₹{r.grossAmount.toLocaleString()}</td>
+                    
+                    <td className="p-2.5 text-center">
+                      <button
+                        onClick={() => setSelectedRetailer(r)}
+                        className="p-1.5 text-cyan-400 hover:bg-cyan-500/20 rounded-lg transition cursor-pointer"
+                        title="View 360° Breakdown"
+                      >
+                        <Eye size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
             <tfoot className="sticky bottom-0 bg-slate-950 border-t-2 border-slate-700 font-bold z-10 text-xs font-mono">
@@ -602,7 +771,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
           </table>
         </div>
       ) : (
-        /* VIEW 2: MSL DOCTOR LINKED INTELLIGENCE SHEET */
+        /* 🌟 VIEW 2: NEW MSL DOCTOR LINKED INTELLIGENCE SHEET */
         <div className="overflow-x-auto max-h-[550px] border border-slate-800 rounded-2xl shadow-xl bg-slate-950">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-10">
@@ -610,7 +779,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                 <th className="p-3 text-center w-12">#</th>
                 <th className="p-3 min-w-[200px] text-amber-400">MSL Doctor Name</th>
                 <th className="p-3 min-w-[130px] text-slate-300">Speciality</th>
-                <th className="p-3 min-w-[240px]">Contributing Chemist Stores</th>
+                <th className="p-3 min-w-[240px]">Linked Chemist Stores</th>
                 <th className="p-3 text-center w-24 text-cyan-400">Sales Qty</th>
                 <th className="p-3 text-center w-20 text-amber-400">Free Qty</th>
                 <th className="p-3 text-center w-24 text-slate-200">Total Units</th>
@@ -623,8 +792,8 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
               {filteredDoctorAnalytics.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="p-8 text-center text-slate-500 font-sans">
-                    Abhi tak koi bhi Chemist/Product kisi MSL Doctor ko allocate nahi hua hai.<br />
-                    Upar <b>"Chemist Directory"</b> tab par jakar <b>"+ Allocate Doctors &amp; SKUs"</b> button dabayein!
+                    Abhi tak koi bhi Chemist MSL Doctor se link nahi kiya gaya hai. <br />
+                    Upar <b>"Chemist Directory"</b> tab par jakar <b>"+ Link MSL Doctor"</b> button se link karein!
                   </td>
                 </tr>
               ) : (
@@ -634,11 +803,12 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                     <td className="p-2.5 font-sans font-bold text-amber-300">Dr. {doc.doctorName}</td>
                     <td className="p-2.5 text-slate-300">{doc.speciality}</td>
                     
+                    {/* Linked Chemists Badge List */}
                     <td className="p-2.5 font-sans">
                       <div className="flex flex-wrap gap-1">
                         {doc.linkedRetailers.map((lr, lIdx) => (
                           <span key={lIdx} className="bg-slate-950 border border-slate-800 text-cyan-300 text-[10px] px-2 py-0.5 rounded-lg">
-                            🏢 {lr.retailerName} (₹{lr.contributionAmount.toLocaleString()})
+                            🏢 {lr.retailerName} ({lr.address})
                           </span>
                         ))}
                       </div>
@@ -666,266 +836,86 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 🌟 1000 IQ MULTI-DOCTOR & SKU ALLOCATION MODAL (ALWAYS EDITABLE SALES & FREE INPUTS) */}
-      {allocatingRetailer && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-2 md:p-4">
-          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl max-w-4xl w-full p-5 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
-            
-            {/* Modal Header */}
+      {/* 🌟 SEARCHABLE MSL DOCTOR SELECTOR POPUP MODAL */}
+      {linkingTargetRetailer && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl max-w-lg w-full p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <span className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40">
-                  <Building2 size={22} />
+                  <Stethoscope size={20} />
                 </span>
                 <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    {allocatingRetailer.retailerName}
-                    <span className="text-[11px] font-mono bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30">
-                      {allocatingRetailer.address}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Chemist Pool: <b className="text-cyan-300">{allocatingRetailer.salesQty} Sales</b> + <b className="text-amber-300">{allocatingRetailer.freeQty} Free</b> = <b className="text-white font-bold">{allocatingRetailer.totalQty} Total Units</b> &bull; Value: <b className="text-emerald-400">₹{allocatingRetailer.salesAmount.toLocaleString()}</b>
+                  <h3 className="text-base font-bold text-white">Link Chemist to MSL Doctor</h3>
+                  <p className="text-xs text-slate-400 font-mono">
+                    Store: <b className="text-cyan-300">{linkingTargetRetailer.retailerName}</b> ({linkingTargetRetailer.address})
                   </p>
                 </div>
               </div>
-              <button onClick={() => setAllocatingRetailer(null)} className="text-slate-400 hover:text-white p-1">
+              <button onClick={() => setLinkingTargetRetailer(null)} className="text-slate-400 hover:text-white p-1">
                 <X size={20} />
               </button>
             </div>
 
-            {/* Step 1: Add Doctor Search Bar */}
-            <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
-              <div className="text-xs font-bold text-amber-400 flex items-center justify-between">
-                <span>1. Search &amp; Add Doctor for {allocatingRetailer.retailerName}:</span>
-                <span className="text-[10px] text-slate-400 font-mono">123 MSL Doctors Ready</span>
-              </div>
-
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                <input
-                  type="text"
-                  placeholder="Type doctor name (e.g. Abhay, Dave, Deepak, Mona, Kapil)..."
-                  value={doctorSearchQuery}
-                  onChange={e => setDoctorSearchQuery(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl pl-9 pr-3 py-1.5 text-xs focus:border-amber-400 focus:outline-none"
-                />
-
-                {doctorSearchQuery.trim().length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border-2 border-amber-500/60 rounded-xl shadow-2xl p-1.5 z-50 max-h-40 overflow-y-auto space-y-1">
-                    {filteredMslDocsForSelector.map(doc => (
-                      <div
-                        key={doc.srNo}
-                        onClick={() => handleAddDoctorToChemist(doc)}
-                        className="flex items-center justify-between p-2 rounded-lg bg-slate-950 hover:bg-amber-950/60 border border-transparent hover:border-amber-500/40 text-xs cursor-pointer transition"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-slate-500 text-[10px]">#{doc.srNo}</span>
-                          <span className="font-bold text-white">Dr. {doc.doctorName}</span>
-                          {doc.speciality && <span className="text-[10px] text-cyan-300 font-mono">({doc.speciality})</span>}
-                        </div>
-                        <span className="text-[10px] text-amber-400 font-bold">+ Add to Chemist</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Type doctor name, speciality (e.g. Abhay, Dave, Cardio)..."
+                value={doctorSearchText}
+                onChange={e => setDoctorSearchText(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl pl-9 pr-3 py-2 text-xs focus:border-amber-400 focus:outline-none"
+                autoFocus
+              />
             </div>
 
-            {/* Doctors Tab Switcher */}
-            {modalAllocations.length > 0 && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar border-b border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase font-bold pl-1">Allocating For:</span>
-                {modalAllocations.map((alloc, idx) => {
-                  const isActive = activeDocIndex === idx;
-                  const allocatedSkuCount = Object.keys(alloc.allocatedProducts).length;
+            <div className="overflow-y-auto flex-1 border border-slate-800 rounded-2xl p-1.5 space-y-1 bg-slate-950/80 max-h-[320px]">
+              {/* Unlink Option */}
+              <div
+                onClick={() => handleSelectDoctorFromModal('-')}
+                className="p-2.5 rounded-xl bg-slate-900/60 hover:bg-rose-950/50 border border-slate-800 text-rose-300 text-xs font-semibold cursor-pointer transition flex items-center justify-between"
+              >
+                <span>🚫 Unlink / Clear Doctor</span>
+                <span className="text-[10px] text-slate-500 font-mono">Remove</span>
+              </div>
 
-                  return (
-                    <div
-                      key={idx}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
-                        isActive
-                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
-                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
-                      }`}
-                    >
-                      <span onClick={() => setActiveDocIndex(idx)}>
-                        👨‍⚕️ Dr. {alloc.doctorName} ({allocatedSkuCount} SKUs)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveDoctorFromChemist(idx)}
-                        className="p-0.5 hover:text-rose-500 text-slate-500 rounded"
-                        title="Remove doctor from this chemist"
-                      >
-                        <X size={13} />
-                      </button>
+              {filteredMslDocsForSelector.map(doc => {
+                const isCurrent = linkingTargetRetailer.linkedDoctor === doc.doctorName;
+                return (
+                  <div
+                    key={doc.srNo}
+                    onClick={() => handleSelectDoctorFromModal(doc.doctorName)}
+                    className={`flex items-center justify-between p-2.5 rounded-xl text-xs cursor-pointer transition ${
+                      isCurrent 
+                        ? 'bg-amber-950 border border-amber-500 text-white font-bold' 
+                        : 'bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="font-mono text-slate-500 text-[10px] w-7">#{doc.srNo}</span>
+                      <span className="font-bold text-white truncate">Dr. {doc.doctorName}</span>
+                      {doc.speciality && (
+                        <span className="text-[10px] text-blue-300 bg-blue-950/60 px-1.5 py-0.2 rounded border border-blue-500/30">
+                          {doc.speciality}
+                        </span>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Step 2: Product SKU Allocation Grid */}
-            <div className="flex-1 overflow-y-auto border border-slate-800 rounded-2xl p-2.5 bg-slate-950/70 space-y-2 max-h-[300px]">
-              {modalAllocations.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-500 font-mono">
-                  Upar search bar me doctor ka naam likh kar <b>"+ Add to Chemist"</b> karein.<br />
-                  Uske baad yahan Grandlife ke saare products me se unhe Sales &amp; Free quantity allocate karein!
-                </div>
-              ) : (
-                <>
-                  <div className="text-xs font-bold text-cyan-300 flex items-center justify-between pb-1 px-1 border-b border-slate-800/80">
-                    <span>
-                      2. Allocate Sales &amp; Free Units for <b className="text-amber-400 font-bold">Dr. {modalAllocations[activeDocIndex]?.doctorName}</b>:
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      Chemist SKU List ({Object.keys(allocatingRetailer.items).length} Items)
-                    </span>
+                    <span className="text-[10px] text-amber-400 font-bold shrink-0">Select ➔</span>
                   </div>
-
-                  {Object.entries(allocatingRetailer.items).map(([snStr, it]) => {
-                    const sn = Number(snStr);
-                    const currentDoc = modalAllocations[activeDocIndex];
-                    const allocData = currentDoc?.allocatedProducts[sn];
-                    const isPrescribed = !!allocData;
-                    const { otherSales, otherFree } = getOtherDoctorsAllocatedQty(sn, activeDocIndex);
-
-                    const maxRemSales = Math.max(0, it.salesQty - otherSales);
-                    const maxRemFree = Math.max(0, it.freeQty - otherFree);
-                    const maxRemTotal = maxRemSales + maxRemFree;
-
-                    return (
-                      <div
-                        key={sn}
-                        className={`p-2.5 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
-                          isPrescribed
-                            ? 'bg-slate-900 border-amber-500/60 shadow-sm'
-                            : 'bg-slate-950/80 border-slate-800/80 hover:border-slate-700'
-                        }`}
-                      >
-                        {/* Product Title & Chemist Pool Info */}
-                        <div className="flex items-center gap-2.5 min-w-[210px]">
-                          <input
-                            type="checkbox"
-                            checked={isPrescribed}
-                            onChange={() => handleToggleProductForDoctor(sn, it)}
-                            className="rounded text-amber-500 cursor-pointer h-4 w-4"
-                          />
-                          <div>
-                            <div className="font-bold text-white">{it.productName || itemDesc(sn)}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">
-                              Pool: <b className="text-cyan-300">{it.salesQty} Sales</b> + <b className="text-amber-300">{it.freeQty} Free</b> = <b className="text-white">{it.totalQty} Units</b>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Middle Balance Indicator */}
-                        <div className="text-[10px] font-mono text-slate-400">
-                          {otherSales > 0 || otherFree > 0 ? (
-                            <span className="text-purple-300">
-                              Others: {otherSales}S+{otherFree}F | Rem: <b className="text-emerald-400">{maxRemSales}S+{maxRemFree}F ({maxRemTotal})</b>
-                            </span>
-                          ) : (
-                            <span className="text-emerald-400 font-bold">
-                              Full Pool Available: {maxRemSales}S+{maxRemFree}F ({maxRemTotal})
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Allocation Controls: Full Rem Button, Sales Box, Free Box, Total Units & Amount */}
-                        {isPrescribed ? (
-                          <div className="flex flex-wrap items-center gap-2">
-                            {/* 1-Click Full Remaining Button */}
-                            <button
-                              type="button"
-                              onClick={() => handleToggleProductForDoctor(sn, it)}
-                              className="px-2 py-1 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/50 rounded-lg text-[10px] font-bold transition cursor-pointer"
-                              title="Assign 100% of remaining Sales & Free"
-                            >
-                              Full Rem ({maxRemTotal})
-                            </button>
-
-                            {/* Sales Qty Box */}
-                            <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-cyan-500/40">
-                              <span className="text-[10px] text-cyan-400 font-bold">Sales:</span>
-                              <input
-                                type="number"
-                                placeholder="0"
-                                value={allocData.salesQty}
-                                onChange={e => handleSetCustomQty(sn, it, e.target.value, String(allocData.freeQty))}
-                                className="w-12 bg-transparent text-cyan-300 font-mono font-bold text-xs text-center focus:outline-none"
-                              />
-                            </div>
-
-                            {/* Free Qty Box (ALWAYS OPEN) */}
-                            <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-amber-500/40">
-                              <span className="text-[10px] text-amber-400 font-bold">Free:</span>
-                              <input
-                                type="number"
-                                placeholder="0"
-                                value={allocData.freeQty}
-                                onChange={e => handleSetCustomQty(sn, it, String(allocData.salesQty), e.target.value)}
-                                className="w-10 bg-transparent text-amber-300 font-mono font-bold text-xs text-center focus:outline-none"
-                              />
-                            </div>
-
-                            {/* Total Units Pill */}
-                            <span className="bg-slate-950 border border-slate-700 text-white font-mono font-bold px-2 py-1 rounded-lg text-[11px]">
-                              Total: {allocData.totalQty}
-                            </span>
-
-                            {/* Amount */}
-                            <span className="text-emerald-400 font-mono font-bold w-20 text-right">
-                              ₹{allocData.salesAmount.toLocaleString()}
-                            </span>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleToggleProductForDoctor(sn, it)}
-                            className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 rounded-lg text-[11px] font-semibold transition cursor-pointer"
-                          >
-                            + Allocate
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </>
-              )}
+                );
+              })}
             </div>
 
-            {/* Modal Footer */}
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
-              <div className="text-xs font-mono text-slate-300">
-                Doctors Configured: <b className="text-amber-400 font-bold">{modalAllocations.length}</b>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAllocatingRetailer(null)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveAllocations}
-                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg cursor-pointer flex items-center gap-1.5"
-                >
-                  <Check size={15} /> Save &amp; Lock Allocations
-                </button>
-              </div>
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button onClick={() => setLinkingTargetRetailer(null)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">
+                Cancel
+              </button>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* 360-DEGREE DOCTOR PRODUCT ANALYTICS MODAL */}
+      {/* 🌟 360-DEGREE DOCTOR PRODUCT ANALYTICS MODAL */}
       {selectedDoctorAnalytics && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-amber-500/50 rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
@@ -937,24 +927,26 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                 <div>
                   <h3 className="text-base font-bold text-white">Dr. {selectedDoctorAnalytics.doctorName}</h3>
                   <p className="text-xs text-amber-300 font-mono">
-                    Speciality: {selectedDoctorAnalytics.speciality} &bull; Month: {selectedMonthCode} 2026
+                    Speciality: {selectedDoctorAnalytics.speciality} • Month: {selectedMonthCode} 2026
                   </p>
                 </div>
               </div>
               <button onClick={() => setSelectedDoctorAnalytics(null)} className="text-slate-400 hover:text-white cursor-pointer"><X size={18} /></button>
             </div>
 
+            {/* Linked Chemists strip */}
             <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
               <div className="text-[10px] text-slate-400 uppercase font-bold">Contributing Chemist Stores:</div>
               <div className="flex flex-wrap gap-1.5">
                 {selectedDoctorAnalytics.linkedRetailers.map((lr, i) => (
                   <span key={i} className="bg-slate-900 border border-slate-700 text-cyan-300 text-xs px-2.5 py-1 rounded-xl">
-                    🏢 {lr.retailerName} (Sales: ₹{lr.contributionAmount.toLocaleString()} | Gross: ₹{lr.contributionGross.toLocaleString()})
+                    🏢 {lr.retailerName} ({lr.address})
                   </span>
                 ))}
               </div>
             </div>
 
+            {/* Products Table */}
             <div className="overflow-y-auto flex-1 border border-slate-800 rounded-xl">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800">
@@ -986,7 +978,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
 
             <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs font-mono">
               <span className="text-slate-300">
-                Total Revenue: <b className="text-emerald-400 text-sm">₹{selectedDoctorAnalytics.salesAmount.toLocaleString()}</b> (Gross with Free: ₹{selectedDoctorAnalytics.grossAmount.toLocaleString()})
+                Total Revenue: <b className="text-emerald-400 text-sm">₹{selectedDoctorAnalytics.salesAmount.toLocaleString()}</b> (Gross: ₹{selectedDoctorAnalytics.grossAmount.toLocaleString()})
               </span>
               <button onClick={() => setSelectedDoctorAnalytics(null)} className="px-5 py-2 bg-slate-800 text-white font-bold rounded-xl cursor-pointer">Close</button>
             </div>
@@ -994,7 +986,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 360-DEGREE RETAILER DETAIL MODAL */}
+      {/* 🌟 360-DEGREE RETAILER DETAIL MODAL */}
       {selectedRetailer && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/50 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
@@ -1005,7 +997,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                 </span>
                 <div>
                   <h3 className="text-base font-bold text-white">{selectedRetailer.retailerName}</h3>
-                  <p className="text-xs text-cyan-400 font-mono">Location: {selectedRetailer.address} &bull; Month: {selectedMonthCode}</p>
+                  <p className="text-xs text-cyan-400 font-mono">Location: {selectedRetailer.address} • Month: {selectedMonthCode}</p>
                 </div>
               </div>
               <button onClick={() => setSelectedRetailer(null)} className="text-slate-400 hover:text-white cursor-pointer"><X size={18} /></button>
@@ -1058,3 +1050,22 @@ function itemDesc(sn: number): string {
   const found = MASTER_PRODUCTS.find((p: any) => p.sn === sn);
   return found ? found.name : `Product #${sn}`;
 }
+"""
+
+with open('src/components/PartywiseAggregatorVault.tsx', 'w', encoding='utf-8') as f:
+    f.write(vault_code)
+print("✅ 3. src/components/PartywiseAggregatorVault.tsx updated.")
+
+# 4. Compile and Deploy to Cloudflare
+print("\n📦 [2/3] Compiling Production Bundle (npm run build)...")
+subprocess.run(["npm", "run", "build"], check=True)
+print("✅ Build Successful.")
+
+print("\n☁️ [3/3] Deploying to Cloudflare Pages (dios-hub)...")
+if os.path.exists("./deploy.sh"):
+    subprocess.run(["chmod", "+x", "./deploy.sh"])
+    subprocess.run(["./deploy.sh"])
+else:
+    subprocess.run(["npx", "wrangler", "pages", "deploy", "dist", "--project-name", "dios-hub", "--commit-dirty=true"])
+
+print("\n🎉 ALL DONE! Dual-Qty, Gross Amounts & MSL Doctor Intelligence Deployed to Cloudflare!")

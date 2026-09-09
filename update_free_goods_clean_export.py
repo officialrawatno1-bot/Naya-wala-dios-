@@ -1,4 +1,10 @@
-import * as XLSX from 'xlsx-js-style';
+import os, sys, subprocess
+
+print("==========================================================================")
+print("🧠 [1/3] UPDATING FREE GOODS EXPORTER FOR CLEAN QTY>0 ONLY & YEAR HEADING...")
+print("==========================================================================")
+
+exporter_code = """import * as XLSX from 'xlsx-js-style';
 import { MASTER_PRODUCTS } from '../data/masterProducts';
 import { freeGoodsStore, FREE_GOODS_PARTIES } from '../data/freeGoodsStore';
 
@@ -220,8 +226,8 @@ export function exportFreeGoodsPartyCSV(monthCodes: string[], partyId: string, p
 
   lines.push(`TOTAL,,,${summary.totalQty},${summary.totalAmount.toFixed(2)}`);
 
-  const csvContent = lines.join('\r\n');
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const csvContent = lines.join('\\r\\n');
+  const blob = new Blob(['\\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -230,3 +236,37 @@ export function exportFreeGoodsPartyCSV(monthCodes: string[], partyId: string, p
   link.click();
   document.body.removeChild(link);
 }
+"""
+
+with open('src/exporters/freeGoodsExporter.ts', 'w', encoding='utf-8') as f:
+    f.write(exporter_code)
+print("✅ 1. freeGoodsExporter.ts updated (Blank rows removed & Year added to header).")
+
+# 2. Update FreeGoodsVault.tsx to default onlyActiveQtyInExcel to true
+vault_file = 'src/components/FreeGoodsVault.tsx'
+with open(vault_file, 'r', encoding='utf-8') as f:
+    vcode = f.read()
+
+vcode = vcode.replace(
+    "const [onlyActiveQtyInExcel, setOnlyActiveQtyInExcel] = useState(false);",
+    "const [onlyActiveQtyInExcel, setOnlyActiveQtyInExcel] = useState(true);"
+)
+
+with open(vault_file, 'w', encoding='utf-8') as f:
+    f.write(vcode)
+print("✅ 2. FreeGoodsVault.tsx updated.")
+
+# 3. Build Production Bundle
+print("\n📦 [2/3] Building Production Bundle (npm run build)...")
+subprocess.run(["npm", "run", "build"], check=True)
+print("✅ Build Successful.")
+
+# 4. Deploy to Cloudflare Pages
+print("\n☁️ [3/3] Deploying to Cloudflare Pages (dios-hub)...")
+if os.path.exists("./deploy.sh"):
+    subprocess.run(["chmod", "+x", "./deploy.sh"])
+    subprocess.run(["./deploy.sh"])
+else:
+    subprocess.run(["npx", "wrangler", "pages", "deploy", "dist", "--project-name", "dios-hub", "--commit-dirty=true"])
+
+print("\n🎉 ALL DONE! Clean Excel (Only Free Qty > 0 & Year in Header) Deployed to Cloudflare!")

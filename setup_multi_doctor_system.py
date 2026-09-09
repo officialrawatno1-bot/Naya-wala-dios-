@@ -1,10 +1,384 @@
-import React, { useState, useMemo, useRef } from 'react';
+import os, sys, subprocess
+
+print("==========================================================================")
+print("🧠 [1/3] UPDATING STORE WITH MULTI-DOCTOR & SKU ALLOCATION...")
+print("==========================================================================")
+
+# 1. Update src/data/partywiseAggregatorStore.ts
+store_code = """import { MASTER_PRODUCTS, MasterProduct } from '../data/masterProducts';
+import { RetailerSaleRecord } from '../parsers/retailerParsers/dwarikaRetailerParser';
+
+const STORAGE_KEY = 'dios_partywise_aggregator_vault_v1';
+const ALLOCATIONS_KEY = 'dios_chemist_doctor_allocations_v3';
+
+export interface ProductAllocation {
+  productSn: number;
+  productName: string;
+  salesQty: number;
+  freeQty: number;
+  rate: number;
+  salesAmount: number;
+  freeAmount: number;
+  grossAmount: number;
+}
+
+export interface DoctorAllocation {
+  doctorName: string;
+  speciality: string;
+  allocatedProducts: Record<number, ProductAllocation>;
+}
+
+export interface RetailerConsolidatedProfile {
+  key: string;
+  retailerName: string;
+  address: string;
+  stockists: string[];
+  salesQty: number;
+  freeQty: number;
+  totalQty: number;
+  salesAmount: number;
+  freeAmount: number;
+  grossAmount: number;
+  items: Record<number, { 
+    productName: string; 
+    salesQty: number; 
+    freeQty: number; 
+    totalQty: number; 
+    rate: number; 
+    salesAmount: number; 
+    freeAmount: number; 
+    grossAmount: number; 
+    stockists: string[] 
+  }>;
+}
+
+export interface DoctorLinkedAnalyticsProfile {
+  doctorName: string;
+  speciality: string;
+  linkedRetailers: Array<{ retailerName: string; address: string; contributionAmount: number }>;
+  salesQty: number;
+  freeQty: number;
+  totalQty: number;
+  salesAmount: number;
+  freeAmount: number;
+  grossAmount: number;
+  products: Record<number, {
+    productName: string;
+    salesQty: number;
+    freeQty: number;
+    totalQty: number;
+    salesAmount: number;
+    grossAmount: number;
+  }>;
+}
+
+export class PartywiseAggregatorStore {
+  public data: Record<string, RetailerSaleRecord[]>;
+
+  constructor() {
+    this.data = this.loadFromStorage();
+  }
+
+  private loadFromStorage() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {};
+  }
+
+  public setPartyRecords(monthCode: string, records: RetailerSaleRecord[]) {
+    this.data[monthCode] = records;
+    this.persist();
+  }
+
+  public clearMonth(monthCode: string) {
+    delete this.data[monthCode];
+    this.clearAllocationsForMonth(monthCode);
+    this.persist();
+  }
+
+  public getMonthRetailers(monthCode: string): RetailerConsolidatedProfile[] {
+    const records = this.data[monthCode] || [];
+    const map: Record<string, RetailerConsolidatedProfile> = {};
+
+    records.forEach(r => {
+      const cleanKey = `${r.retailerName} (${r.address})`.toUpperCase().trim();
+
+      if (!map[cleanKey]) {
+        map[cleanKey] = {
+          key: cleanKey,
+          retailerName: r.retailerName,
+          address: r.address,
+          stockists: ['Dwarika'],
+          salesQty: 0,
+          freeQty: 0,
+          totalQty: 0,
+          salesAmount: 0,
+          freeAmount: 0,
+          grossAmount: 0,
+          items: {}
+        };
+      }
+
+      const prof = map[cleanKey];
+      const sQty = r.salesQty || 0;
+      const fQty = r.freeQty || 0;
+      const totU = sQty + fQty;
+      const rate = r.rate || 0;
+      const sAmt = r.amount || Number((sQty * rate).toFixed(2));
+      const fAmt = Number((fQty * rate).toFixed(2));
+      const gAmt = Number((sAmt + fAmt).toFixed(2));
+
+      prof.salesQty += sQty;
+      prof.freeQty += fQty;
+      prof.totalQty += totU;
+      prof.salesAmount = Number((prof.salesAmount + sAmt).toFixed(2));
+      prof.freeAmount = Number((prof.freeAmount + fAmt).toFixed(2));
+      prof.grossAmount = Number((prof.grossAmount + gAmt).toFixed(2));
+
+      if (!prof.items[r.productSn]) {
+        prof.items[r.productSn] = {
+          productName: r.productName,
+          salesQty: 0,
+          freeQty: 0,
+          totalQty: 0,
+          rate: rate,
+          salesAmount: 0,
+          freeAmount: 0,
+          grossAmount: 0,
+          stockists: ['Dwarika']
+        };
+      }
+
+      const item = prof.items[r.productSn];
+      item.salesQty += sQty;
+      item.freeQty += fQty;
+      item.totalQty += totU;
+      item.rate = rate || item.rate;
+      item.salesAmount = Number((item.salesAmount + sAmt).toFixed(2));
+      item.freeAmount = Number((item.freeAmount + fAmt).toFixed(2));
+      item.grossAmount = Number((item.grossAmount + gAmt).toFixed(2));
+    });
+
+    return Object.values(map).sort((a, b) => b.salesAmount - a.salesAmount);
+  }
+
+  public getAllocationsForMonth(monthCode: string): Record<string, DoctorAllocation[]> {
+    try {
+      const all = JSON.parse(localStorage.getItem(ALLOCATIONS_KEY) || '{}');
+      return all[monthCode] || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  public getAllocationsForRetailer(monthCode: string, retailerKey: string): DoctorAllocation[] {
+    const monthAllocations = this.getAllocationsForMonth(monthCode);
+    return monthAllocations[retailerKey] || [];
+  }
+
+  public saveRetailerAllocations(monthCode: string, retailerKey: string, allocations: DoctorAllocation[]) {
+    try {
+      const all = JSON.parse(localStorage.getItem(ALLOCATIONS_KEY) || '{}');
+      if (!all[monthCode]) all[monthCode] = {};
+      
+      const valid = allocations.filter(a => a.doctorName && a.doctorName !== '-' && Object.keys(a.allocatedProducts).length > 0);
+      if (valid.length > 0) {
+        all[monthCode][retailerKey] = valid;
+      } else {
+        delete all[monthCode][retailerKey];
+      }
+
+      localStorage.setItem(ALLOCATIONS_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+
+  public clearAllocationsForMonth(monthCode: string) {
+    try {
+      const all = JSON.parse(localStorage.getItem(ALLOCATIONS_KEY) || '{}');
+      delete all[monthCode];
+      localStorage.setItem(ALLOCATIONS_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+
+  public getDoctorLinkedAnalytics(monthCode: string, allMslDocs: any[]): DoctorLinkedAnalyticsProfile[] {
+    const retailers = this.getMonthRetailers(monthCode);
+    const monthAllocations = this.getAllocationsForMonth(monthCode);
+    const docMap: Record<string, DoctorLinkedAnalyticsProfile> = {};
+
+    retailers.forEach(r => {
+      const allocations = monthAllocations[r.key];
+
+      if (allocations && allocations.length > 0) {
+        allocations.forEach(alloc => {
+          const docName = alloc.doctorName;
+          if (!docName || docName === '-') return;
+
+          const cleanDocKey = docName.toUpperCase().trim();
+          const mslMeta = allMslDocs.find((d: any) => d.doctorName.toUpperCase().trim() === cleanDocKey);
+
+          if (!docMap[cleanDocKey]) {
+            docMap[cleanDocKey] = {
+              doctorName: docName,
+              speciality: mslMeta?.speciality || alloc.speciality || 'CONSULTANT',
+              linkedRetailers: [],
+              salesQty: 0,
+              freeQty: 0,
+              totalQty: 0,
+              salesAmount: 0,
+              freeAmount: 0,
+              grossAmount: 0,
+              products: {}
+            };
+          }
+
+          const dProf = docMap[cleanDocKey];
+          let doctorChemistContribution = 0;
+
+          Object.values(alloc.allocatedProducts).forEach(ap => {
+            if (ap.salesQty > 0 || ap.freeQty > 0) {
+              dProf.salesQty += ap.salesQty;
+              dProf.freeQty += ap.freeQty;
+              dProf.totalQty += (ap.salesQty + ap.freeQty);
+              dProf.salesAmount = Number((dProf.salesAmount + ap.salesAmount).toFixed(2));
+              dProf.freeAmount = Number((dProf.freeAmount + ap.freeAmount).toFixed(2));
+              dProf.grossAmount = Number((dProf.grossAmount + ap.grossAmount).toFixed(2));
+              doctorChemistContribution = Number((doctorChemistContribution + ap.salesAmount).toFixed(2));
+
+              if (!dProf.products[ap.productSn]) {
+                dProf.products[ap.productSn] = {
+                  productName: ap.productName,
+                  salesQty: 0,
+                  freeQty: 0,
+                  totalQty: 0,
+                  salesAmount: 0,
+                  grossAmount: 0
+                };
+              }
+              const p = dProf.products[ap.productSn];
+              p.salesQty += ap.salesQty;
+              p.freeQty += ap.freeQty;
+              p.totalQty += (ap.salesQty + ap.freeQty);
+              p.salesAmount = Number((p.salesAmount + ap.salesAmount).toFixed(2));
+              p.grossAmount = Number((p.grossAmount + ap.grossAmount).toFixed(2));
+            }
+          });
+
+          if (doctorChemistContribution > 0 && !dProf.linkedRetailers.some(lr => lr.retailerName === r.retailerName)) {
+            dProf.linkedRetailers.push({
+              retailerName: r.retailerName,
+              address: r.address,
+              contributionAmount: doctorChemistContribution
+            });
+          }
+        });
+      }
+    });
+
+    return Object.values(docMap).sort((a, b) => b.salesAmount - a.salesAmount);
+  }
+
+  public persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
+    } catch (e) {}
+  }
+}
+
+export const partywiseAggregatorStore = new PartywiseAggregatorStore();
+"""
+
+with open('src/data/partywiseAggregatorStore.ts', 'w', encoding='utf-8') as f:
+    f.write(store_code)
+print("✅ Store updated.")
+
+# 2. Update src/exporters/partywiseExporter.ts
+exporter_code = """import * as XLSX from 'xlsx-js-style';
+import { partywiseAggregatorStore } from '../data/partywiseAggregatorStore';
+import { standardTheme } from './styles/standardTheme';
+
+export function exportPartywiseConsolidatedExcel(monthCode: string) {
+  const retailers = partywiseAggregatorStore.getMonthRetailers(monthCode);
+  const wsData: any[][] = [];
+
+  wsData.push([
+    { v: 'S.N.', s: standardTheme.colHeader },
+    { v: 'RETAILER / CHEMIST NAME', s: standardTheme.colHeader },
+    { v: 'ADDRESS / LOCATION', s: standardTheme.colHeader },
+    { v: 'ALLOCATED MSL DOCTORS', s: standardTheme.colHeader },
+    { v: 'SALES QTY', s: standardTheme.colHeader },
+    { v: 'FREE QTY', s: standardTheme.colHeader },
+    { v: 'TOTAL UNITS', s: standardTheme.colHeader },
+    { v: 'SALES AMOUNT (₹)', s: standardTheme.colHeader },
+    { v: 'FREE VALUE (₹)', s: standardTheme.colHeader },
+    { v: 'GROSS AMOUNT (₹)', s: standardTheme.colHeader }
+  ]);
+
+  retailers.forEach((r, idx) => {
+    const allocs = partywiseAggregatorStore.getAllocationsForRetailer(monthCode, r.key);
+    const docSummary = allocs.length > 0 ? allocs.map(a => `${a.doctorName} (${Object.keys(a.allocatedProducts).length} SKUs)`).join('; ') : '-';
+
+    wsData.push([
+      { v: idx + 1, s: standardTheme.cellCenter },
+      { v: r.retailerName, s: standardTheme.cellLeft },
+      { v: r.address, s: standardTheme.cellCenter },
+      { v: docSummary, s: standardTheme.cellLeft },
+      { v: r.salesQty, s: standardTheme.cellCenter },
+      { v: r.freeQty > 0 ? r.freeQty : '-', s: standardTheme.cellCenter },
+      { v: r.totalQty, s: standardTheme.cellCenterBold },
+      { v: r.salesAmount, s: standardTheme.cellRight },
+      { v: r.freeAmount > 0 ? r.freeAmount : '-', s: standardTheme.cellRight },
+      { v: r.grossAmount, s: standardTheme.cellRight }
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{ wch: 6 }, { wch: 30 }, { wch: 18 }, { wch: 35 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 18 }];
+  
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `Retailers_${monthCode}`);
+  XLSX.writeFile(wb, `Partywise_Retailer_Analysis_${monthCode}_2026.xlsx`);
+}
+
+export function exportPartywiseConsolidatedCSV(monthCode: string) {
+  const retailers = partywiseAggregatorStore.getMonthRetailers(monthCode);
+  const lines: string[] = [];
+
+  lines.push('S.N.,RETAILER / CHEMIST NAME,ADDRESS / LOCATION,ALLOCATED MSL DOCTORS,SALES QTY,FREE QTY,TOTAL UNITS,SALES AMOUNT (₹),FREE VALUE (₹),GROSS AMOUNT (₹)');
+
+  retailers.forEach((r, idx) => {
+    const allocs = partywiseAggregatorStore.getAllocationsForRetailer(monthCode, r.key);
+    const docSummary = allocs.length > 0 ? allocs.map(a => `${a.doctorName} (${Object.keys(a.allocatedProducts).length} SKUs)`).join('; ') : '-';
+    const q = (v: any) => `"${String(v || '').replace(/"/g, '""')}"`;
+
+    lines.push(`${idx + 1},${q(r.retailerName)},${q(r.address)},${q(docSummary)},${r.salesQty},${r.freeQty},${r.totalQty},${r.salesAmount},${r.freeAmount},${r.grossAmount}`);
+  });
+
+  const csvContent = lines.join('\\r\\n');
+  const blob = new Blob(['\\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `Partywise_Retailer_Analysis_${monthCode}_2026.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+"""
+
+with open('src/exporters/partywiseExporter.ts', 'w', encoding='utf-8') as f:
+    f.write(exporter_code)
+print("✅ Exporter updated.")
+
+# 3. Update src/components/PartywiseAggregatorVault.tsx
+vault_code = """import React, { useState, useMemo, useRef } from 'react';
 import { 
   ArrowLeft, Download, RefreshCw, Search, 
   CheckCircle2, Layers, FileSpreadsheet, Sparkles, Building2, 
   Upload, Stethoscope, Eye, X, Calendar, Trash2, RotateCcw, 
   FileText, Link2, UserCheck, ShieldCheck, ChevronRight,
-  Plus, Check, AlertCircle, Edit3, Award, Gift, DollarSign
+  Plus, Check, AlertCircle, Edit3, Award
 } from 'lucide-react';
 import { 
   partywiseAggregatorStore, 
@@ -48,7 +422,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Multi-Doctor Allocation Modal State
+  // 🌟 MULTI-DOCTOR & SKU ALLOCATION MODAL STATE
   const [allocatingRetailer, setAllocatingRetailer] = useState<RetailerConsolidatedProfile | null>(null);
   const [modalAllocations, setModalAllocations] = useState<DoctorAllocation[]>([]);
   const [activeDocIndex, setActiveDocIndex] = useState<number>(0);
@@ -217,7 +591,6 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
     return { otherSales, otherFree };
   };
 
-  // 🌟 1-Click Full Remaining (Fills 100% of remaining Sales & Free)
   const handleToggleProductForDoctor = (productSn: number, itemMeta: any) => {
     if (!modalAllocations[activeDocIndex]) return;
     const currentDoc = { ...modalAllocations[activeDocIndex] };
@@ -231,14 +604,12 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
       const rate = itemMeta.rate || 0;
       const sAmt = Number((remSales * rate).toFixed(2));
       const fAmt = Number((remFree * rate).toFixed(2));
-      const totQ = remSales + remFree;
 
       currentDoc.allocatedProducts[productSn] = {
         productSn,
         productName: itemMeta.productName,
         salesQty: remSales,
         freeQty: remFree,
-        totalQty: totQ,
         rate: rate,
         salesAmount: sAmt,
         freeAmount: fAmt,
@@ -251,7 +622,6 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
     setModalAllocations(copy);
   };
 
-  // 🌟 Freely Editable Sales Qty and Free Qty Inputs
   const handleSetCustomQty = (productSn: number, itemMeta: any, customSalesStr: string, customFreeStr: string) => {
     if (!modalAllocations[activeDocIndex]) return;
     const currentDoc = { ...modalAllocations[activeDocIndex] };
@@ -265,15 +635,13 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
     const rate = itemMeta.rate || 0;
     const sAmt = Number((sQty * rate).toFixed(2));
     const fAmt = Number((fQty * rate).toFixed(2));
-    const totQ = sQty + fQty;
 
-    if (totQ > 0) {
+    if (sQty > 0 || fQty > 0) {
       currentDoc.allocatedProducts[productSn] = {
         productSn,
         productName: itemMeta.productName,
         salesQty: sQty,
         freeQty: fQty,
-        totalQty: totQ,
         rate: rate,
         salesAmount: sAmt,
         freeAmount: fAmt,
@@ -313,11 +681,11 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               PARTYWISE &amp; MSL DOCTOR LINKED INTELLIGENCE
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
-                <Sparkles size={10} /> Dual Qty &amp; Free Splitting Active
+                <Sparkles size={10} /> Multi-Doctor SKU Allocator
               </span>
             </h2>
             <p className="text-xs text-slate-400">
-              BE: BANWARI LAL MEENA • HQ: UDAIPUR • Total Pool (Sales + Free) Multi-Doctor Attribution
+              BE: BANWARI LAL MEENA • HQ: UDAIPUR • Granular Full/Custom Qty Allocation per Chemist
             </p>
           </div>
         </div>
@@ -462,7 +830,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* VIEW SWITCHER TABS */}
+      {/* VIEW SWITCHER TABS: CHEMIST DIRECTORY VS MSL DOCTOR LINKED SHEET */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
         <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 shadow-inner">
           <button
@@ -494,7 +862,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             type="text"
-            placeholder={activeTabMode === 'CHEMISTS' ? "Search chemist, address, or doctor..." : "Search doctor, speciality, or chemist..."}
+            placeholder={activeTabMode === 'CHEMISTS' ? "Search chemist or address..." : "Search doctor, speciality, or chemist..."}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
@@ -538,6 +906,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                       <td className="p-2.5 font-sans font-bold text-white">{r.retailerName}</td>
                       <td className="p-2.5 text-cyan-300">{r.address}</td>
                       
+                      {/* MULTI-DOCTOR ALLOCATION TRIGGER BUTTON */}
                       <td className="p-2 font-sans">
                         <button
                           type="button"
@@ -666,7 +1035,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 🌟 1000 IQ MULTI-DOCTOR & SKU ALLOCATION MODAL (ALWAYS EDITABLE SALES & FREE INPUTS) */}
+      {/* 🌟 SMART MULTI-DOCTOR & SKU ALLOCATION MODAL (THE CORE HUB) */}
       {allocatingRetailer && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-2 md:p-4">
           <div className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl max-w-4xl w-full p-5 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
@@ -685,7 +1054,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Chemist Pool: <b className="text-cyan-300">{allocatingRetailer.salesQty} Sales</b> + <b className="text-amber-300">{allocatingRetailer.freeQty} Free</b> = <b className="text-white font-bold">{allocatingRetailer.totalQty} Total Units</b> &bull; Value: <b className="text-emerald-400">₹{allocatingRetailer.salesAmount.toLocaleString()}</b>
+                    Total Billed: <b className="text-white">{allocatingRetailer.salesQty} Sales + {allocatingRetailer.freeQty} Free Units</b> &bull; Total Value: <b className="text-emerald-400">₹{allocatingRetailer.salesAmount.toLocaleString()}</b>
                   </p>
                 </div>
               </div>
@@ -694,7 +1063,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
               </button>
             </div>
 
-            {/* Step 1: Add Doctor Search Bar */}
+            {/* Top: Add Doctor Search Bar */}
             <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
               <div className="text-xs font-bold text-amber-400 flex items-center justify-between">
                 <span>1. Search &amp; Add Doctor for {allocatingRetailer.retailerName}:</span>
@@ -766,18 +1135,18 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
               </div>
             )}
 
-            {/* Step 2: Product SKU Allocation Grid */}
+            {/* Product SKU Allocation Grid */}
             <div className="flex-1 overflow-y-auto border border-slate-800 rounded-2xl p-2.5 bg-slate-950/70 space-y-2 max-h-[300px]">
               {modalAllocations.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-500 font-mono">
                   Upar search bar me doctor ka naam likh kar <b>"+ Add to Chemist"</b> karein.<br />
-                  Uske baad yahan Grandlife ke saare products me se unhe Sales &amp; Free quantity allocate karein!
+                  Uske baad yahan Grandlife ke saare products me se unhe quantity allocate karein!
                 </div>
               ) : (
                 <>
                   <div className="text-xs font-bold text-cyan-300 flex items-center justify-between pb-1 px-1 border-b border-slate-800/80">
                     <span>
-                      2. Allocate Sales &amp; Free Units for <b className="text-amber-400 font-bold">Dr. {modalAllocations[activeDocIndex]?.doctorName}</b>:
+                      2. Select &amp; Allocate Products for <b className="text-amber-400 font-bold">Dr. {modalAllocations[activeDocIndex]?.doctorName}</b>:
                     </span>
                     <span className="text-[10px] text-slate-400 font-mono">
                       Chemist SKU List ({Object.keys(allocatingRetailer.items).length} Items)
@@ -793,7 +1162,6 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
 
                     const maxRemSales = Math.max(0, it.salesQty - otherSales);
                     const maxRemFree = Math.max(0, it.freeQty - otherFree);
-                    const maxRemTotal = maxRemSales + maxRemFree;
 
                     return (
                       <div
@@ -804,8 +1172,8 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                             : 'bg-slate-950/80 border-slate-800/80 hover:border-slate-700'
                         }`}
                       >
-                        {/* Product Title & Chemist Pool Info */}
-                        <div className="flex items-center gap-2.5 min-w-[210px]">
+                        {/* Left Product Details */}
+                        <div className="flex items-center gap-2.5 min-w-[220px]">
                           <input
                             type="checkbox"
                             checked={isPrescribed}
@@ -815,67 +1183,59 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                           <div>
                             <div className="font-bold text-white">{it.productName || itemDesc(sn)}</div>
                             <div className="text-[10px] text-slate-400 font-mono">
-                              Pool: <b className="text-cyan-300">{it.salesQty} Sales</b> + <b className="text-amber-300">{it.freeQty} Free</b> = <b className="text-white">{it.totalQty} Units</b>
+                              Chemist Total: <b className="text-cyan-300">{it.salesQty} Sales</b> {it.freeQty > 0 ? `+ ${it.freeQty} Free` : ''} &bull; Rate: ₹{it.rate}
                             </div>
                           </div>
                         </div>
 
-                        {/* Middle Balance Indicator */}
+                        {/* Middle: Live Balance Status */}
                         <div className="text-[10px] font-mono text-slate-400">
-                          {otherSales > 0 || otherFree > 0 ? (
+                          {otherSales > 0 ? (
                             <span className="text-purple-300">
-                              Others: {otherSales}S+{otherFree}F | Rem: <b className="text-emerald-400">{maxRemSales}S+{maxRemFree}F ({maxRemTotal})</b>
+                              Other Drs: {otherSales}/{it.salesQty} | Max Rem: {maxRemSales}
                             </span>
                           ) : (
-                            <span className="text-emerald-400 font-bold">
-                              Full Pool Available: {maxRemSales}S+{maxRemFree}F ({maxRemTotal})
-                            </span>
+                            <span className="text-emerald-400">Full {it.salesQty} available</span>
                           )}
                         </div>
 
-                        {/* Allocation Controls: Full Rem Button, Sales Box, Free Box, Total Units & Amount */}
+                        {/* Right: Full vs Custom Qty Controls */}
                         {isPrescribed ? (
-                          <div className="flex flex-wrap items-center gap-2">
-                            {/* 1-Click Full Remaining Button */}
+                          <div className="flex items-center gap-2">
+                            {/* 1-Click Full Button */}
                             <button
                               type="button"
                               onClick={() => handleToggleProductForDoctor(sn, it)}
                               className="px-2 py-1 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/50 rounded-lg text-[10px] font-bold transition cursor-pointer"
-                              title="Assign 100% of remaining Sales & Free"
+                              title="Assign full remaining quantity"
                             >
-                              Full Rem ({maxRemTotal})
+                              Full Rem ({maxRemSales})
                             </button>
 
-                            {/* Sales Qty Box */}
-                            <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-cyan-500/40">
-                              <span className="text-[10px] text-cyan-400 font-bold">Sales:</span>
+                            {/* Custom Sales Input */}
+                            <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-slate-700">
+                              <span className="text-[10px] text-slate-400">Sales:</span>
                               <input
                                 type="number"
-                                placeholder="0"
                                 value={allocData.salesQty}
                                 onChange={e => handleSetCustomQty(sn, it, e.target.value, String(allocData.freeQty))}
                                 className="w-12 bg-transparent text-cyan-300 font-mono font-bold text-xs text-center focus:outline-none"
                               />
                             </div>
 
-                            {/* Free Qty Box (ALWAYS OPEN) */}
-                            <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-amber-500/40">
-                              <span className="text-[10px] text-amber-400 font-bold">Free:</span>
-                              <input
-                                type="number"
-                                placeholder="0"
-                                value={allocData.freeQty}
-                                onChange={e => handleSetCustomQty(sn, it, String(allocData.salesQty), e.target.value)}
-                                className="w-10 bg-transparent text-amber-300 font-mono font-bold text-xs text-center focus:outline-none"
-                              />
-                            </div>
+                            {/* Custom Free Input */}
+                            {it.freeQty > 0 && (
+                              <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-slate-700">
+                                <span className="text-[10px] text-slate-400">Free:</span>
+                                <input
+                                  type="number"
+                                  value={allocData.freeQty}
+                                  onChange={e => handleSetCustomQty(sn, it, String(allocData.salesQty), e.target.value)}
+                                  className="w-10 bg-transparent text-amber-300 font-mono font-bold text-xs text-center focus:outline-none"
+                                />
+                              </div>
+                            )}
 
-                            {/* Total Units Pill */}
-                            <span className="bg-slate-950 border border-slate-700 text-white font-mono font-bold px-2 py-1 rounded-lg text-[11px]">
-                              Total: {allocData.totalQty}
-                            </span>
-
-                            {/* Amount */}
                             <span className="text-emerald-400 font-mono font-bold w-20 text-right">
                               ₹{allocData.salesAmount.toLocaleString()}
                             </span>
@@ -949,7 +1309,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
               <div className="flex flex-wrap gap-1.5">
                 {selectedDoctorAnalytics.linkedRetailers.map((lr, i) => (
                   <span key={i} className="bg-slate-900 border border-slate-700 text-cyan-300 text-xs px-2.5 py-1 rounded-xl">
-                    🏢 {lr.retailerName} (Sales: ₹{lr.contributionAmount.toLocaleString()} | Gross: ₹{lr.contributionGross.toLocaleString()})
+                    🏢 {lr.retailerName} (₹{lr.contributionAmount.toLocaleString()})
                   </span>
                 ))}
               </div>
@@ -986,7 +1346,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
 
             <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs font-mono">
               <span className="text-slate-300">
-                Total Revenue: <b className="text-emerald-400 text-sm">₹{selectedDoctorAnalytics.salesAmount.toLocaleString()}</b> (Gross with Free: ₹{selectedDoctorAnalytics.grossAmount.toLocaleString()})
+                Total Revenue: <b className="text-emerald-400 text-sm">₹{selectedDoctorAnalytics.salesAmount.toLocaleString()}</b> (Gross: ₹{selectedDoctorAnalytics.grossAmount.toLocaleString()})
               </span>
               <button onClick={() => setSelectedDoctorAnalytics(null)} className="px-5 py-2 bg-slate-800 text-white font-bold rounded-xl cursor-pointer">Close</button>
             </div>
@@ -1058,3 +1418,23 @@ function itemDesc(sn: number): string {
   const found = MASTER_PRODUCTS.find((p: any) => p.sn === sn);
   return found ? found.name : `Product #${sn}`;
 }
+"""
+
+with open('src/components/PartywiseAggregatorVault.tsx', 'w', encoding='utf-8') as f:
+    f.write(vault_code)
+print("✅ Vault updated.")
+
+# 4. Build Vite
+print("\n📦 [2/3] Compiling Production Bundle (npm run build)...")
+subprocess.run(["npm", "run", "build"], check=True)
+print("✅ Build Successful.")
+
+# 5. Direct Cloudflare Deploy
+print("\n☁️ [3/3] Deploying to Cloudflare Pages (dios-hub)...")
+if os.path.exists("./deploy.sh"):
+    subprocess.run(["chmod", "+x", "./deploy.sh"])
+    subprocess.run(["./deploy.sh"])
+else:
+    subprocess.run(["npx", "wrangler", "pages", "deploy", "dist", "--project-name", "dios-hub", "--commit-dirty=true"])
+
+print("\n🎉 ALL DONE! Multi-Doctor & SKU Allocation System is 100% Deployed!")
