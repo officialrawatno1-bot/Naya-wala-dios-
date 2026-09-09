@@ -1,4 +1,58 @@
-import React, { useState, useMemo } from 'react';
+import os, sys
+
+print("==========================================================================")
+print("⚡ [RESTORING SMOOTH EXPENSE WORKSPACE & REMOVING SESSION TRAP]...")
+print("==========================================================================")
+
+# 1. Clean App.tsx (Remove Session Lock)
+app_clean = """import React, { useState } from 'react';
+import { MainHub } from './components/MainHub';
+import { DiosWorkspace } from './components/DiosWorkspace';
+import { ReviewFormatWorkspace } from './components/ReviewFormatWorkspace';
+import { WebDataWorkspace } from './components/WebDataWorkspace';
+
+export default function App() {
+  const [activeProject, setActiveProject] = useState<string | null>(null);
+
+  if (activeProject === 'dios' || activeProject === 'dios-aggregator') {
+    return <DiosWorkspace onBack={() => setActiveProject(null)} />;
+  }
+
+  if (activeProject === 'dios-review') {
+    return <ReviewFormatWorkspace onBack={() => setActiveProject(null)} />;
+  }
+
+  if (activeProject === 'web-data') {
+    return <WebDataWorkspace onBack={() => setActiveProject(null)} />;
+  }
+
+  return <MainHub onOpenProject={(id) => setActiveProject(id)} />;
+}
+"""
+with open('src/App.tsx', 'w', encoding='utf-8') as f:
+    f.write(app_clean)
+print("✅ 1. App.tsx session lock removed.")
+
+# 2. Clean WebDataWorkspace.tsx (Remove Session Lock)
+with open('src/components/WebDataWorkspace.tsx', 'r', encoding='utf-8') as f:
+    web_code = f.read()
+
+import re
+web_code = re.sub(
+    r"const \[currentView, setCurrentView\] = useState<ViewState>\(.*?\);",
+    "const [currentView, setCurrentView] = useState<ViewState>('web-data');",
+    web_code,
+    flags=re.DOTALL
+)
+web_code = web_code.replace("const setAndSaveView = (v: ViewState) => {\n    setCurrentView(v);\n    try {\n      sessionStorage.setItem('dios_web_data_view', v);\n    } catch {}\n  };", "")
+web_code = web_code.replace("setAndSaveView(", "setCurrentView(")
+
+with open('src/components/WebDataWorkspace.tsx', 'w', encoding='utf-8') as f:
+    f.write(web_code)
+print("✅ 2. WebDataWorkspace.tsx session lock removed.")
+
+# 3. Clean & Smooth ExpenseWorkspace.tsx (No Touch Lock, Smooth Scrolling, Direct Clean PDF Download)
+smooth_ui_code = """import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Wallet, Calendar, Download, 
   CheckCircle2, AlertTriangle, UploadCloud, 
@@ -487,8 +541,8 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
     csvLines.push('');
     csvLines.push(`Net Expense Claimed: ${totals.totClaim.toFixed(0)},,,,,,,,,,,,,,,,,,`);
 
-    const csvContent = csvLines.join('\r\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const csvContent = csvLines.join('\\r\\n');
+    const blob = new Blob(['\\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1352,3 +1406,9 @@ export const ExpenseWorkspace: React.FC<Props> = ({ onBack }) => {
     </div>
   );
 };
+"""
+
+with open('src/components/ExpenseWorkspace.tsx', 'w', encoding='utf-8') as f:
+    f.write(smooth_ui_code)
+print("✅ 3. ExpenseWorkspace.tsx rebuilt with fluid touch scroll & direct PDF download.")
+
