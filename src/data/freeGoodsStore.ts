@@ -64,7 +64,10 @@ export class FreeGoodsStore {
       if (!this.data[mCode]) this.data[mCode] = {};
       if (!this.data[mCode][partyId]) this.data[mCode][partyId] = {};
 
-      const partyRecords = partywiseAggregatorStore.data[mCode] || [];
+      const mStoreData: any = partywiseAggregatorStore.data[mCode] || {};
+      const partyRecords = Array.isArray(mStoreData) 
+        ? mStoreData 
+        : (mStoreData[partyId] || mStoreData[partyId.toLowerCase()] || []);
       const productFreeMap: Record<number, number> = {};
 
       partyRecords.forEach(r => {
@@ -91,7 +94,10 @@ export class FreeGoodsStore {
     const list: ChemistFreeDistributionItem[] = [];
 
     monthCodes.forEach(mCode => {
-      const partyRecords = partywiseAggregatorStore.data[mCode] || [];
+      const mStoreData: any = partywiseAggregatorStore.data[mCode] || {};
+      const partyRecords = Array.isArray(mStoreData) 
+        ? mStoreData 
+        : (mStoreData[partyId] || mStoreData[partyId.toLowerCase()] || []);
       partyRecords.forEach(r => {
         if (r.productSn === productSn && r.freeQty > 0) {
           const rate = r.rate || 0;
@@ -133,7 +139,10 @@ export class FreeGoodsStore {
       // Count chemists receiving free goods across selected months
       let totalChemistsCount = 0;
       monthCodes.forEach(mCode => {
-        const records = partywiseAggregatorStore.data[mCode] || [];
+        const mStoreData: any = partywiseAggregatorStore.data[mCode] || {};
+        const records = Array.isArray(mStoreData) 
+          ? mStoreData 
+          : (mStoreData[partyId] || mStoreData[partyId.toLowerCase()] || []);
         totalChemistsCount += records.filter(r => r.productSn === p.sn && r.freeQty > 0).length;
       });
 
@@ -163,6 +172,27 @@ export class FreeGoodsStore {
     };
   }
 
+  // 🌟 INJECT FREE GOODS FROM STOCK & SALES STATEMENT (PDF -> CSV ENGINE)
+  public setStockSalesFreeGoods(monthCode: string, partyId: string, freeMap: Record<number, number>): number {
+    if (!this.data[monthCode]) this.data[monthCode] = {};
+    if (!this.data[monthCode][partyId]) this.data[monthCode][partyId] = {};
+
+    let totalInjected = 0;
+    // Clear old items for this party in this month
+    this.data[monthCode][partyId] = {};
+
+    Object.entries(freeMap).forEach(([snStr, freeQty]) => {
+      const sn = Number(snStr);
+      if (freeQty > 0) {
+        this.data[monthCode][partyId][sn] = freeQty;
+        totalInjected += freeQty;
+      }
+    });
+
+    this.persist();
+    return totalInjected;
+  }
+
   public updateCell(monthCode: string, partyId: string, sn: number, qtyVal: any) {
     if (!this.data[monthCode]) this.data[monthCode] = {};
     if (!this.data[monthCode][partyId]) this.data[monthCode][partyId] = {};
@@ -183,6 +213,35 @@ export class FreeGoodsStore {
       }
     });
     this.persist();
+  }
+
+  // 🌟 SCAN COMPLETE COVERAGE MATRIX ACROSS ALL 6 STOCKISTS & 12 MONTHS (OFFLINE + KV)
+  public getCoverageMatrix(monthCodes: string[]) {
+    const matrix: Record<string, Record<string, { available: boolean; totalFreeQty: number; skuCount: number }>> = {};
+
+    FREE_GOODS_PARTIES.forEach(party => {
+      matrix[party.id] = {};
+      monthCodes.forEach(mCode => {
+        const pData = this.data[mCode]?.[party.id] || {};
+        let freeSum = 0;
+        let count = 0;
+        Object.values(pData).forEach(qty => {
+          const n = Number(qty) || 0;
+          if (n > 0) {
+            freeSum += n;
+            count++;
+          }
+        });
+
+        matrix[party.id][mCode] = {
+          available: count > 0,
+          totalFreeQty: freeSum,
+          skuCount: count
+        };
+      });
+    });
+
+    return matrix;
   }
 
   public persist() {

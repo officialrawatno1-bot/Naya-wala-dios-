@@ -66,7 +66,8 @@ const MONTH_FULL_MAP: Record<string, string> = {
   'APR': 'APRIL', 'MAY': 'MAY', 'JUN': 'JUNE',
   'JUL': 'JULY', 'AUG': 'AUGUST', 'SEP': 'SEPTEMBER',
   'OCT': 'OCTOBER', 'NOV': 'NOVEMBER', 'DEC': 'DECEMBER',
-  'JAN': 'JANUARY', 'FEB': 'FEBRUARY', 'MAR': 'MARCH'
+  'JAN': 'JANUARY', 'FEB': 'FEBRUARY', 'MAR': 'MARCH',
+  'JUN_AUG': 'JUN-AUG (3M CUM)'
 };
 
 // 🌟 BUILD EXCEL SHEET FOR A STOCKIST (ONLY ACTIVE FREE GOODS PRODUCTS INCLUDED)
@@ -229,4 +230,25 @@ export function exportFreeGoodsPartyCSV(monthCodes: string[], partyId: string, p
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+// 🌟 DYNAMIC CUSTOM MASTER EXCEL (SELECTIVE STOCKISTS + SELECTIVE MONTHS)
+export function exportCustomMasterExcel(
+  monthCodes: string[],
+  selectedPartyIds: string[],
+  onlyActiveQty: boolean = true
+) {
+  const wb = XLSX.utils.book_new();
+
+  const partiesToExport = FREE_GOODS_PARTIES.filter(p => selectedPartyIds.includes(p.id));
+
+  partiesToExport.forEach(party => {
+    const ws = buildStockistExcelSheet(party.id, party.name, party.tag, monthCodes, onlyActiveQty);
+    XLSX.utils.book_append_sheet(wb, ws, party.tag);
+  });
+
+  const partyTagsStr = partiesToExport.map(p => p.tag.toUpperCase()).join('_');
+  const monthsStr = monthCodes.join('_');
+  const filename = `FREE_GOODS_${partyTagsStr}_${monthsStr}_2026.xlsx`;
+  XLSX.writeFile(wb, filename);
 }

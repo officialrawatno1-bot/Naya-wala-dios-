@@ -1,4 +1,652 @@
-import React, { useState, useMemo, useRef } from 'react';
+import os, sys, subprocess
+
+print("==========================================================================")
+print("🧠 [1/4] CREATING DEDICATED MODI RETAILER PARSER (FILE SEPARATION)...")
+print("==========================================================================")
+
+# 1. Create src/parsers/retailerParsers/modiRetailerParser.ts
+modi_parser_code = """import * as pdfjsLib from 'pdfjs-dist';
+import { matchMasterProduct } from '../common';
+import { RetailerSaleRecord } from './dwarikaRetailerParser';
+
+const LOCATION_KEYWORDS = [
+  'BHOPALPURA', 'HOSPITAL RD', 'HOSPITAL ROAD', 'PANCHWATI', 'H/R',
+  'JAIPUR', 'SEC-14', 'SEC 14', 'SECTOR 4', 'SECTOR-4', 'SECTOR 3',
+  'SECTOR-3', 'RAJSAMAND', 'U.R.', 'UNIVERSITY ROAD', 'CHETAK MARG',
+  'CHETAK CIRCLE', 'KANKROLI', 'ASHWINI BAZAR', 'ASHWINI BAZARA',
+  'BHOPAL PURA', 'B.PURA', 'GOVERDHAN VILAS', 'H.C.', 'HATHIPOLE',
+  'HIRAN MAGRI', 'KHAMNOR', 'MAVLI', 'MADRI', 'COURT CHORAHA', 'MANDI RD',
+  'MANDI ROAD', 'GOGUNDA', 'AYAD', 'DEBARI', 'BEDLA', 'BHUWANA', 'UDIAPOLE',
+  'SALUMBER', 'FATEH PURA', 'F.P.', 'FATEHNAGAR', 'CHHOTI SADRI', 'CHOTI SADRI',
+  'PULA', 'SUNDERWAS', 'LAKKADWAS', 'LAKHDWAS', 'KHERWARA', 'BADGAON', 'VALLABH NAGAR'
+];
+
+function extractModiChemistDetails(rawName: string): { cleanName: string; address: string } {
+  let clean = rawName.replace(/^[0-9.\\-\\s]+/, '').trim();
+  let address = 'UDAIPUR';
+  const upper = clean.toUpperCase();
+
+  for (const loc of LOCATION_KEYWORDS) {
+    if (upper.includes(loc)) {
+      address = loc;
+      break;
+    }
+  }
+
+  return { cleanName: clean.toUpperCase(), address: address.toUpperCase() };
+}
+
+function parseModiQty(tok: string): number {
+  if (!tok || tok === '-' || tok === '—' || tok === '–') return 0;
+  const n = parseFloat(tok.replace(/,/g, '').trim());
+  return isNaN(n) ? 0 : n;
+}
+
+const MONTH_NUM_MAP: Record<string, string> = {
+  '01': 'JAN', '02': 'FEB', '03': 'MAR', '04': 'APR',
+  '05': 'MAY', '06': 'JUN', '07': 'JUL', '08': 'AUG',
+  '09': 'SEP', '10': 'OCT', '11': 'NOV', '12': 'DEC'
+};
+
+// Modi Marg 5-column reverse tokenizer supporting negative returns and decimals
+function parseModiDataRow(line: string): { desc: string; qty: number; free: number; rate: number; amount: number } | null {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('---') || trimmed.startsWith('===') || trimmed.startsWith('***')) return null;
+
+  const upper = trimmed.toUpperCase().replace(/\\s+/g, '');
+  if (
+    upper.includes('MODIDISTRIBUTORS') || upper.includes('PAGENO') ||
+    upper.includes('DESCRIPTIONQTY') || upper.includes('GRANDTOTAL') ||
+    upper.includes('ENDOFREPORT') || upper.includes('TOTAL:') ||
+    upper.includes('CONTINUED') || upper.includes('REPORTFOR') ||
+    upper.includes('DIOSLIFESCIENCES') || upper.includes('HAZARESHWER') ||
+    upper.includes('GSTNO') || upper.includes('TIN.') ||
+    upper.includes('FOODLIC') || upper.includes('PHONE:')
+  ) {
+    return null;
+  }
+
+  const rawTokens = trimmed.split(/\\s+/);
+  if (rawTokens.length < 3) return null;
+
+  const tailNums: number[] = [];
+  let nameEndIdx = rawTokens.length;
+
+  // Scan backwards for [percent], [amount], [rate], [free], [qty]
+  for (let i = rawTokens.length - 1; i >= 0; i--) {
+    const t = rawTokens[i].replace(/,/g, '').trim();
+    if (/^-?\\d+(\\.\\d+)?$/.test(t)) {
+      tailNums.unshift(parseFloat(t));
+      nameEndIdx = i;
+      if (tailNums.length === 5) break;
+    } else if (t === '-' || t === '—' || t === '–') {
+      tailNums.unshift(0);
+      nameEndIdx = i;
+      if (tailNums.length === 5) break;
+    } else {
+      break;
+    }
+  }
+
+  if (tailNums.length >= 3 && nameEndIdx > 0) {
+    const desc = rawTokens.slice(0, nameEndIdx).join(' ').trim();
+    if (!desc) return null;
+
+    let qty = 0, free = 0, rate = 0, amount = 0;
+
+    if (tailNums.length === 5) {
+      qty = tailNums[0];
+      free = tailNums[1];
+      rate = tailNums[2];
+      amount = tailNums[3];
+    } else if (tailNums.length === 4) {
+      qty = tailNums[0];
+      free = tailNums[1];
+      rate = tailNums[2];
+      amount = tailNums[3];
+    } else if (tailNums.length === 3) {
+      qty = tailNums[0];
+      free = 0;
+      rate = tailNums[1];
+      amount = tailNums[2];
+    }
+
+    if (qty !== 0 || free !== 0 || amount !== 0) {
+      return { desc, qty, free, rate, amount: Number(amount.toFixed(2)) };
+    }
+  }
+
+  return null;
+}
+
+export async function parseModiRetailerPdf(file: File): Promise<{ records: RetailerSaleRecord[]; detectedMonthCode?: string }> {
+  let virtualLines: string[] = [];
+  let detectedMonthCode: string | undefined = undefined;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const typedArray = new Uint8Array(arrayBuffer);
+  const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+
+    const rawItems: Array<{ x: number; y: number; text: string }> = [];
+    textContent.items.forEach((it: any) => {
+      if (it && it.transform && typeof it.str === 'string') {
+        const text = it.str.trim();
+        if (text.length > 0) {
+          rawItems.push({ x: it.transform[4] || 0, y: it.transform[5] || 0, text });
+        }
+      }
+    });
+
+    rawItems.sort((a, b) => b.y - a.y || a.x - b.x);
+
+    const lineBins: Array<Array<{ x: number; text: string }>> = [];
+    const lineRefY: number[] = [];
+
+    rawItems.forEach(item => {
+      let matchedIdx = -1;
+      for (let i = 0; i < lineRefY.length; i++) {
+        if (Math.abs(lineRefY[i] - item.y) <= 4.8) {
+          matchedIdx = i;
+          break;
+        }
+      }
+      if (matchedIdx !== -1) {
+        lineBins[matchedIdx].push({ x: item.x, text: item.text });
+      } else {
+        lineRefY.push(item.y);
+        lineBins.push([{ x: item.x, text: item.text }]);
+      }
+    });
+
+    for (const lineItems of lineBins) {
+      lineItems.sort((a, b) => a.x - b.x);
+      const fullLine = lineItems.map(it => it.text).join(' ').trim();
+      if (fullLine) {
+        virtualLines.push(fullLine);
+        if (!detectedMonthCode) {
+          const dateMatch = fullLine.toUpperCase().match(/FROM\\s+\\d{2}[-/](\\d{2})[-/](\\d{4})/);
+          if (dateMatch) detectedMonthCode = MONTH_NUM_MAP[dateMatch[1]];
+        }
+      }
+    }
+  }
+
+  const records: RetailerSaleRecord[] = [];
+  let currentParty: string = '';
+
+  for (const line of virtualLines) {
+    const dataRow = parseModiDataRow(line);
+
+    // Case 1: Header Line (Chemist/Hospital Name)
+    if (!dataRow) {
+      const prod = matchMasterProduct(line);
+      if (!prod && line.length > 2) {
+        const upper = line.toUpperCase().replace(/\\s+/g, '');
+        if (!upper.includes('TOTAL:') && !upper.includes('CONTINUED') && !upper.includes('REPORTFOR') && !upper.includes('DIOSLIFE') && !upper.includes('PARSHWANATH') && !upper.includes('COLONY,UDAIPUR')) {
+          currentParty = line;
+        }
+      }
+      continue;
+    }
+
+    // Case 2: Data Row (Product + Pack + Numbers)
+    const cleanDescWithoutPack = dataRow.desc.replace(/\\b\\d+[';]S\\b|\\b\\d+S\\b|\\b10S\\b|\\b15S\\b|\\b4S\\b|\\b14S\\b/gi, '').trim();
+    const prodMatch = matchMasterProduct(cleanDescWithoutPack) || matchMasterProduct(dataRow.desc);
+
+    if (prodMatch && currentParty) {
+      const { cleanName, address } = extractModiChemistDetails(currentParty);
+      records.push({
+        retailerName: cleanName,
+        address: address,
+        productSn: prodMatch.sn,
+        productName: prodMatch.name,
+        salesQty: dataRow.qty,
+        freeQty: dataRow.free,
+        rate: dataRow.rate,
+        amount: dataRow.amount
+      });
+    }
+  }
+
+  return { records, detectedMonthCode };
+}
+"""
+
+os.makedirs('src/parsers/retailerParsers', exist_ok=True)
+with open('src/parsers/retailerParsers/modiRetailerParser.ts', 'w', encoding='utf-8') as f:
+    f.write(modi_parser_code)
+print("✅ 1. src/parsers/retailerParsers/modiRetailerParser.ts created.")
+
+# 2. Update src/data/partywiseAggregatorStore.ts with Multi-Stockist Support
+store_code = """import { MASTER_PRODUCTS, MasterProduct } from '../data/masterProducts';
+import { RetailerSaleRecord } from '../parsers/retailerParsers/dwarikaRetailerParser';
+
+const STORAGE_KEY = 'dios_partywise_aggregator_vault_v1';
+const ALLOCATIONS_KEY = 'dios_chemist_doctor_allocations_v3';
+
+export interface ProductAllocation {
+  productSn: number;
+  productName: string;
+  salesQty: number;
+  freeQty: number;
+  totalQty: number;
+  rate: number;
+  salesAmount: number;
+  freeAmount: number;
+  grossAmount: number;
+}
+
+export interface DoctorAllocation {
+  doctorName: string;
+  speciality: string;
+  allocatedProducts: Record<number, ProductAllocation>;
+}
+
+export interface RetailerConsolidatedProfile {
+  key: string;
+  retailerName: string;
+  address: string;
+  stockists: string[];
+  salesQty: number;
+  freeQty: number;
+  totalQty: number;
+  salesAmount: number;
+  freeAmount: number;
+  grossAmount: number;
+  items: Record<number, { 
+    productName: string; 
+    salesQty: number; 
+    freeQty: number; 
+    totalQty: number; 
+    rate: number; 
+    salesAmount: number; 
+    freeAmount: number; 
+    grossAmount: number; 
+    stockists: string[] 
+  }>;
+}
+
+export interface DoctorLinkedAnalyticsProfile {
+  doctorName: string;
+  speciality: string;
+  linkedRetailers: Array<{ retailerName: string; address: string; contributionAmount: number; contributionGross: number }>;
+  salesQty: number;
+  freeQty: number;
+  totalQty: number;
+  salesAmount: number;
+  freeAmount: number;
+  grossAmount: number;
+  products: Record<number, {
+    productName: string;
+    salesQty: number;
+    freeQty: number;
+    totalQty: number;
+    salesAmount: number;
+    grossAmount: number;
+  }>;
+}
+
+export class PartywiseAggregatorStore {
+  // data: { [monthCode]: { [stockistId]: RetailerSaleRecord[] } }
+  public data: Record<string, Record<string, RetailerSaleRecord[]>>;
+
+  constructor() {
+    this.data = this.loadFromStorage();
+  }
+
+  private loadFromStorage() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Migration if old format was array
+        const normalized: Record<string, Record<string, RetailerSaleRecord[]>> = {};
+        Object.keys(parsed).forEach(m => {
+          if (Array.isArray(parsed[m])) {
+            normalized[m] = { dwarika: parsed[m] };
+          } else {
+            normalized[m] = parsed[m];
+          }
+        });
+        return normalized;
+      }
+    } catch (e) {}
+    return {};
+  }
+
+  public setPartyRecords(monthCode: string, stockistId: string, records: RetailerSaleRecord[]) {
+    if (!this.data[monthCode]) this.data[monthCode] = {};
+    this.data[monthCode][stockistId] = records;
+    this.persist();
+  }
+
+  public clearMonth(monthCode: string, stockistId?: string) {
+    if (this.data[monthCode]) {
+      if (stockistId && stockistId !== 'all') {
+        delete this.data[monthCode][stockistId];
+      } else {
+        delete this.data[monthCode];
+        this.clearAllocationsForMonth(monthCode);
+      }
+      this.persist();
+    }
+  }
+
+  public getMonthRetailers(monthCode: string, targetStockist: string = 'all'): RetailerConsolidatedProfile[] {
+    const monthData = this.data[monthCode] || {};
+    let records: Array<{ r: RetailerSaleRecord; st: string }> = [];
+
+    if (targetStockist === 'all') {
+      Object.keys(monthData).forEach(st => {
+        (monthData[st] || []).forEach(r => records.push({ r, st }));
+      });
+    } else {
+      (monthData[targetStockist] || []).forEach(r => records.push({ r, st: targetStockist }));
+    }
+
+    const map: Record<string, RetailerConsolidatedProfile> = {};
+
+    records.forEach(({ r, st }) => {
+      const cleanKey = `${r.retailerName} (${r.address})`.toUpperCase().trim();
+      const stTag = st.charAt(0).toUpperCase() + st.slice(1);
+
+      if (!map[cleanKey]) {
+        map[cleanKey] = {
+          key: cleanKey,
+          retailerName: r.retailerName,
+          address: r.address,
+          stockists: [stTag],
+          salesQty: 0,
+          freeQty: 0,
+          totalQty: 0,
+          salesAmount: 0,
+          freeAmount: 0,
+          grossAmount: 0,
+          items: {}
+        };
+      }
+
+      const prof = map[cleanKey];
+      if (!prof.stockists.includes(stTag)) prof.stockists.push(stTag);
+
+      const sQty = r.salesQty || 0;
+      const fQty = r.freeQty || 0;
+      const totU = sQty + fQty;
+      const rate = r.rate || 0;
+      const sAmt = r.amount || Number((sQty * rate).toFixed(2));
+      const fAmt = Number((fQty * rate).toFixed(2));
+      const gAmt = Number((sAmt + fAmt).toFixed(2));
+
+      prof.salesQty = Number((prof.salesQty + sQty).toFixed(2));
+      prof.freeQty = Number((prof.freeQty + fQty).toFixed(2));
+      prof.totalQty = Number((prof.totalQty + totU).toFixed(2));
+      prof.salesAmount = Number((prof.salesAmount + sAmt).toFixed(2));
+      prof.freeAmount = Number((prof.freeAmount + fAmt).toFixed(2));
+      prof.grossAmount = Number((prof.grossAmount + gAmt).toFixed(2));
+
+      if (!prof.items[r.productSn]) {
+        prof.items[r.productSn] = {
+          productName: r.productName,
+          salesQty: 0,
+          freeQty: 0,
+          totalQty: 0,
+          rate: rate,
+          salesAmount: 0,
+          freeAmount: 0,
+          grossAmount: 0,
+          stockists: [stTag]
+        };
+      }
+
+      const item = prof.items[r.productSn];
+      if (!item.stockists.includes(stTag)) item.stockists.push(stTag);
+
+      item.salesQty = Number((item.salesQty + sQty).toFixed(2));
+      item.freeQty = Number((item.freeQty + fQty).toFixed(2));
+      item.totalQty = Number((item.totalQty + totU).toFixed(2));
+      item.rate = rate || item.rate;
+      item.salesAmount = Number((item.salesAmount + sAmt).toFixed(2));
+      item.freeAmount = Number((item.freeAmount + fAmt).toFixed(2));
+      item.grossAmount = Number((item.grossAmount + gAmt).toFixed(2));
+    });
+
+    return Object.values(map).sort((a, b) => b.salesAmount - a.salesAmount);
+  }
+
+  public getAllocationsForMonth(monthCode: string): Record<string, DoctorAllocation[]> {
+    try {
+      const all = JSON.parse(localStorage.getItem(ALLOCATIONS_KEY) || '{}');
+      return all[monthCode] || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  public getAllocationsForRetailer(monthCode: string, retailerKey: string): DoctorAllocation[] {
+    const monthAllocations = this.getAllocationsForMonth(monthCode);
+    return monthAllocations[retailerKey] || [];
+  }
+
+  public saveRetailerAllocations(monthCode: string, retailerKey: string, allocations: DoctorAllocation[]) {
+    try {
+      const all = JSON.parse(localStorage.getItem(ALLOCATIONS_KEY) || '{}');
+      if (!all[monthCode]) all[monthCode] = {};
+      
+      const valid = allocations.filter(a => a.doctorName && a.doctorName !== '-' && Object.keys(a.allocatedProducts).length > 0);
+      if (valid.length > 0) {
+        all[monthCode][retailerKey] = valid;
+      } else {
+        delete all[monthCode][retailerKey];
+      }
+
+      localStorage.setItem(ALLOCATIONS_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+
+  public clearAllocationsForMonth(monthCode: string) {
+    try {
+      const all = JSON.parse(localStorage.getItem(ALLOCATIONS_KEY) || '{}');
+      delete all[monthCode];
+      localStorage.setItem(ALLOCATIONS_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+
+  public getDoctorLinkedAnalytics(monthCode: string, allMslDocs: any[], targetStockist: string = 'all'): DoctorLinkedAnalyticsProfile[] {
+    const retailers = this.getMonthRetailers(monthCode, targetStockist);
+    const monthAllocations = this.getAllocationsForMonth(monthCode);
+    const docMap: Record<string, DoctorLinkedAnalyticsProfile> = {};
+
+    retailers.forEach(r => {
+      const allocations = monthAllocations[r.key];
+
+      if (allocations && allocations.length > 0) {
+        allocations.forEach(alloc => {
+          const docName = alloc.doctorName;
+          if (!docName || docName === '-') return;
+
+          const cleanDocKey = docName.toUpperCase().trim();
+          const mslMeta = allMslDocs.find((d: any) => d.doctorName.toUpperCase().trim() === cleanDocKey);
+
+          if (!docMap[cleanDocKey]) {
+            docMap[cleanDocKey] = {
+              doctorName: docName,
+              speciality: mslMeta?.speciality || alloc.speciality || 'CONSULTANT',
+              linkedRetailers: [],
+              salesQty: 0,
+              freeQty: 0,
+              totalQty: 0,
+              salesAmount: 0,
+              freeAmount: 0,
+              grossAmount: 0,
+              products: {}
+            };
+          }
+
+          const dProf = docMap[cleanDocKey];
+          let doctorChemistSalesContribution = 0;
+          let doctorChemistGrossContribution = 0;
+
+          Object.values(alloc.allocatedProducts).forEach(ap => {
+            const sQ = ap.salesQty || 0;
+            const fQ = ap.freeQty || 0;
+            const totQ = sQ + fQ;
+
+            if (totQ > 0) {
+              dProf.salesQty += sQ;
+              dProf.freeQty += fQ;
+              dProf.totalQty += totQ;
+              dProf.salesAmount = Number((dProf.salesAmount + (ap.salesAmount || 0)).toFixed(2));
+              dProf.freeAmount = Number((dProf.freeAmount + (ap.freeAmount || 0)).toFixed(2));
+              dProf.grossAmount = Number((dProf.grossAmount + (ap.grossAmount || 0)).toFixed(2));
+              doctorChemistSalesContribution = Number((doctorChemistSalesContribution + (ap.salesAmount || 0)).toFixed(2));
+              doctorChemistGrossContribution = Number((doctorChemistGrossContribution + (ap.grossAmount || 0)).toFixed(2));
+
+              if (!dProf.products[ap.productSn]) {
+                dProf.products[ap.productSn] = {
+                  productName: ap.productName,
+                  salesQty: 0,
+                  freeQty: 0,
+                  totalQty: 0,
+                  salesAmount: 0,
+                  grossAmount: 0
+                };
+              }
+              const p = dProf.products[ap.productSn];
+              p.salesQty += sQ;
+              p.freeQty += fQ;
+              p.totalQty += totQ;
+              p.salesAmount = Number((p.salesAmount + (ap.salesAmount || 0)).toFixed(2));
+              p.grossAmount = Number((p.grossAmount + (ap.grossAmount || 0)).toFixed(2));
+            }
+          });
+
+          if ((doctorChemistSalesContribution > 0 || doctorChemistGrossContribution > 0) && !dProf.linkedRetailers.some(lr => lr.retailerName === r.retailerName)) {
+            dProf.linkedRetailers.push({
+              retailerName: r.retailerName,
+              address: r.address,
+              contributionAmount: doctorChemistSalesContribution,
+              contributionGross: doctorChemistGrossContribution
+            });
+          }
+        });
+      }
+    });
+
+    return Object.values(docMap).sort((a, b) => b.grossAmount - a.grossAmount || b.salesAmount - a.salesAmount);
+  }
+
+  public persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
+    } catch (e) {}
+  }
+}
+
+export const partywiseAggregatorStore = new PartywiseAggregatorStore();
+"""
+
+with open('src/data/partywiseAggregatorStore.ts', 'w', encoding='utf-8') as f:
+    f.write(store_code)
+print("✅ 2. src/data/partywiseAggregatorStore.ts updated.")
+
+# 3. Update src/exporters/partywiseExporter.ts with Stockist Separate Sheets
+exporter_code = """import * as XLSX from 'xlsx-js-style';
+import { partywiseAggregatorStore } from '../data/partywiseAggregatorStore';
+import { standardTheme } from './styles/standardTheme';
+
+export function exportPartywiseConsolidatedExcel(monthCode: string, currentStockist: string = 'all') {
+  const wb = XLSX.utils.book_new();
+
+  const stockistsToExport = currentStockist === 'all' 
+    ? [
+        { id: 'dwarika', name: 'Dwarika Medicals' },
+        { id: 'modi', name: 'Modi Distributors' }
+      ]
+    : [
+        { id: currentStockist, name: currentStockist.charAt(0).toUpperCase() + currentStockist.slice(1) }
+      ];
+
+  stockistsToExport.forEach(st => {
+    const retailers = partywiseAggregatorStore.getMonthRetailers(monthCode, st.id);
+    const wsData: any[][] = [];
+
+    wsData.push([
+      { v: 'S.N.', s: standardTheme.colHeader },
+      { v: 'RETAILER / CHEMIST NAME', s: standardTheme.colHeader },
+      { v: 'ADDRESS / LOCATION', s: standardTheme.colHeader },
+      { v: 'ALLOCATED MSL DOCTORS', s: standardTheme.colHeader },
+      { v: 'SALES QTY', s: standardTheme.colHeader },
+      { v: 'FREE QTY', s: standardTheme.colHeader },
+      { v: 'TOTAL UNITS', s: standardTheme.colHeader },
+      { v: 'SALES AMOUNT (₹)', s: standardTheme.colHeader },
+      { v: 'FREE VALUE (₹)', s: standardTheme.colHeader },
+      { v: 'GROSS AMOUNT (₹)', s: standardTheme.colHeader }
+    ]);
+
+    retailers.forEach((r, idx) => {
+      const allocs = partywiseAggregatorStore.getAllocationsForRetailer(monthCode, r.key);
+      const docSummary = allocs.length > 0 ? allocs.map(a => `${a.doctorName} (${Object.keys(a.allocatedProducts).length} SKUs)`).join('; ') : '-';
+
+      wsData.push([
+        { v: idx + 1, s: standardTheme.cellCenter },
+        { v: r.retailerName, s: standardTheme.cellLeft },
+        { v: r.address, s: standardTheme.cellCenter },
+        { v: docSummary, s: standardTheme.cellLeft },
+        { v: r.salesQty, s: standardTheme.cellCenter },
+        { v: r.freeQty > 0 ? r.freeQty : '-', s: standardTheme.cellCenter },
+        { v: r.totalQty, s: standardTheme.cellCenterBold },
+        { v: r.salesAmount, s: standardTheme.cellRight },
+        { v: r.freeAmount > 0 ? r.freeAmount : '-', s: standardTheme.cellRight },
+        { v: r.grossAmount, s: standardTheme.cellRight }
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [{ wch: 6 }, { wch: 30 }, { wch: 18 }, { wch: 35 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws, st.name.split(' ')[0]);
+  });
+
+  const filename = `Partywise_Analysis_${currentStockist.toUpperCase()}_${monthCode}_2026.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+export function exportPartywiseConsolidatedCSV(monthCode: string, currentStockist: string = 'all') {
+  const retailers = partywiseAggregatorStore.getMonthRetailers(monthCode, currentStockist);
+  const lines: string[] = [];
+
+  lines.push('S.N.,RETAILER / CHEMIST NAME,ADDRESS / LOCATION,STOCKIST,ALLOCATED MSL DOCTORS,SALES QTY,FREE QTY,TOTAL UNITS,SALES AMOUNT (₹),FREE VALUE (₹),GROSS AMOUNT (₹)');
+
+  retailers.forEach((r, idx) => {
+    const allocs = partywiseAggregatorStore.getAllocationsForRetailer(monthCode, r.key);
+    const docSummary = allocs.length > 0 ? allocs.map(a => `${a.doctorName} (${Object.keys(a.allocatedProducts).length} SKUs)`).join('; ') : '-';
+    const q = (v: any) => `"${String(v || '').replace(/"/g, '""')}"`;
+    const stockistName = r.stockists.join('+') || 'Dwarika';
+
+    lines.push(`${idx + 1},${q(r.retailerName)},${q(r.address)},${q(stockistName)},${q(docSummary)},${r.salesQty},${r.freeQty},${r.totalQty},${r.salesAmount},${r.freeAmount},${r.grossAmount}`);
+  });
+
+  const csvContent = lines.join('\\r\\n');
+  const blob = new Blob(['\\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `Partywise_Analysis_${currentStockist.toUpperCase()}_${monthCode}_2026.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+"""
+
+with open('src/exporters/partywiseExporter.ts', 'w', encoding='utf-8') as f:
+    f.write(exporter_code)
+print("✅ 3. src/exporters/partywiseExporter.ts updated.")
+
+# 4. Update src/components/PartywiseAggregatorVault.tsx with Dwarika / Modi Tabs
+vault_code = """import React, { useState, useMemo, useRef } from 'react';
 import { 
   ArrowLeft, Download, RefreshCw, Search, 
   CheckCircle2, Layers, FileSpreadsheet, Sparkles, Building2, 
@@ -15,8 +663,6 @@ import {
 } from '../data/partywiseAggregatorStore';
 import { parseDwarikaRetailerPdf, RetailerSaleRecord } from '../parsers/retailerParsers/dwarikaRetailerParser';
 import { parseModiRetailerPdf } from '../parsers/retailerParsers/modiRetailerParser';
-import { parseNagdaRetailerPdf } from '../parsers/retailerParsers/nagdaRetailerParser';
-import { parseVardhmanRetailerPdf } from '../parsers/retailerParsers/vardhmanRetailerParser';
 import { exportPartywiseConsolidatedExcel, exportPartywiseConsolidatedCSV } from '../exporters/partywiseExporter';
 import { memoryStore, MslDoctor } from '../data/memoryStore';
 import { MASTER_123_MSL_DOCTORS } from './review/MslSheet';
@@ -36,15 +682,12 @@ const MONTH_OPTIONS = [
   { label: 'Jan-2027', code: 'JAN' },
   { label: 'Feb-2027', code: 'FEB' },
   { label: 'Mar-2027', code: 'MAR' },
-  { label: 'Jun-Aug (3M Cum)', code: 'JUN_AUG' },
 ];
 
 const STOCKIST_TABS = [
   { id: 'all', name: 'All Stockists (Consolidated)' },
   { id: 'dwarika', name: 'Dwarika Medicals' },
-  { id: 'modi', name: 'Modi Distributors' },
-  { id: 'nagda', name: 'Nagda Distributors' },
-  { id: 'vardhman', name: 'Shree Vardhman' }
+  { id: 'modi', name: 'Modi Distributors' }
 ];
 
 interface Props {
@@ -53,7 +696,7 @@ interface Props {
 
 export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
   const [selectedMonthCode, setSelectedMonthCode] = useState('AUG');
-  const [selectedStockist, setSelectedStockist] = useState<'all' | 'dwarika' | 'modi' | 'nagda' | 'vardhman'>('vardhman');
+  const [selectedStockist, setSelectedStockist] = useState<'all' | 'dwarika' | 'modi'>('dwarika');
   const [activeTabMode, setActiveTabMode] = useState<'CHEMISTS' | 'MSL_DOCTORS'>('CHEMISTS');
   const [search, setSearch] = useState('');
   const [isParsing, setIsParsing] = useState(false);
@@ -145,42 +788,14 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
 
   const handleFileUpload = async (file: File) => {
     setIsParsing(true);
-    
-    // Auto-detect stockist from file name or active tab
-    const fUpper = file.name.toUpperCase();
-    let effectiveStockist: 'dwarika' | 'modi' | 'nagda' | 'vardhman' = 
-      selectedStockist === 'all' ? 'vardhman' : selectedStockist;
-
-    if (fUpper.includes('VARDHMAN') || fUpper.includes('VARDHAMAN')) effectiveStockist = 'vardhman';
-    else if (fUpper.includes('NAGDA')) effectiveStockist = 'nagda';
-    else if (fUpper.includes('MODI')) effectiveStockist = 'modi';
-    else if (fUpper.includes('DWARIKA')) effectiveStockist = 'dwarika';
-
-    if (effectiveStockist !== selectedStockist && selectedStockist !== 'all') {
-      setSelectedStockist(effectiveStockist);
-    }
-
-    const targetStockistName = 
-      effectiveStockist === 'vardhman' ? 'Shree Vardhman' :
-      effectiveStockist === 'nagda' ? 'Nagda Distributors' : 
-      effectiveStockist === 'modi' ? 'Modi Distributors' : 
-      'Dwarika Medicals';
-
+    const targetStockistName = selectedStockist === 'modi' ? 'Modi Distributors' : 'Dwarika Medicals';
     setStatusMsg(`Parsing ${targetStockistName} PDF '${file.name}'...`);
 
     try {
       let records: RetailerSaleRecord[] = [];
       let detectedMonthCode: string | undefined = undefined;
 
-      if (effectiveStockist === 'vardhman') {
-        const res = await parseVardhmanRetailerPdf(file);
-        records = res.records;
-        detectedMonthCode = res.detectedMonthCode;
-      } else if (effectiveStockist === 'nagda') {
-        const res = await parseNagdaRetailerPdf(file);
-        records = res.records;
-        detectedMonthCode = res.detectedMonthCode;
-      } else if (effectiveStockist === 'modi') {
+      if (selectedStockist === 'modi') {
         const res = await parseModiRetailerPdf(file);
         records = res.records;
         detectedMonthCode = res.detectedMonthCode;
@@ -199,7 +814,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
         setSelectedMonthCode(detectedMonthCode);
       }
 
-      const stId = effectiveStockist;
+      const stId = selectedStockist === 'all' ? 'dwarika' : selectedStockist;
       partywiseAggregatorStore.setPartyRecords(targetMonth, stId, records);
 
       setRefreshTrigger(prev => prev + 1);
@@ -214,12 +829,12 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
   };
 
   const handleResetMonthData = () => {
-    const stLabel = selectedStockist === 'modi' ? 'Modi Distributors' : selectedStockist === 'dwarika' ? 'Dwarika Medicals' : 'All Stockists';
-    if (window.confirm(`⚠️ Kya aap ${selectedMonthCode} 2026 ka SIRF [${stLabel}] ka data reset karna chahte hain?\n(Dusre stockist ka data bilkul safe rahega)`)) {
+    const stName = selectedStockist === 'all' ? 'All Stockists' : selectedStockist.toUpperCase();
+    if (window.confirm(`⚠️ Kya aap ${selectedMonthCode} 2026 ka ${stName} Partywise data clear karna chahte hain?`)) {
       partywiseAggregatorStore.clearMonth(selectedMonthCode, selectedStockist);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setRefreshTrigger(prev => prev + 1);
-      setStatusMsg(`🧹 ${selectedMonthCode} [${stLabel}] ka data reset ho gaya!`);
+      setStatusMsg(`🧹 ${selectedMonthCode} (${stName}) data successfully reset ho gaya!`);
       setTimeout(() => setStatusMsg(null), 3000);
     }
   };
@@ -406,21 +1021,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
 
           <label className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow">
             <Upload size={14} className={isParsing ? 'animate-bounce' : ''} />
-            <span>
-              {isParsing 
-                ? 'Processing...' 
-                : `Upload ${
-                    selectedStockist === 'vardhman'
-                      ? 'Vardhman'
-                      : selectedStockist === 'nagda' 
-                      ? 'Nagda' 
-                      : selectedStockist === 'modi' 
-                      ? 'Modi' 
-                      : selectedStockist === 'dwarika' 
-                      ? 'Dwarika' 
-                      : 'Statement'
-                  } PDF`}
-            </span>
+            <span>{isParsing ? 'Processing...' : `Upload ${selectedStockist === 'modi' ? 'Modi' : 'Dwarika'} PDF`}</span>
             <input
               ref={fileInputRef}
               type="file"
@@ -462,7 +1063,7 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
         onLoadData={(cloudData: any) => {
           if (!cloudData) return;
           if (cloudData.store) {
-            partywiseAggregatorStore.data = partywiseAggregatorStore.normalizeRawData(cloudData.store);
+            partywiseAggregatorStore.data = cloudData.store;
             partywiseAggregatorStore.persist();
           }
           if (cloudData.allocations) {
@@ -599,32 +1200,23 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* VIEW 1: CHEMIST DIRECTORY TABLE (FREEZE PANES UP TO ADDRESS) */}
+      {/* VIEW 1: CHEMIST DIRECTORY TABLE */}
       {activeTabMode === 'CHEMISTS' ? (
-        <div className="overflow-x-auto max-h-[550px] border border-slate-800 rounded-2xl shadow-xl bg-slate-950 relative">
-          <table className="w-full text-left text-xs border-separate border-spacing-0">
-            <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-30">
+        <div className="overflow-x-auto max-h-[550px] border border-slate-800 rounded-2xl shadow-xl bg-slate-950">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-10">
               <tr>
-                {/* ❄️ FROZEN COL 1: # (SrNo) */}
-                <th style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-3 text-center bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-slate-400">
-                  #
-                </th>
-                {/* ❄️ FROZEN COL 2: CHEMIST NAME */}
-                <th style={{ width: '220px', minWidth: '220px', maxWidth: '220px', left: '44px' }} className="p-3 bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-white">
-                  Retailer / Chemist Name
-                </th>
-                {/* ❄️ FROZEN COL 3: ADDRESS (DIVIDER WITH CYAN BORDER) */}
-                <th style={{ width: '130px', minWidth: '130px', maxWidth: '130px', left: '264px' }} className="p-3 bg-slate-950 border-b border-r-2 border-cyan-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-cyan-300">
-                  Address
-                </th>
-                <th className="p-3 min-w-[120px] text-slate-400 border-b border-r border-slate-800">Stockist</th>
-                <th className="p-3 min-w-[240px] text-amber-400 border-b border-r border-slate-800">Allocated MSL Doctors</th>
-                <th className="p-3 text-center w-24 text-cyan-400 border-b border-r border-slate-800">Sales Qty</th>
-                <th className="p-3 text-center w-20 text-amber-400 border-b border-r border-slate-800">Free Qty</th>
-                <th className="p-3 text-center w-24 text-slate-200 border-b border-r border-slate-800">Total Units</th>
-                <th className="p-3 text-right min-w-[130px] text-emerald-400 border-b border-r border-slate-800">Sales Amount (₹)</th>
-                <th className="p-3 text-right min-w-[140px] text-emerald-300 border-b border-r border-slate-800">Gross (₹ Qty+Free)</th>
-                <th className="p-3 text-center w-16 border-b border-slate-800">Details</th>
+                <th className="p-3 text-center w-12">#</th>
+                <th className="p-3 min-w-[220px]">Retailer / Chemist Name</th>
+                <th className="p-3 min-w-[130px] text-cyan-300">Address</th>
+                <th className="p-3 min-w-[120px] text-slate-400">Stockist</th>
+                <th className="p-3 min-w-[240px] text-amber-400">Allocated MSL Doctors</th>
+                <th className="p-3 text-center w-24 text-cyan-400">Sales Qty</th>
+                <th className="p-3 text-center w-20 text-amber-400">Free Qty</th>
+                <th className="p-3 text-center w-24 text-slate-200">Total Units</th>
+                <th className="p-3 text-right min-w-[130px] text-emerald-400">Sales Amount (₹)</th>
+                <th className="p-3 text-right min-w-[140px] text-emerald-300">Gross (₹ Qty+Free)</th>
+                <th className="p-3 text-center w-16">Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-mono text-xs bg-slate-900">
@@ -640,20 +1232,11 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                   const hasAllocs = allocs.length > 0;
 
                   return (
-                    <tr key={r.key} className="hover:bg-slate-800/60 transition group">
-                      {/* ❄️ FROZEN TD 1: # */}
-                      <td style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-2.5 text-center text-slate-500 border-b border-r border-slate-800/80 sticky z-20 bg-slate-900 group-hover:bg-slate-800">
-                        {idx + 1}
-                      </td>
-                      {/* ❄️ FROZEN TD 2: NAME */}
-                      <td style={{ width: '220px', minWidth: '220px', maxWidth: '220px', left: '44px' }} className="p-2.5 font-sans font-bold text-white border-b border-r border-slate-800/80 sticky z-20 bg-slate-900 group-hover:bg-slate-800 truncate">
-                        {r.retailerName}
-                      </td>
-                      {/* ❄️ FROZEN TD 3: ADDRESS (DIVIDER) */}
-                      <td style={{ width: '130px', minWidth: '130px', maxWidth: '130px', left: '264px' }} className="p-2.5 text-cyan-300 border-b border-r-2 border-cyan-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-20 bg-slate-900 group-hover:bg-slate-800">
-                        {r.address}
-                      </td>
-                      <td className="p-2.5 font-sans text-slate-400 border-b border-r border-slate-800/80">
+                    <tr key={r.key} className="hover:bg-slate-800/40 transition">
+                      <td className="p-2.5 text-center text-slate-500">{idx + 1}</td>
+                      <td className="p-2.5 font-sans font-bold text-white">{r.retailerName}</td>
+                      <td className="p-2.5 text-cyan-300">{r.address}</td>
+                      <td className="p-2.5 font-sans text-slate-400">
                         {r.stockists.map(st => (
                           <span key={st} className={`inline-block px-1.5 py-0.5 rounded text-[10px] mr-1 ${st === 'Modi' ? 'bg-purple-950 text-purple-300 border border-purple-500/40' : 'bg-cyan-950 text-cyan-300 border border-cyan-500/40'}`}>
                             {st}
@@ -710,47 +1293,30 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                 })
               )}
             </tbody>
-            <tfoot className="sticky bottom-0 bg-slate-950 border-t-2 border-slate-700 font-bold z-30 text-xs font-mono">
+            <tfoot className="sticky bottom-0 bg-slate-950 border-t-2 border-slate-700 font-bold z-10 text-xs font-mono">
               <tr>
-                {/* ❄️ FROZEN FOOTER CELLS */}
-                <td style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-3 text-center text-cyan-400 border-r border-slate-800 sticky z-40 bg-slate-950">
-                  Σ
-                </td>
-                <td style={{ width: '220px', minWidth: '220px', maxWidth: '220px', left: '44px' }} className="p-3 text-white font-sans uppercase border-r border-slate-800 sticky z-40 bg-slate-950">
-                  GRAND TOTAL
-                </td>
-                <td style={{ width: '130px', minWidth: '130px', maxWidth: '130px', left: '264px' }} className="p-3 text-slate-300 font-mono border-r-2 border-cyan-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 bg-slate-950">
-                  {selectedMonthCode}
-                </td>
-                <td colSpan={2} className="p-3 text-slate-400 font-sans border-r border-slate-800">
-                  {selectedStockist.toUpperCase()}
-                </td>
-                <td className="p-3 text-center text-cyan-300 font-black border-r border-slate-800/80">{grandMetrics.totSalesQty.toLocaleString()}</td>
-                <td className="p-3 text-center text-amber-300 font-black border-r border-slate-800/80">{grandMetrics.totFreeQty.toLocaleString()}</td>
-                <td className="p-3 text-center text-white font-black bg-slate-900 border-r border-slate-800/80">{grandMetrics.totUnits.toLocaleString()}</td>
-                <td className="p-3 text-right text-emerald-400 font-black border-r border-slate-800/80">₹{grandMetrics.totSalesAmt.toLocaleString()}</td>
-                <td className="p-3 text-right text-emerald-300 font-black bg-emerald-950/50 border-r border-slate-800/80">₹{grandMetrics.totGrossAmt.toLocaleString()}</td>
+                <td className="p-3 text-center text-cyan-400">Σ</td>
+                <td className="p-3 text-white font-sans uppercase" colSpan={4}>GRAND TOTAL ({selectedMonthCode} - {selectedStockist.toUpperCase()})</td>
+                <td className="p-3 text-center text-cyan-300 font-black">{grandMetrics.totSalesQty.toLocaleString()}</td>
+                <td className="p-3 text-center text-amber-300 font-black">{grandMetrics.totFreeQty.toLocaleString()}</td>
+                <td className="p-3 text-center text-white font-black bg-slate-900">{grandMetrics.totUnits.toLocaleString()}</td>
+                <td className="p-3 text-right text-emerald-400 font-black">₹{grandMetrics.totSalesAmt.toLocaleString()}</td>
+                <td className="p-3 text-right text-emerald-300 font-black bg-emerald-950/50">₹{grandMetrics.totGrossAmt.toLocaleString()}</td>
                 <td></td>
               </tr>
             </tfoot>
           </table>
         </div>
       ) : (
-        /* VIEW 2: MSL DOCTOR LINKED INTELLIGENCE SHEET (FROZEN DOCTOR PANES) */
-        <div className="overflow-x-auto max-h-[550px] border border-slate-800 rounded-2xl shadow-xl bg-slate-950 relative">
-          <table className="w-full text-left text-xs border-separate border-spacing-0">
-            <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-30">
+        /* VIEW 2: MSL DOCTOR LINKED INTELLIGENCE SHEET */
+        <div className="overflow-x-auto max-h-[550px] border border-slate-800 rounded-2xl shadow-xl bg-slate-950">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-10">
               <tr>
-                <th style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-3 text-center bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-slate-400">
-                  #
-                </th>
-                <th style={{ width: '200px', minWidth: '200px', maxWidth: '200px', left: '44px' }} className="p-3 bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-amber-400">
-                  MSL Doctor Name
-                </th>
-                <th style={{ width: '130px', minWidth: '130px', maxWidth: '130px', left: '244px' }} className="p-3 bg-slate-950 border-b border-r-2 border-amber-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-slate-300">
-                  Speciality
-                </th>
-                <th className="p-3 min-w-[240px] border-b border-r border-slate-800">Contributing Chemist Stores</th>
+                <th className="p-3 text-center w-12">#</th>
+                <th className="p-3 min-w-[200px] text-amber-400">MSL Doctor Name</th>
+                <th className="p-3 min-w-[130px] text-slate-300">Speciality</th>
+                <th className="p-3 min-w-[240px]">Contributing Chemist Stores</th>
                 <th className="p-3 text-center w-24 text-cyan-400">Sales Qty</th>
                 <th className="p-3 text-center w-20 text-amber-400">Free Qty</th>
                 <th className="p-3 text-center w-24 text-slate-200">Total Units</th>
@@ -769,16 +1335,10 @@ export const PartywiseAggregatorVault: React.FC<Props> = ({ onBack }) => {
                 </tr>
               ) : (
                 filteredDoctorAnalytics.map((doc, idx) => (
-                  <tr key={doc.doctorName} className="hover:bg-slate-800/60 transition group">
-                    <td style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-2.5 text-center text-slate-500 border-b border-r border-slate-800/80 sticky z-20 bg-slate-900 group-hover:bg-slate-800">
-                      {idx + 1}
-                    </td>
-                    <td style={{ width: '200px', minWidth: '200px', maxWidth: '200px', left: '44px' }} className="p-2.5 font-sans font-bold text-amber-300 border-b border-r border-slate-800/80 sticky z-20 bg-slate-900 group-hover:bg-slate-800 truncate">
-                      Dr. {doc.doctorName}
-                    </td>
-                    <td style={{ width: '130px', minWidth: '130px', maxWidth: '130px', left: '244px' }} className="p-2.5 text-slate-300 border-b border-r-2 border-amber-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-20 bg-slate-900 group-hover:bg-slate-800">
-                      {doc.speciality}
-                    </td>
+                  <tr key={doc.doctorName} className="hover:bg-slate-800/40 transition">
+                    <td className="p-2.5 text-center text-slate-500">{idx + 1}</td>
+                    <td className="p-2.5 font-sans font-bold text-amber-300">Dr. {doc.doctorName}</td>
+                    <td className="p-2.5 text-slate-300">{doc.speciality}</td>
                     
                     <td className="p-2.5 font-sans">
                       <div className="flex flex-wrap gap-1">
@@ -1188,3 +1748,22 @@ function itemDesc(sn: number): string {
   const found = MASTER_PRODUCTS.find((p: any) => p.sn === sn);
   return found ? found.name : `Product #${sn}`;
 }
+"""
+
+with open('src/components/PartywiseAggregatorVault.tsx', 'w', encoding='utf-8') as f:
+    f.write(vault_code)
+print("✅ 4. src/components/PartywiseAggregatorVault.tsx updated.")
+
+# 5. Compile and Deploy
+print("\n📦 [2/3] Compiling Production Bundle (npm run build)...")
+subprocess.run(["npm", "run", "build"], check=True)
+print("✅ Build Successful.")
+
+print("\n☁️ [3/3] Deploying to Cloudflare Pages (dios-hub)...")
+if os.path.exists("./deploy.sh"):
+    subprocess.run(["chmod", "+x", "./deploy.sh"])
+    subprocess.run(["./deploy.sh"])
+else:
+    subprocess.run(["npx", "wrangler", "pages", "deploy", "dist", "--project-name", "dios-hub", "--commit-dirty=true"])
+
+print("\n🎉 ALL DONE! Modi Distributors & Dwarika Multi-Stockist Engine Live on Cloudflare!")

@@ -1,4 +1,11 @@
-import { MASTER_PRODUCTS, MasterProduct } from '../data/masterProducts';
+import os, sys, subprocess
+
+print("==========================================================================")
+print("🧠 [FIXING CLOUD PULL CRASH & STRICTLY SCOPED RESET BUTTON]...")
+print("==========================================================================")
+
+# 1. Update partywiseAggregatorStore.ts with backward-compatible normalization
+store_code = """import { MASTER_PRODUCTS, MasterProduct } from '../data/masterProducts';
 import { RetailerSaleRecord } from '../parsers/retailerParsers/dwarikaRetailerParser';
 
 const STORAGE_KEY = 'dios_partywise_aggregator_vault_v1';
@@ -351,3 +358,90 @@ export class PartywiseAggregatorStore {
 }
 
 export const partywiseAggregatorStore = new PartywiseAggregatorStore();
+"""
+
+with open('src/data/partywiseAggregatorStore.ts', 'w', encoding='utf-8') as f:
+    f.write(store_code)
+print("✅ 1. partywiseAggregatorStore.ts normalized for safe cloud pull.")
+
+# 2. Update PartywiseAggregatorVault.tsx to fix reset handler and cloud sync
+with open('src/components/PartywiseAggregatorVault.tsx', 'r', encoding='utf-8') as f:
+    code = f.read()
+
+# Fix CloudSyncBar onLoadData to safely normalize incoming data
+old_on_load = """        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.store) {
+            partywiseAggregatorStore.data = cloudData.store;
+            partywiseAggregatorStore.persist();
+          }
+          if (cloudData.allocations) {
+            try {
+              const all = JSON.parse(localStorage.getItem('dios_chemist_doctor_allocations_v3') || '{}');
+              all[selectedMonthCode] = cloudData.allocations;
+              localStorage.setItem('dios_chemist_doctor_allocations_v3', JSON.stringify(all));
+            } catch (e) {}
+          }
+          setRefreshTrigger(prev => prev + 1);
+        }}"""
+
+new_on_load = """        onLoadData={(cloudData: any) => {
+          if (!cloudData) return;
+          if (cloudData.store) {
+            partywiseAggregatorStore.data = partywiseAggregatorStore.normalizeRawData(cloudData.store);
+            partywiseAggregatorStore.persist();
+          }
+          if (cloudData.allocations) {
+            try {
+              const all = JSON.parse(localStorage.getItem('dios_chemist_doctor_allocations_v3') || '{}');
+              all[selectedMonthCode] = cloudData.allocations;
+              localStorage.setItem('dios_chemist_doctor_allocations_v3', JSON.stringify(all));
+            } catch (e) {}
+          }
+          setRefreshTrigger(prev => prev + 1);
+        }}"""
+
+code = code.replace(old_on_load, new_on_load)
+
+# Fix handleResetMonthData to strictly reset ONLY the active stockist & month
+old_reset = """  const handleResetMonthData = () => {
+    const stName = selectedStockist === 'all' ? 'All Stockists' : selectedStockist.toUpperCase();
+    if (window.confirm(`⚠️ Kya aap ${selectedMonthCode} 2026 ka ${stName} Partywise data clear karna chahte hain?`)) {
+      partywiseAggregatorStore.clearMonth(selectedMonthCode, selectedStockist);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setRefreshTrigger(prev => prev + 1);
+      setStatusMsg(`🧹 ${selectedMonthCode} (${stName}) data successfully reset ho gaya!`);
+      setTimeout(() => setStatusMsg(null), 3000);
+    }
+  };"""
+
+new_reset = """  const handleResetMonthData = () => {
+    const stLabel = selectedStockist === 'modi' ? 'Modi Distributors' : selectedStockist === 'dwarika' ? 'Dwarika Medicals' : 'All Stockists';
+    if (window.confirm(`⚠️ Kya aap ${selectedMonthCode} 2026 ka SIRF [${stLabel}] ka data reset karna chahte hain?\\n(Dusre stockist ka data bilkul safe rahega)`)) {
+      partywiseAggregatorStore.clearMonth(selectedMonthCode, selectedStockist);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setRefreshTrigger(prev => prev + 1);
+      setStatusMsg(`🧹 ${selectedMonthCode} [${stLabel}] ka data reset ho gaya!`);
+      setTimeout(() => setStatusMsg(null), 3000);
+    }
+  };"""
+
+code = code.replace(old_reset, new_reset)
+
+with open('src/components/PartywiseAggregatorVault.tsx', 'w', encoding='utf-8') as f:
+    f.write(code)
+print("✅ 2. PartywiseAggregatorVault.tsx reset & cloud pull fixed.")
+
+# 3. Build & Deploy
+print("\n📦 [2/3] Compiling Production Bundle (npm run build)...")
+subprocess.run(["npm", "run", "build"], check=True)
+print("✅ Build Successful.")
+
+print("\n☁️ [3/3] Deploying to Cloudflare Pages (dios-hub)...")
+if os.path.exists("./deploy.sh"):
+    subprocess.run(["chmod", "+x", "./deploy.sh"])
+    subprocess.run(["./deploy.sh"])
+else:
+    subprocess.run(["npx", "wrangler", "pages", "deploy", "dist", "--project-name", "dios-hub", "--commit-dirty=true"])
+
+print("\n🎉 ALL DONE! Cloud Pull crash fixed and Reset is now strictly scoped per stockist & month!")

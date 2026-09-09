@@ -1,4 +1,94 @@
-import React, { useState, useMemo } from 'react';
+import os, sys, subprocess
+
+print("==========================================================================")
+print("🧠 [1/3] UPDATING FREE GOODS STORE (INSPECTOR MATRIX ENGINE)...")
+print("==========================================================================")
+
+store_file = 'src/data/freeGoodsStore.ts'
+with open(store_file, 'r', encoding='utf-8') as f:
+    scode = f.read()
+
+inspector_methods = '''  // 🌟 SCAN COMPLETE COVERAGE MATRIX ACROSS ALL 6 STOCKISTS & 12 MONTHS (OFFLINE + KV)
+  public getCoverageMatrix(monthCodes: string[]) {
+    const matrix: Record<string, Record<string, { available: boolean; totalFreeQty: number; skuCount: number }>> = {};
+
+    FREE_GOODS_PARTIES.forEach(party => {
+      matrix[party.id] = {};
+      monthCodes.forEach(mCode => {
+        const pData = this.data[mCode]?.[party.id] || {};
+        let freeSum = 0;
+        let count = 0;
+        Object.values(pData).forEach(qty => {
+          const n = Number(qty) || 0;
+          if (n > 0) {
+            freeSum += n;
+            count++;
+          }
+        });
+
+        matrix[party.id][mCode] = {
+          available: count > 0,
+          totalFreeQty: freeSum,
+          skuCount: count
+        };
+      });
+    });
+
+    return matrix;
+  }
+'''
+
+if "getCoverageMatrix" not in scode:
+    scode = scode.replace("  public persist() {", inspector_methods + "\n  public persist() {")
+    with open(store_file, 'w', encoding='utf-8') as f:
+        f.write(scode)
+    print("✅ 1. freeGoodsStore.ts updated with getCoverageMatrix.")
+else:
+    print("✓ freeGoodsStore.ts already has getCoverageMatrix.")
+
+print("\n==========================================================================")
+print("📦 [2/3] UPDATING EXPORTER WITH DYNAMIC SELECTIVE STOCKIST & MONTH EXPORT...")
+print("==========================================================================")
+
+exporter_file = 'src/exporters/freeGoodsExporter.ts'
+with open(exporter_file, 'r', encoding='utf-8') as f:
+    ecode = f.read()
+
+custom_export_func = '''// 🌟 DYNAMIC CUSTOM MASTER EXCEL (SELECTIVE STOCKISTS + SELECTIVE MONTHS)
+export function exportCustomMasterExcel(
+  monthCodes: string[],
+  selectedPartyIds: string[],
+  onlyActiveQty: boolean = true
+) {
+  const wb = XLSX.utils.book_new();
+
+  const partiesToExport = FREE_GOODS_PARTIES.filter(p => selectedPartyIds.includes(p.id));
+
+  partiesToExport.forEach(party => {
+    const ws = buildStockistExcelSheet(party.id, party.name, party.tag, monthCodes, onlyActiveQty);
+    XLSX.utils.book_append_sheet(wb, ws, party.tag);
+  });
+
+  const partyTagsStr = partiesToExport.map(p => p.tag.toUpperCase()).join('_');
+  const monthsStr = monthCodes.join('_');
+  const filename = `FREE_GOODS_${partyTagsStr}_${monthsStr}_2026.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+'''
+
+if "exportCustomMasterExcel" not in ecode:
+    ecode += "\n" + custom_export_func
+    with open(exporter_file, 'w', encoding='utf-8') as f:
+        f.write(ecode)
+    print("✅ 2. freeGoodsExporter.ts updated with exportCustomMasterExcel.")
+else:
+    print("✓ freeGoodsExporter.ts already has exportCustomMasterExcel.")
+
+print("\n==========================================================================")
+print("🎨 [3/3] UPDATING UI WITH COVERAGE MATRIX INSPECTOR & CUSTOM EXPORT MODAL...")
+print("==========================================================================")
+
+vault_component_code = '''import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Download, RefreshCw, Search, 
   CheckCircle2, Layers, FileSpreadsheet, Sparkles, Building2, 
@@ -30,7 +120,6 @@ const MONTH_OPTIONS = [
   { label: 'Jan-2027', code: 'JAN' },
   { label: 'Feb-2027', code: 'FEB' },
   { label: 'Mar-2027', code: 'MAR' },
-  { label: 'Jun-Aug (3M Cum)', code: 'JUN_AUG' },
 ];
 
 const ALL_MONTH_CODES = MONTH_OPTIONS.map(m => m.code);
@@ -723,12 +812,11 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
 
             <div className="space-y-2">
               <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Quick Presets:</span>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                 <button type="button" onClick={() => handleQuickSelectQuarter(['APR', 'MAY', 'JUN'])} className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-400 text-amber-300 font-bold">Q1 (Apr-Jun)</button>
                 <button type="button" onClick={() => handleQuickSelectQuarter(['JUL', 'AUG', 'SEP'])} className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-400 text-amber-300 font-bold">Q2 (Jul-Sep)</button>
                 <button type="button" onClick={() => handleQuickSelectQuarter(['OCT', 'NOV', 'DEC'])} className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-400 text-amber-300 font-bold">Q3 (Oct-Dec)</button>
                 <button type="button" onClick={() => handleQuickSelectQuarter(['JAN', 'FEB', 'MAR'])} className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-400 text-amber-300 font-bold">Q4 (Jan-Mar)</button>
-                <button type="button" onClick={() => handleQuickSelectQuarter(['JUN_AUG'])} className="p-2 rounded-xl bg-cyan-950 border border-cyan-500 text-cyan-300 font-bold shadow-sm">Jun-Aug (3M)</button>
               </div>
             </div>
 
@@ -881,3 +969,22 @@ export const FreeGoodsVault: React.FC<Props> = ({ onBack }) => {
     </div>
   );
 };
+'''
+
+with open('src/components/FreeGoodsVault.tsx', 'w', encoding='utf-8') as f:
+    f.write(vault_component_code)
+print("✅ 3. FreeGoodsVault.tsx updated with Inspector & Custom Export Studio.")
+
+# 4. Build and Deploy
+print("\n📦 [2/3] Compiling Production Bundle (npm run build)...")
+subprocess.run(["npm", "run", "build"], check=True)
+print("✅ Build Successful with 0 errors.")
+
+print("\n☁️ [3/3] Deploying to Cloudflare Pages (dios-hub)...")
+if os.path.exists("./deploy.sh"):
+    subprocess.run(["chmod", "+x", "./deploy.sh"])
+    subprocess.run(["./deploy.sh"])
+else:
+    subprocess.run(["npx", "wrangler", "pages", "deploy", "dist", "--project-name", "dios-hub", "--commit-dirty=true"])
+
+print("\n🎉 ALL DONE! Coverage Matrix Inspector & Custom Master Studio is 100% Live on Cloudflare!")
