@@ -687,6 +687,15 @@ export const DayWiseCallStatusSheet: React.FC = () => {
             setMasterChemists(cloudData.masterChemists);
             try { localStorage.setItem(CALLS_MASTER_CHEMS_KEY, JSON.stringify(cloudData.masterChemists)); } catch (e) {}
           }
+          // 🌟 BRIDGE TO MEMORY STORE SO MSL SYNC WORKS INSTANTLY
+          if (cloudData.masterDoctors && Array.isArray(cloudData.masterDoctors)) {
+            const taskIdKey = `${fromDate}_${toDate}`;
+            if (!memoryStore.dcrCallsByMonth) memoryStore.dcrCallsByMonth = {};
+            memoryStore.dcrCallsByMonth[taskIdKey] = {
+              doctors: cloudData.masterDoctors,
+              chemists: cloudData.masterChemists || []
+            };
+          }
           if (cloudData.lastRange) {
             if (cloudData.lastRange.fromDate) setFromDate(cloudData.lastRange.fromDate);
             if (cloudData.lastRange.toDate) setToDate(cloudData.lastRange.toDate);

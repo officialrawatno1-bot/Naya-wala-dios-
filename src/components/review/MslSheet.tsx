@@ -404,8 +404,22 @@ export const MslSheet: React.FC = () => {
       return;
     }
 
+    // 🌟 ROBUST HYBRID GATHERER: Memory + LocalStorage fallback
+    let allDoctorCalls: any[] = [];
     const allStoredRuns = Object.values(memoryStore.dcrCallsByMonth || {});
-    const allDoctorCalls = allStoredRuns.flatMap(run => run.doctors || []);
+    allDoctorCalls = allStoredRuns.flatMap(run => run.doctors || []);
+
+    if (allDoctorCalls.length === 0) {
+      try {
+        const savedDocs = localStorage.getItem('dios_call_status_master_doctors_v4');
+        if (savedDocs) {
+          const parsed = JSON.parse(savedDocs);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            allDoctorCalls = parsed;
+          }
+        }
+      } catch (e) {}
+    }
 
     if (allDoctorCalls.length === 0) {
       setSyncAlert({
@@ -614,7 +628,7 @@ export const MslSheet: React.FC = () => {
     setEditingItemNewValue(currentVal);
   };
 
-  const handleSaveEditMasterItem = () => {
+  const handleEditMasterItem = () => {
     if (!editingItemOldValue) return;
     const oldVal = editingItemOldValue;
     const newVal = editingItemNewValue.trim().toUpperCase();
@@ -924,7 +938,7 @@ export const MslSheet: React.FC = () => {
           if (cloudData.specialityFilter) setSpecialityFilter(cloudData.specialityFilter);
           if (cloudData.docTypeFilter) setDocTypeFilter(cloudData.docTypeFilter);
         }}
-        onSaveLocal={() => {
+        onLocal={() => {
           persistDoctors(doctors);
           persistAliases(aliasMap);
           persistActivityMaster(activityMaster);
@@ -1172,7 +1186,7 @@ export const MslSheet: React.FC = () => {
                 onClick={handleConfirmAddDoctor}
                 className="flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-cyan-500/30 cursor-pointer"
               >
-                <Check size={15} /> Save &amp; Add to MSL
+                <Check size={15} />  &amp; Add to MSL
               </button>
             </div>
           </div>
@@ -1318,7 +1332,7 @@ export const MslSheet: React.FC = () => {
                         className="flex-1 bg-slate-950 border border-cyan-500 text-xs text-cyan-300 font-bold rounded-lg px-2 py-1 uppercase"
                         autoFocus
                       />
-                      <button onClick={handleSaveEditMasterItem} className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold">Save</button>
+                      <button onClick={handleEditMasterItem} className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold"></button>
                       <button onClick={() => setEditingItemOldValue(null)} className="px-2 py-1 bg-slate-800 text-slate-400 rounded-lg text-xs">Cancel</button>
                     </div>
                   ) : (
@@ -1430,7 +1444,7 @@ export const MslSheet: React.FC = () => {
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                 <button onClick={() => setShowMappingModal(false)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">Cancel</button>
                 <button onClick={handleApplyMappings} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/30 transition cursor-pointer">
-                  <Save size={14} /> 💾 Apply &amp; Update
+                  <Check size={14} /> 💾 Apply &amp; Update
                 </button>
               </div>
             </div>

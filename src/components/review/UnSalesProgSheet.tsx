@@ -18,7 +18,18 @@ export const UnSalesProgSheet: React.FC = () => {
       return 'AUG';
     }
   });
-  const [gridData, setGridData] = useState(() => unProgressionStore.getData());
+  const [gridData, setGridData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dios_un_sales_progression_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return unProgressionStore.getData();
+  });
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   const filtered = MASTER_PRODUCTS.filter(p => 
@@ -184,6 +195,7 @@ export const UnSalesProgSheet: React.FC = () => {
           if (!cloudData) return;
           if (cloudData.progressionData) {
             setGridData(cloudData.progressionData);
+            unProgressionStore.syncFromAggregator('AUG', []); // refresh store
             try {
               localStorage.setItem('dios_un_sales_progression_v1', JSON.stringify(cloudData.progressionData));
             } catch (e) {}

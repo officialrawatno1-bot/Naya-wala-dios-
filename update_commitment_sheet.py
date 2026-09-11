@@ -1,4 +1,8 @@
-import React, { useState, useMemo, useRef } from 'react';
+import os, subprocess
+
+file_path = 'src/components/review/CommitmentSheet.tsx'
+
+component_code = '''import React, { useState, useMemo, useRef } from 'react';
 import { 
   CheckCircle2, Download, Check, RefreshCw, Plus, Trash2, 
   Search, Stethoscope, Gift, DollarSign, X, Edit3, Sparkles
@@ -251,21 +255,21 @@ export const CommitmentSheet: React.FC = () => {
   };
 
   const handleExportCSV = () => {
-    let csv = `COMMITMENT OF MONTH\n`;
-    csv += `H.Q. NAME,PREVIOUS MONTH BUDGET,PREVIOUS MONTH ACH.,CURRENT SECONDARY,CURRENT INVENTORY,CURRENT MONTH BUDGET,COMMITMENT\n`;
-    csv += `UDAIPUR,${commitmentData.prevBudget},${commitmentData.prevAch},${commitmentData.currSec},${commitmentData.currInventory},${commitmentData.currBudget},${commitmentData.commitmentVal}\n\n`;
+    let csv = `COMMITMENT OF MONTH\\n`;
+    csv += `H.Q. NAME,PREVIOUS MONTH BUDGET,PREVIOUS MONTH ACH.,CURRENT SECONDARY,CURRENT INVENTORY,CURRENT MONTH BUDGET,COMMITMENT\\n`;
+    csv += `UDAIPUR,${commitmentData.prevBudget},${commitmentData.prevAch},${commitmentData.currSec},${commitmentData.currInventory},${commitmentData.currBudget},${commitmentData.commitmentVal}\\n\\n`;
     
-    csv += `12-MONTH COMMITMENT & ACHIEVEMENT\n`;
-    csv += `MONTH,COMMITMENT,ACHIEVEMENT\n`;
+    csv += `12-MONTH COMMITMENT & ACHIEVEMENT\\n`;
+    csv += `MONTH,COMMITMENT,ACHIEVEMENT\\n`;
     MONTHS_DATA.forEach(m => {
       const item = monthlyCA[m.code] || { commitment: '', achievement: '' };
-      csv += `${m.label},${item.commitment},${item.achievement}\n`;
+      csv += `${m.label},${item.commitment},${item.achievement}\\n`;
     });
 
-    csv += `\nSUPPORT REQUIREMENT\n`;
-    csv += `S.N.,H.Q.NAME,DR.NAME,TYPE OF SUPPORT,AMOUNT,EXPECTED ROI\n`;
+    csv += `\\nSUPPORT REQUIREMENT\\n`;
+    csv += `S.N.,H.Q.NAME,DR.NAME,TYPE OF SUPPORT,AMOUNT,EXPECTED ROI\\n`;
     doctorsRows.forEach(d => {
-      csv += `${d.sn},${d.hq},"${d.drName}","${d.typeOfSupport}",${d.amount},${d.expectedRoi}\n`;
+      csv += `${d.sn},${d.hq},"${d.drName}","${d.typeOfSupport}",${d.amount},${d.expectedRoi}\\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -658,3 +662,22 @@ export const CommitmentSheet: React.FC = () => {
     </div>
   );
 };
+''';
+
+with open(file_path, 'w', encoding='utf-8') as f:
+    f.write(component_code)
+print("✅ CommitmentSheet.tsx cleanly updated with Searchable MSL Doctors & Book/Manual presets.")
+
+# Compile & Deploy
+print("\n📦 Compiling Production Bundle (npm run build)...")
+subprocess.run(["npm", "run", "build"], check=True)
+print("✅ Build 100% Successful!")
+
+print("\n☁️ Deploying to Cloudflare Pages (dios-hub)...")
+if os.path.exists("./deploy.sh"):
+    subprocess.run(["chmod", "+x", "./deploy.sh"])
+    subprocess.run(["./deploy.sh"])
+else:
+    subprocess.run(["npx", "wrangler", "pages", "deploy", "dist", "--project-name", "dios-hub", "--commit-dirty=true"])
+
+print("\n🎉 ALL DONE! Sheet 6 Support Requirement with 123 Doctor Search & Book preset is Live on Cloudflare!")

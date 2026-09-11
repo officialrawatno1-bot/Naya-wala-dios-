@@ -322,3 +322,5 @@ def run(target_month="Aug-2026"):
 
 if __name__ == "__main__":
     run("Aug-2026")
+
+fetch_cbo_expense = run
