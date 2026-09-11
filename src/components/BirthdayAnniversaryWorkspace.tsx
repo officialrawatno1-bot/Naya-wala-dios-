@@ -5,7 +5,7 @@ import {
   Baby, Users, ArrowLeft, RefreshCw, Edit3, ChevronRight,
   ShieldCheck, Eye, EyeOff, Plus, Trash2
 } from 'lucide-react';
-import { MASTER_123_MSL_DOCTORS } from './review/MslSheet';
+import { CBO_MASTER_130_DOCTORS, CboDoctorMaster } from '../data/cboMasterDoctors';
 import { memoryStore, MslDoctor } from '../data/memoryStore';
 import { CloudSyncBar } from './CloudSyncBar';
 
@@ -23,7 +23,7 @@ export interface DoctorFamilyRecord {
   notes?: string;
 }
 
-const CELEBRATIONS_FAMILY_STORAGE_KEY = 'dios_doctor_family_celebrations_v1';
+const CELEBRATIONS_FAMILY_STORAGE_KEY = 'dios_doctor_family_celebrations_v2';
 const MSL_STORAGE_KEY = 'dios_msl_schedule_permanent_v5';
 
 const STATIONS = [
@@ -32,51 +32,8 @@ const STATIONS = [
   { id: 'BANSWARA', label: 'Banswara (Ex-HQ)' },
   { id: 'DUNGARPUR', label: 'Dungarpur (Ex-HQ)' },
   { id: 'CHITTORGARH', label: 'Chittorgarh (Ex-HQ)' },
-  { id: 'RAJSAMAND', label: 'Rajsamand (Ex-HQ)' }
+  { id: 'RAJASMAND', label: 'Rajsamand (Ex-HQ)' }
 ];
-
-const clean = (s: string) => (s || '').toUpperCase().replace(/^(DR\.?|DR\s+)/i, '').replace(/[^A-Z]/g, '');
-
-const detectDoctorStation = (doc: MslDoctor): 'UDAIPUR' | 'BANSWARA' | 'DUNGARPUR' | 'CHITTORGARH' | 'RAJSAMAND' => {
-  const c = clean(doc.doctorName);
-
-  // 1. Rajsamand: HC Soni, Anmol Pagariya, Kripa Shankar, Bhupesh Partani, MK Meena, Manish Khandelwal, M Vijayvargiy, Satish Choudhary, Sunil Upadhay
-  if (
-    c.includes('HCSONI') || c.includes('ANMOLPAGARIYA') || c.includes('KRIPASHANKAR') ||
-    c.includes('BHUPESHPARTANI') || c.includes('MKMEENA') || c.includes('MANISHKHANDELWAL') ||
-    c.includes('MVIJAYVARGIY') || c.includes('SATISHCHOUDHARY') || c.includes('SUNILUPADHAY')
-  ) {
-    return 'RAJSAMAND';
-  }
-
-  // 2. Chittorgarh: Lalit Jainani, Anish Jain, Madhup Baxi, Shushil Chouhan, Sandeep Chandoliya, Anurag Jain, JL Pungliya
-  if (
-    c.includes('LALITJAINANI') || c.includes('ANISHJAIN') || c.includes('MADHUPBAXI') ||
-    c.includes('SHUSHILCHOUHAN') || c.includes('SANDEEPCHANDOLIYA') || c.includes('ANURAGJAIN') ||
-    c.includes('JLPUNGLIYA') || c.includes('PUNGLIYA')
-  ) {
-    return 'CHITTORGARH';
-  }
-
-  // 3. Dungarpur: Pintu Aahari, Kanti Lal Megwal, Rajesh Siroiya, KN Das, Rahul Panchal
-  if (
-    c.includes('PINTUAAHARI') || c.includes('KANTILALMEGWAL') || c.includes('RAJESHSIROIYA') ||
-    c.includes('KNDAS') || (c.includes('RAHULPANCHAL') && doc.srNo === 17)
-  ) {
-    return 'DUNGARPUR';
-  }
-
-  // 4. Banswara: Jimesh Pandya, Ashwin Patidar, Deepa Katara, Harish Charpota, Mayank Sharma, Navneet Patel Kiyda, Yash Shah
-  if (
-    c.includes('JIMESHPANDYA') || c.includes('ASHWINPATIDAR') || c.includes('DEEPAKATARA') ||
-    c.includes('HARISHCHARPOTA') || c.includes('MAYANKSHARMA') || c.includes('NAVNEETPATEL') ||
-    c.includes('YASHSHAH')
-  ) {
-    return 'BANSWARA';
-  }
-
-  return 'UDAIPUR';
-};
 
 const getMonthNumFromDateStr = (dateStr: string): number | null => {
   if (!dateStr || !dateStr.includes('/')) return null;
@@ -91,23 +48,39 @@ const getMonthNumFromDateStr = (dateStr: string): number | null => {
 export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
   const [stationFilter, setStationFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'MISSING_DOB' | 'MISSING_DOA' | 'MISSING_BOTH' | 'FULLY_UPDATED' | 'UPCOMING_MONTH'>('ALL');
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [search, setSearch] = useState('');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  // Doctors list directly synced from MSL
-  const [mslDoctors, setMslDoctors] = useState<MslDoctor[]>(() => {
+  // Doctors list populated from 130 CBO Master + any local overrides
+  const [doctorsList, setDoctorsList] = useState<CboDoctorMaster[]>(() => {
+    let baseList = [...CBO_MASTER_130_DOCTORS];
+
+    // Reconcile with Sheet 14 MSL localStorage if user edited DOB/DOA previously
     try {
-      const saved = localStorage.getItem(MSL_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (typeof window !== 'undefined') {
+        const savedMsl = localStorage.getItem(MSL_STORAGE_KEY);
+        if (savedMsl) {
+          const parsed = JSON.parse(savedMsl);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const mslMap = new Map(parsed.map((d: any) => [d.srNo, d]));
+            baseList = baseList.map(doc => {
+              const m = mslMap.get(doc.srNo);
+              return {
+                ...doc,
+                dob: (m && m.dob) ? m.dob : doc.dob,
+                doa: (m && m.doa) ? m.doa : doc.doa,
+                activityType: (m && m.activityType) ? m.activityType : doc.activityType
+              };
+            });
+          }
+        }
       }
     } catch (e) {}
-    return memoryStore.mslData || MASTER_123_MSL_DOCTORS;
+
+    return baseList;
   });
 
-  // Doctor Family Details Dictionary: { [srNo]: DoctorFamilyRecord }
   const [familyData, setFamilyData] = useState<Record<number, DoctorFamilyRecord>>(() => {
     try {
       const saved = localStorage.getItem(CELEBRATIONS_FAMILY_STORAGE_KEY);
@@ -116,8 +89,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
     return {};
   });
 
-  // Active Doctor Family Editor Modal
-  const [editingDoc, setEditingDoc] = useState<MslDoctor | null>(null);
+  const [editingDoc, setEditingDoc] = useState<CboDoctorMaster | null>(null);
   const [editForm, setEditForm] = useState<{
     dob: string;
     doa: string;
@@ -140,25 +112,69 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
     notes: ''
   });
 
-  // Sync MSL changes to localStorage and memoryStore
-  const persistMslAndFamily = (updatedMsl: MslDoctor[], updatedFamily = familyData) => {
-    setMslDoctors(updatedMsl);
-    setFamilyData(updatedFamily);
-    memoryStore.mslData = updatedMsl;
-
+  // 🌟 TWO-WAY SYNC WITH MSL STORAGE KEY
+  const syncToMslLocalStorage = (updatedDocList: CboDoctorMaster[]) => {
     try {
-      localStorage.setItem(MSL_STORAGE_KEY, JSON.stringify(updatedMsl));
-      localStorage.setItem(CELEBRATIONS_FAMILY_STORAGE_KEY, JSON.stringify(updatedFamily));
+      if (typeof window !== 'undefined') {
+        let currentMsl: any[] = [];
+        const raw = localStorage.getItem(MSL_STORAGE_KEY);
+        if (raw) currentMsl = JSON.parse(raw);
+
+        const docMap = new Map(updatedDocList.map(d => [d.srNo, d]));
+
+        const syncedMsl = currentMsl.map(m => {
+          const u = docMap.get(m.srNo);
+          if (u) {
+            return {
+              ...m,
+              doctorName: u.doctorName,
+              dob: u.dob || '',
+              doa: u.doa || '',
+              speciality: u.speciality || m.speciality
+            };
+          }
+          return m;
+        });
+
+        // Ensure doctors up to 130 exist in MSL
+        updatedDocList.forEach(u => {
+          if (!syncedMsl.some(m => m.srNo === u.srNo)) {
+            syncedMsl.push({
+              srNo: u.srNo,
+              doctorName: u.doctorName,
+              speciality: u.speciality,
+              activityType: u.activityType || '',
+              dob: u.dob || '',
+              doa: u.doa || '',
+              apr: '', may: '', jun: '', jul: '', aug: '', sept: '',
+              oct: '', nov: '', dec: '', jan: '', feb: '', mar: '',
+              isNewDoctor: true
+            });
+          }
+        });
+
+        localStorage.setItem(MSL_STORAGE_KEY, JSON.stringify(syncedMsl));
+        memoryStore.mslData = syncedMsl;
+      }
     } catch (e) {}
   };
 
-  // 🌟 TWO-WAY SYNC: Update doctor DOB or DOA inline and push to MSL
-  const handleInlineDoctorDateChange = (srNo: number, field: 'dob' | 'doa', val: string) => {
-    const updated = mslDoctors.map(d => d.srNo === srNo ? { ...d, [field]: val.trim() } : d);
-    persistMslAndFamily(updated);
+  const persistAll = (newDocs: CboDoctorMaster[], newFam = familyData) => {
+    setDoctorsList(newDocs);
+    setFamilyData(newFam);
+    syncToMslLocalStorage(newDocs);
+
+    try {
+      localStorage.setItem(CELEBRATIONS_FAMILY_STORAGE_KEY, JSON.stringify(newFam));
+    } catch (e) {}
   };
 
-  const handleOpenEditModal = (doc: MslDoctor) => {
+  const handleInlineDateChange = (srNo: number, field: 'dob' | 'doa', val: string) => {
+    const updated = doctorsList.map(d => d.srNo === srNo ? { ...d, [field]: val.trim() } : d);
+    persistAll(updated);
+  };
+
+  const handleOpenEditModal = (doc: CboDoctorMaster) => {
     setEditingDoc(doc);
     const fam = familyData[doc.srNo] || {};
     setEditForm({
@@ -177,8 +193,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
   const handleSaveModal = () => {
     if (!editingDoc) return;
 
-    // 1. Update Doctor DOB & DOA in MSL list
-    const updatedMsl = mslDoctors.map(d => {
+    const updatedDocs = doctorsList.map(d => {
       if (d.srNo === editingDoc.srNo) {
         return {
           ...d,
@@ -189,8 +204,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
       return d;
     });
 
-    // 2. Update Family details
-    const updatedFamily = {
+    const updatedFam = {
       ...familyData,
       [editingDoc.srNo]: {
         son1_dob: editForm.son1_dob.trim(),
@@ -203,29 +217,27 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
       }
     };
 
-    persistMslAndFamily(updatedMsl, updatedFamily);
+    persistAll(updatedDocs, updatedFam);
     setEditingDoc(null);
-    setStatusMsg(`🎉 Dr. ${editingDoc.doctorName} ke Celebrations & MSL Schedule successfully update ho gaye!`);
+    setStatusMsg(`🎉 Dr. ${editingDoc.doctorName} Celebrations & MSL Schedule successfully synced!`);
     setTimeout(() => setStatusMsg(null), 3500);
   };
 
-  // Filtered doctors list
+  // Filtered List
   const filteredDoctors = useMemo(() => {
-    return mslDoctors.filter(doc => {
-      // 1. Station check
-      const station = detectDoctorStation(doc);
-      if (stationFilter !== 'ALL' && station !== stationFilter) return false;
+    return doctorsList.filter(doc => {
+      if (stationFilter !== 'ALL' && doc.station !== stationFilter) return false;
 
-      // 2. Search check
       if (search.trim()) {
         const q = search.toLowerCase();
         const matchName = doc.doctorName.toLowerCase().includes(q);
-        const matchSpec = (doc.speciality || '').toLowerCase().includes(q);
+        const matchCode = doc.drCode.toLowerCase().includes(q);
+        const matchSpec = doc.speciality.toLowerCase().includes(q);
+        const matchClinic = (doc.clinicAddress || '').toLowerCase().includes(q);
         const matchSr = String(doc.srNo).includes(q);
-        if (!matchName && !matchSpec && !matchSr) return false;
+        if (!matchName && !matchCode && !matchSpec && !matchClinic && !matchSr) return false;
       }
 
-      // 3. Status filter check
       const hasDob = !!(doc.dob && doc.dob.trim().length >= 4);
       const hasDoa = !!(doc.doa && doc.doa.trim().length >= 4);
 
@@ -242,9 +254,9 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
 
       return true;
     });
-  }, [mslDoctors, stationFilter, statusFilter, selectedMonth, search]);
+  }, [doctorsList, stationFilter, statusFilter, selectedMonth, search]);
 
-  // Summary Metrics
+  // Metrics
   const metrics = useMemo(() => {
     let missingDobCount = 0;
     let missingDoaCount = 0;
@@ -254,7 +266,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
 
     const currMonth = new Date().getMonth() + 1;
 
-    mslDoctors.forEach(d => {
+    doctorsList.forEach(d => {
       const hasDob = !!(d.dob && d.dob.trim().length >= 4);
       const hasDoa = !!(d.doa && d.doa.trim().length >= 4);
 
@@ -269,29 +281,32 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
     });
 
     return {
-      total: mslDoctors.length,
+      total: doctorsList.length,
       missingDobCount,
       missingDoaCount,
       missingBothCount,
       fullyUpdatedCount,
       thisMonthCount
     };
-  }, [mslDoctors]);
+  }, [doctorsList]);
 
   const handleExportCSV = () => {
     const lines: string[] = [];
-    lines.push('SR NO,STATION,DOCTOR NAME,SPECIALITY,DOCTOR DOB,DOCTOR DOA,SON 1 DOB,SON 2 DOB,DAUGHTER 1 DOB,DAUGHTER 2 DOB,FATHER DOB,FATHER DOA,NOTES');
+    lines.push('SR NO,DR CODE,STATION,DOCTOR NAME,SPECIALITY,QUALIFICATION,MOBILE,CLINIC ADDRESS,DOCTOR DOB,DOCTOR DOA,SON 1 DOB,SON 2 DOB,DAUGHTER 1 DOB,DAUGHTER 2 DOB,FATHER DOB,FATHER DOA,NOTES');
 
     filteredDoctors.forEach(doc => {
-      const st = detectDoctorStation(doc);
       const fam = familyData[doc.srNo] || {};
       const q = (v: any) => `"${String(v || '').replace(/"/g, '""')}"`;
 
       lines.push([
         doc.srNo,
-        q(st),
+        q(doc.drCode),
+        q(doc.station),
         q(doc.doctorName),
-        q(doc.speciality || '-'),
+        q(doc.speciality),
+        q(doc.qualification),
+        q(doc.mobile),
+        q(doc.clinicAddress),
         q(doc.dob || ''),
         q(doc.doa || ''),
         q(fam.son1_dob || ''),
@@ -309,7 +324,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Doctor_Celebrations_Master_${stationFilter}.csv`;
+    a.download = `CBO_Master_130_Celebrations_${stationFilter}.csv`;
     a.click();
   };
 
@@ -327,12 +342,12 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
 
         <div className="flex items-center gap-3">
           <span className="text-[11px] bg-pink-950 text-pink-300 border border-pink-500/40 px-3 py-1 rounded-full font-mono font-bold flex items-center gap-1.5 shadow-lg shadow-pink-950/50">
-            <Sparkles size={13} className="text-pink-400 animate-pulse" /> TWO-WAY MSL SYNC ACTIVE &bull; {mslDoctors.length} DOCTORS
+            <Sparkles size={13} className="text-pink-400 animate-pulse" /> 130 CBO VERIFIED DOCTORS &bull; 5 STATIONS
           </span>
         </div>
       </div>
 
-      {/* 2. TITLE & HEADER CONTROLS */}
+      {/* 2. TITLE & HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-3">
@@ -342,7 +357,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
             Doctor Birthday &amp; Anniversary Hub
           </h1>
           <p className="text-slate-400 text-xs md:text-sm mt-1">
-            Doctor Celebrations &bull; Family Dates (Sons, Daughters, Father) &bull; Instant Two-Way MSL Schedule Sync
+            Official 130 Doctors Report &bull; Udaipur (88), Banswara (11), Dungarpur (9), Chittor (9), Rajsamand (13)
           </p>
         </div>
 
@@ -351,24 +366,23 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg transition cursor-pointer"
           >
-            <Download size={15} /> Export CSV
+            <Download size={15} /> Export 130 Master CSV
           </button>
         </div>
       </div>
 
       <CloudSyncBar
-        storageKey="celebrations/doctor_family_v1"
-        sheetTitle="Doctor Birthday & Anniversary Hub"
+        storageKey="celebrations/cbo_130_doctors_v2"
+        sheetTitle="130 Doctors Birthday & Anniversary Hub"
         getData={() => ({
-          mslDoctors,
+          doctorsList,
           familyData
         })}
         onLoadData={(cloudData: any) => {
           if (!cloudData) return;
-          if (cloudData.mslDoctors && Array.isArray(cloudData.mslDoctors)) {
-            setMslDoctors(cloudData.mslDoctors);
-            memoryStore.mslData = cloudData.mslDoctors;
-            try { localStorage.setItem(MSL_STORAGE_KEY, JSON.stringify(cloudData.mslDoctors)); } catch (e) {}
+          if (cloudData.doctorsList && Array.isArray(cloudData.doctorsList)) {
+            setDoctorsList(cloudData.doctorsList);
+            syncToMslLocalStorage(cloudData.doctorsList);
           }
           if (cloudData.familyData) {
             setFamilyData(cloudData.familyData);
@@ -376,7 +390,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
           }
         }}
         onSaveLocal={() => {
-          persistMslAndFamily(mslDoctors, familyData);
+          persistAll(doctorsList, familyData);
         }}
       />
 
@@ -390,12 +404,12 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 3. AUDIT SUMMARY METRICS CARDS */}
+      {/* 3. AUDIT METRICS */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-md">
-          <div className="text-[10px] text-slate-400 uppercase font-semibold">Total MSL Doctors</div>
+          <div className="text-[10px] text-slate-400 uppercase font-semibold">Total CBO Doctors</div>
           <div className="text-xl font-black text-white font-mono mt-1">{metrics.total} Doctors</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">5 HQ/Ex-HQ Stations</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">5 HQ &amp; Ex-HQ Stations</div>
         </div>
 
         <div className="bg-slate-900 p-3.5 rounded-2xl border border-pink-500/30 shadow-md">
@@ -417,22 +431,21 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
 
         <div className="bg-slate-900 p-3.5 rounded-2xl border border-emerald-500/40 shadow-md">
-          <div className="text-[10px] text-emerald-400 uppercase font-semibold">Fully Updated (DOB+DOA)</div>
+          <div className="text-[10px] text-emerald-400 uppercase font-semibold">Fully Updated</div>
           <div className="text-xl font-black text-emerald-300 font-mono mt-1">{metrics.fullyUpdatedCount} Doctors</div>
           <div className="text-[10px] text-emerald-400 font-bold mt-0.5">100% Ready</div>
         </div>
       </div>
 
-      {/* 4. STATION & AUDIT FILTER BAR */}
+      {/* 4. STATION TABS (5 STATIONS: UDAIPUR, BANSWARA, DUNGARPUR, CHITTORGARH, RAJSAMAND) */}
       <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 space-y-3">
-        {/* Station Switcher */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
           <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mr-1 shrink-0 flex items-center gap-1">
             <Building2 size={13} className="text-amber-400" /> Station:
           </span>
           {STATIONS.map(st => {
             const isSelected = stationFilter === st.id;
-            const count = mslDoctors.filter(d => st.id === 'ALL' || detectDoctorStation(d) === st.id).length;
+            const count = doctorsList.filter(d => st.id === 'ALL' || d.station === st.id).length;
 
             return (
               <button
@@ -454,11 +467,11 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
           })}
         </div>
 
-        {/* Audit Status Filter & Search */}
+        {/* Audit Filter Strip */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800 text-xs">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-              <Filter size={12} className="text-pink-400" /> Filter:
+              <Filter size={12} className="text-pink-400" /> Status:
             </span>
 
             <button
@@ -468,7 +481,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                 statusFilter === 'ALL' ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-slate-950 text-slate-400 border-slate-800'
               }`}
             >
-              All
+              All ({filteredDoctors.length})
             </button>
 
             <button
@@ -537,7 +550,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               type="text"
-              placeholder="Search doctor or speciality..."
+              placeholder="Search doctor, code, clinic..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl pl-8 pr-3 py-1.5 text-xs focus:border-pink-400 focus:outline-none"
@@ -546,7 +559,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* 5. MAIN DOCTORS & FAMILY CELEBRATIONS TABLE */}
+      {/* 5. TABLE: 130 DOCTORS & FAMILY CELEBRATIONS */}
       <div className="overflow-x-auto max-h-[560px] border border-slate-800 rounded-2xl shadow-2xl bg-slate-950 relative">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
           <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-30">
@@ -554,11 +567,12 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
               <th style={{ width: '44px', minWidth: '44px', left: 0 }} className="p-2.5 text-center bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-slate-400">
                 #
               </th>
-              <th style={{ width: '200px', minWidth: '200px', left: '44px' }} className="p-2.5 bg-slate-950 border-b border-r-2 border-pink-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-white">
-                Doctor Name
+              <th style={{ width: '210px', minWidth: '210px', left: '44px' }} className="p-2.5 bg-slate-950 border-b border-r-2 border-pink-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-white">
+                Doctor Name (Dr. Code)
               </th>
               <th className="p-2.5 text-center w-28 text-amber-400 border-b border-r border-slate-800">Station</th>
               <th className="p-2.5 min-w-[130px] border-b border-r border-slate-800">Speciality</th>
+              <th className="p-2.5 min-w-[160px] border-b border-r border-slate-800 text-slate-400">Clinic Address</th>
               <th className="p-2.5 text-center min-w-[130px] text-pink-300 border-b border-r border-slate-800">
                 🎂 Doctor DOB (MSL)
               </th>
@@ -566,7 +580,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                 💍 Doctor DOA (MSL)
               </th>
               <th className="p-2.5 min-w-[200px] border-b border-r border-slate-800 text-cyan-300">
-                👨‍👩‍👧‍👦 Family Celebrations (Sons / Daughters / Father)
+                👨‍👩‍👧‍👦 Family Celebrations (Sons, Daughters, Father)
               </th>
               <th className="p-2.5 text-center w-20 border-b border-slate-800">Action</th>
             </tr>
@@ -574,25 +588,22 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
           <tbody className="divide-y divide-slate-800/60 font-mono text-xs bg-slate-900">
             {filteredDoctors.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-slate-500 font-sans">
-                  No doctors matched the selected filter query.
+                <td colSpan={9} className="p-8 text-center text-slate-500 font-sans">
+                  No doctors matched the filter query.
                 </td>
               </tr>
             ) : (
               filteredDoctors.map((doc, idx) => {
-                const st = detectDoctorStation(doc);
                 const fam = familyData[doc.srNo] || {};
-
                 const hasDob = !!(doc.dob && doc.dob.trim().length >= 4);
                 const hasDoa = !!(doc.doa && doc.doa.trim().length >= 4);
 
-                // Build family chips summary
                 const familyChips: string[] = [];
                 if (fam.son1_dob) familyChips.push(`👦 Son 1: ${fam.son1_dob}`);
                 if (fam.son2_dob) familyChips.push(`👦 Son 2: ${fam.son2_dob}`);
                 if (fam.daughter1_dob) familyChips.push(`👧 Daughter 1: ${fam.daughter1_dob}`);
                 if (fam.daughter2_dob) familyChips.push(`👧 Daughter 2: ${fam.daughter2_dob}`);
-                if (fam.father_dob) familyChips.push(`👴 Father DOB: ${fam.father_dob}`);
+                if (fam.father_dob) familyChips.push(`👴 Father: ${fam.father_dob}`);
                 if (fam.father_doa) familyChips.push(`💍 Parents DOA: ${fam.father_doa}`);
 
                 return (
@@ -601,20 +612,25 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                       {doc.srNo}
                     </td>
 
-                    <td style={{ width: '200px', minWidth: '200px', left: '44px' }} className="p-2.5 font-sans font-bold text-white border-b border-r-2 border-pink-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-20 bg-slate-900 group-hover:bg-slate-800 truncate">
+                    <td style={{ width: '210px', minWidth: '210px', left: '44px' }} className="p-2.5 font-sans font-bold text-white border-b border-r-2 border-pink-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-20 bg-slate-900 group-hover:bg-slate-800 truncate">
                       Dr. {doc.doctorName}
+                      {doc.drCode && <span className="text-[10px] text-slate-400 font-mono block">({doc.drCode})</span>}
                     </td>
 
                     <td className="p-2 text-center border-b border-r border-slate-800/80">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-sans ${
-                        st === 'UDAIPUR' ? 'bg-amber-950 text-amber-300 border border-amber-500/30' : 'bg-cyan-950 text-cyan-300 border border-cyan-500/30'
+                        doc.station === 'UDAIPUR' ? 'bg-amber-950 text-amber-300 border border-amber-500/30' : 'bg-cyan-950 text-cyan-300 border border-cyan-500/30'
                       }`}>
-                        {st}
+                        {doc.station}
                       </span>
                     </td>
 
-                    <td className="p-2.5 font-sans text-slate-400 border-b border-r border-slate-800/80">
-                      {doc.speciality || '-'}
+                    <td className="p-2.5 font-sans text-slate-300 border-b border-r border-slate-800/80">
+                      {doc.speciality}
+                    </td>
+
+                    <td className="p-2.5 font-sans text-slate-400 text-xs border-b border-r border-slate-800/80 truncate max-w-[160px]">
+                      {doc.clinicAddress || '-'}
                     </td>
 
                     {/* TWO-WAY LIVE EDITABLE DOB */}
@@ -622,12 +638,12 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                       <input
                         type="text"
                         value={doc.dob || ''}
-                        onChange={e => handleInlineDoctorDateChange(doc.srNo, 'dob', e.target.value)}
+                        onChange={e => handleInlineDateChange(doc.srNo, 'dob', e.target.value)}
                         placeholder="DD/MM/YYYY"
                         className={`w-full py-1 px-1.5 rounded-lg text-center font-mono font-bold text-xs border focus:outline-none ${
                           hasDob ? 'bg-slate-950 text-pink-300 border-slate-800 focus:border-pink-500' : 'bg-rose-950/40 text-rose-300 border-rose-500/50'
                         }`}
-                        title="Live edits sync directly to Sheet 14 (MSL Schedule)"
+                        title="Live edit syncs to Sheet 14 (MSL Schedule)"
                       />
                     </td>
 
@@ -636,16 +652,16 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                       <input
                         type="text"
                         value={doc.doa || ''}
-                        onChange={e => handleInlineDoctorDateChange(doc.srNo, 'doa', e.target.value)}
+                        onChange={e => handleInlineDateChange(doc.srNo, 'doa', e.target.value)}
                         placeholder="DD/MM/YYYY"
                         className={`w-full py-1 px-1.5 rounded-lg text-center font-mono font-bold text-xs border focus:outline-none ${
                           hasDoa ? 'bg-slate-950 text-purple-300 border-slate-800 focus:border-purple-500' : 'bg-rose-950/40 text-rose-300 border-rose-500/50'
                         }`}
-                        title="Live edits sync directly to Sheet 14 (MSL Schedule)"
+                        title="Live edit syncs to Sheet 14 (MSL Schedule)"
                       />
                     </td>
 
-                    {/* FAMILY CELEBRATIONS PREVIEW */}
+                    {/* FAMILY CELEBRATIONS */}
                     <td className="p-2 font-sans border-b border-r border-slate-800/80">
                       {familyChips.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
@@ -656,7 +672,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                           ))}
                         </div>
                       ) : (
-                        <span className="text-slate-600 text-[11px] italic">No family dates added yet</span>
+                        <span className="text-slate-600 text-[11px] italic">No family dates added</span>
                       )}
                     </td>
 
@@ -665,7 +681,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                         type="button"
                         onClick={() => handleOpenEditModal(doc)}
                         className="px-2.5 py-1 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 text-white font-bold rounded-lg text-[10px] transition cursor-pointer flex items-center gap-1 mx-auto shadow-sm"
-                        title="Edit Doctor & Family Celebrations"
+                        title="Edit Doctor & Family Dates"
                       >
                         <Edit3 size={12} /> Edit
                       </button>
@@ -678,7 +694,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
         </table>
       </div>
 
-      {/* 6. MODAL: DOCTOR & FAMILY CELEBRATIONS EDITOR */}
+      {/* 6. MODAL: CELEBRATIONS & FAMILY EDITOR */}
       {editingDoc && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-5">
           <div className="bg-slate-900 border-2 border-pink-500/60 rounded-3xl max-w-2xl w-full p-5 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
@@ -690,10 +706,10 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                 </span>
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    Dr. {editingDoc.doctorName} &bull; #{editingDoc.srNo}
+                    Dr. {editingDoc.doctorName} &bull; #{editingDoc.srNo} ({editingDoc.drCode})
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Station: <b className="text-amber-400">{detectDoctorStation(editingDoc)}</b> &bull; Speciality: {editingDoc.speciality || '-'}
+                    Station: <b className="text-amber-400">{editingDoc.station}</b> &bull; Speciality: {editingDoc.speciality}
                   </p>
                 </div>
               </div>
@@ -704,7 +720,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
 
             <div className="overflow-y-auto space-y-4 pr-1">
               
-              {/* SECTION 1: DOCTOR'S OWN DATES (TWO-WAY MSL SYNC) */}
+              {/* SECTION 1: DOCTOR'S OWN DATES */}
               <div className="p-3.5 bg-slate-950 rounded-2xl border border-pink-500/40 space-y-2.5">
                 <div className="text-xs font-bold text-pink-300 uppercase tracking-wider flex items-center justify-between">
                   <span>1. Doctor Celebrations (Syncs to Sheet 14 MSL):</span>
@@ -740,7 +756,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                 </div>
               </div>
 
-              {/* SECTION 2: CHILDREN CELEBRATIONS */}
+              {/* SECTION 2: CHILDREN */}
               <div className="p-3.5 bg-slate-950 rounded-2xl border border-cyan-500/40 space-y-2.5">
                 <div className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
                   <Baby size={15} className="text-cyan-400" />
@@ -794,7 +810,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                 </div>
               </div>
 
-              {/* SECTION 3: PARENTS / FATHER CELEBRATIONS */}
+              {/* SECTION 3: PARENTS */}
               <div className="p-3.5 bg-slate-950 rounded-2xl border border-amber-500/40 space-y-2.5">
                 <div className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
                   <Users size={15} className="text-amber-400" />
@@ -848,7 +864,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                 <button
                   type="button"
                   onClick={() => setEditingDoc(null)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer"
                 >
                   Cancel
                 </button>
