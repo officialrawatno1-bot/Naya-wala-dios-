@@ -306,7 +306,38 @@ export const MainHub: React.FC<Props> = ({ onOpenProject }) => {
       </div>
 
       {/* 3 MAIN WORKSPACE MODULE CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* 4. DAILY WORKING & ROUTE INTELLIGENCE */}
+        <div className="bg-slate-900/90 border-2 border-emerald-500/60 hover:border-emerald-400 rounded-2xl p-6 transition duration-200 shadow-2xl flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                DAILY WORK & ROUTE
+              </span>
+              <Activity size={22} className="text-emerald-400 animate-pulse" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">
+              Daily Working
+            </h2>
+            <p className="text-slate-400 text-xs leading-relaxed mb-4">
+              Daily route planner with 10-12 calls cap, "Aaj kahan working karni hai" prompt, Ex-town auto-cluster, and live 4-visit missed call tracking.
+            </p>
+          </div>
+
+          <div className="pt-4 border-t border-slate-800 space-y-2">
+            <button
+              onClick={() => onOpenProject('daily-working')}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 transition cursor-pointer"
+            >
+              📅 1. Open Day Plan &rarr;
+            </button>
+            <div className="w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-[11px] text-slate-500 font-mono text-center flex items-center justify-center gap-1.5">
+              <span>🗺️ 2. Monthly Tour Program (MTP)</span>
+              <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-mono">Placeholder</span>
+            </div>
+          </div>
+        </div>
+
         {/* 1. STATEMENT AGGREGATOR */}
         <div className="bg-slate-900/80 border border-slate-800 hover:border-cyan-500/60 rounded-2xl p-6 transition duration-200 shadow-xl flex flex-col justify-between">
           <div>
