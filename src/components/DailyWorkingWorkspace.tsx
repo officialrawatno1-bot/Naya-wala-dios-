@@ -4,7 +4,7 @@ import {
   AlertTriangle, Trash2, Printer, 
   Stethoscope, Sparkles, Check, 
   Building2, X, Search, Compass, Edit3, ChevronLeft, ChevronRight,
-  Lock, Zap, Plus
+  Lock, Zap, Plus, Share2, MessageCircle, FileText, BellRing, StickyNote
 } from 'lucide-react';
 import { 
   dailyWorkingStore, 
@@ -21,7 +21,14 @@ interface Props {
   onBack: () => void;
 }
 
+export interface DayReminderItem {
+  id: string;
+  doctorName: string;
+  note: string;
+}
+
 const WEEK_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const CIRCLE_NUMBERS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'];
 
 const HOLIDAYS_2026: Record<string, string> = {
   '15/08/2026': 'INDEPENDENCE DAY',
@@ -72,6 +79,21 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   // Quick Any-Doctor Search Bar State
   const [globalDocSearch, setGlobalDocSearch] = useState('');
 
+  // 📝 REMINDERS STATE
+  const [reminders, setReminders] = useState<DayReminderItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(`dios_day_reminders_${selectedDateStr}`);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
+  const [reminderSearchDoc, setReminderSearchDoc] = useState('');
+  const [newReminderNote, setNewReminderNote] = useState('');
+  const [selectedReminderDocName, setSelectedReminderDocName] = useState('');
+
+  // 📜 HANDWRITTEN DAIRY PREVIEW MODAL
+  const [showDairySlipModal, setShowDairySlipModal] = useState(false);
+
   // Store references
   const [profiles, setProfiles] = useState<Record<number, DoctorFieldProfile>>(() => dailyWorkingStore.profiles);
   const [currentPlan, setCurrentPlan] = useState<DayPlanRecord | null>(null);
@@ -99,6 +121,44 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     dailyWorkingStore.syncFromMslSheet();
     setProfiles({ ...dailyWorkingStore.profiles });
   }, []);
+
+  // Load reminders when date changes
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`dios_day_reminders_${selectedDateStr}`);
+      setReminders(saved ? JSON.parse(saved) : []);
+    } catch (e) {
+      setReminders([]);
+    }
+  }, [selectedDateStr]);
+
+  const saveRemindersList = (newList: DayReminderItem[]) => {
+    setReminders(newList);
+    try {
+      localStorage.setItem(`dios_day_reminders_${selectedDateStr}`, JSON.stringify(newList));
+    } catch (e) {}
+  };
+
+  const handleAddReminder = () => {
+    if (!selectedReminderDocName && !newReminderNote.trim()) {
+      alert("Kripya Doctor Name ya Reminder Note dalein!");
+      return;
+    }
+    const item: DayReminderItem = {
+      id: 'rem_' + Date.now(),
+      doctorName: selectedReminderDocName.trim() || 'General Note',
+      note: newReminderNote.trim()
+    };
+    const updated = [...reminders, item];
+    saveRemindersList(updated);
+    setSelectedReminderDocName('');
+    setReminderSearchDoc('');
+    setNewReminderNote('');
+  };
+
+  const handleDeleteReminder = (id: string) => {
+    saveRemindersList(reminders.filter(r => r.id !== id));
+  };
 
   useEffect(() => {
     const existing = dailyWorkingStore.getPlanForDate(selectedDateStr);
@@ -224,12 +284,10 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     const allProfilesList = Object.values(profiles);
     let matchedDoctors: DoctorFieldProfile[] = [];
 
-    // 🌟 ROBUST EX-STATION MATCHER VIA UNIVERSAL NORMALIZER
     const activeExChoice = areasChoice.find(a => EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(a)));
 
     if (activeExChoice) {
       const targetNorm = normalizeStationName(activeExChoice);
-      // Load ALL doctors of this Ex-Station in 1 Single Day!
       matchedDoctors = allProfilesList.filter(d => normalizeStationName(d.station) === targetNorm && d.isExStation);
       matchedDoctors.sort((a, b) => a.approxTime.localeCompare(b.approxTime));
     } else {
@@ -353,6 +411,14 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
       .slice(0, 10);
   }, [profiles, globalDocSearch, currentPlan]);
 
+  const reminderDoctorMatches = useMemo(() => {
+    if (!reminderSearchDoc.trim()) return [];
+    const q = reminderSearchDoc.toLowerCase();
+    return Object.values(profiles)
+      .filter(d => d.doctorName.toLowerCase().includes(q) || (d.speciality || '').toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [profiles, reminderSearchDoc]);
+
   const handleAddDoctorToTodayPlan = (doc: DoctorFieldProfile, lastDate?: string, daysDiff?: number, tier?: any) => {
     if (!currentPlan) return;
     if (currentPlan.plannedCalls.some(p => p.srNo === doc.srNo)) return;
@@ -400,6 +466,44 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     dailyWorkingStore.saveDayPlan(updated);
   };
 
+  // 🌟 WHATSAPP 1-CLICK SHARE MESSAGE FORMATTER
+  const handleShareToWhatsApp = () => {
+    if (!currentPlan || currentPlan.plannedCalls.length === 0) {
+      alert("Pehle aaj ke din ke doctors plan me load karein!");
+      return;
+    }
+
+    const lines: string[] = [];
+    lines.push(`🕉️ *ॐ नमो भगवते वासुदेवाय नमः* 🕉️`);
+    lines.push(`📅 *DAY WORKING PLAN - ${selectedDateStr} (${dayOfWeekName})*`);
+    lines.push(`📍 *Route / Areas:* ${selectedAreas.join(', ')}`);
+    lines.push(``);
+
+    currentPlan.plannedCalls.forEach((call, i) => {
+      const numSymbol = CIRCLE_NUMBERS[i] || `(${i + 1})`;
+      const actStr = call.activityType && call.activityType !== 'REGULAR' ? ` - ${call.activityType}` : '';
+      const timeStr = call.approxTime ? ` (${call.approxTime})` : '';
+      lines.push(`${numSymbol} *Dr. ${call.doctorName}*${actStr}${timeStr}`);
+    });
+
+    if (reminders.length > 0) {
+      lines.push(``);
+      lines.push(`📌 *REMINDERS / SPECIAL NOTES:*`);
+      reminders.forEach((r, idx) => {
+        lines.push(`• *Dr. ${r.doctorName}:* ${r.note}`);
+      });
+    }
+
+    lines.push(``);
+    lines.push(`👤 *Executive:* BANWARI LAL MEENA (Udaipur HQ)`);
+
+    const fullMsg = lines.join('\n');
+    const encoded = encodeURIComponent(fullMsg);
+    
+    // Direct WhatsApp share URL
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+  };
+
   const hourAngle = ((clockHour % 12) + clockMinute / 60) * 30;
   const minuteAngle = clockMinute * 6;
   const activeAngle = clockMode === 'HOUR' ? (clockHour % 12) * 30 : minuteAngle;
@@ -425,18 +529,37 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 {Object.keys(profiles).length} MSL Doctors Active
               </span>
             </h1>
-            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA &bull; HQ: UDAIPUR &bull; Live Dynamic Recency Date Engine</p>
+            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA &bull; HQ: UDAIPUR &bull; 1-Click WhatsApp Share &bull; Handwritten Dairy Slip</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* 🌟 WHATSAPP DIRECT SHARE BUTTON */}
+          <button
+            type="button"
+            onClick={handleShareToWhatsApp}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-lg shadow-emerald-950"
+            title="Share this planning directly to your WhatsApp Group"
+          >
+            <MessageCircle size={15} className="fill-white" /> 💬 Share to WhatsApp
+          </button>
+
+          {/* 📜 HANDWRITTEN DAIRY SLIP PREVIEW & PRINT */}
+          <button
+            type="button"
+            onClick={() => setShowDairySlipModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 text-slate-950 rounded-xl text-xs font-bold transition cursor-pointer shadow-lg shadow-amber-950"
+            title="View or Print Handwritten Dairy Slip (ॐ नमो भगवते वासुदेवाय नमः)"
+          >
+            <FileText size={15} /> 📜 Dairy Slip &amp; Print
+          </button>
+
           <button
             type="button"
             onClick={handleSyncFromMsl}
-            className="flex items-center gap-1 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 text-slate-950 rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
-            title="Scan MSL Sheet 14 and auto-discover all new doctors"
+            className="flex items-center gap-1 px-3 py-2 bg-slate-950 hover:bg-slate-800 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition cursor-pointer shadow"
           >
-            <Zap size={14} className="text-slate-950" /> ⚡ Sync MSL ({Object.keys(profiles).length})
+            <Zap size={14} className="text-yellow-300" /> ⚡ Sync MSL
           </button>
 
           <button
@@ -448,20 +571,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
             }`}
           >
-            <CalendarIcon size={15} /> 1. Day Plan &amp; Route Hub
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('MTP_PLACEHOLDER')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
-              activeSubTab === 'MTP_PLACEHOLDER'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-cyan-400 shadow-md'
-                : 'bg-slate-950 text-slate-500 border-slate-900 hover:text-slate-400'
-            }`}
-          >
-            <Compass size={15} /> 2. MTP
-            <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-mono">Placeholder</span>
+            <CalendarIcon size={15} /> 1. Day Plan
           </button>
 
           <button
@@ -473,19 +583,20 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
             }`}
           >
-            <Edit3 size={14} /> 19 Hospitals Master ({Object.keys(profiles).length})
+            <Edit3 size={14} /> 19 Hospitals Master
           </button>
         </div>
       </div>
 
       <CloudSyncBar
-        storageKey="field/daily_working_system_v8"
+        storageKey="field/daily_working_system_v9"
         sheetTitle="Daily Working & Route Intelligence Hub"
         getData={() => ({
           profiles: dailyWorkingStore.profiles,
           dayPlans: dailyWorkingStore.dayPlans,
           selectedDateStr,
-          selectedAreas
+          selectedAreas,
+          reminders
         })}
         onLoadData={(cloudData: any) => {
           if (!cloudData) return;
@@ -497,10 +608,15 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
             dailyWorkingStore.dayPlans = cloudData.dayPlans;
             try { localStorage.setItem('dios_daily_plans_v11', JSON.stringify(cloudData.dayPlans)); } catch (e) {}
           }
+          if (cloudData.reminders) {
+            setReminders(cloudData.reminders);
+            saveRemindersList(cloudData.reminders);
+          }
         }}
         onSaveLocal={() => {
           dailyWorkingStore.saveProfiles(profiles);
           if (currentPlan) dailyWorkingStore.saveDayPlan(currentPlan);
+          saveRemindersList(reminders);
         }}
       />
 
@@ -548,13 +664,13 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
 
-            {/* QUICK 1-CLICK ANY-DOCTOR SEARCH & ADD TO TODAY PLAN */}
+            {/* Quick Add Any Doctor to Today */}
             <div className="relative w-full md:w-80">
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400" />
                 <input
                   type="text"
-                  placeholder="Quick Add Any MSL Doctor to Today..."
+                  placeholder="Quick Add Any MSL Doctor..."
                   value={globalDocSearch}
                   onChange={e => setGlobalDocSearch(e.target.value)}
                   className="w-full bg-slate-900 border border-cyan-500/40 text-xs text-white rounded-xl pl-9 pr-3 py-2 focus:border-cyan-400 focus:outline-none placeholder-slate-500 shadow-inner"
@@ -580,16 +696,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   ))}
                 </div>
               )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer shadow"
-              >
-                <Printer size={15} className="text-cyan-400" /> Print
-              </button>
             </div>
           </div>
 
@@ -642,7 +748,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   })}
               </div>
 
-              {/* 🌟 100% ACCURATE EX-STATION TOUR CHIPS */}
+              {/* 1-DAY EX-STATION TOUR BUTTONS WITH LIVE DOCTOR COUNTS */}
               <div className="pt-2 border-t border-slate-900">
                 <span className="text-[10px] text-cyan-400 uppercase font-bold tracking-wider mr-2">🚌 Ex-Station Tours (All Doctors in 1 Day):</span>
                 <div className="inline-flex flex-wrap gap-1.5 mt-1">
@@ -697,19 +803,21 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 </h3>
               </div>
 
-              <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-500/40">
-                {currentPlan?.plannedCalls.length || 0} Planned Calls
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-500/40">
+                  {currentPlan?.plannedCalls.length || 0} Planned Calls
+                </span>
+              </div>
             </div>
 
             <div className="overflow-x-auto max-h-[460px] border border-slate-800 rounded-xl relative">
               <table className="w-full text-left text-xs border-separate border-spacing-0">
                 <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-30">
                   <tr>
-                    <th style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-2.5 text-center bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-slate-400">
+                    <th style={{ width: '44px', minWidth: '44px', left: 0 }} className="p-2.5 text-center bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-slate-400">
                       #
                     </th>
-                    <th style={{ width: '200px', minWidth: '200px', maxWidth: '200px', left: '44px' }} className="p-2.5 bg-slate-950 border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-white">
+                    <th style={{ width: '200px', minWidth: '200px', left: '44px' }} className="p-2.5 bg-slate-950 border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-white">
                       Doctor Name
                     </th>
                     <th className="p-2.5 text-center w-36 text-purple-300 border-b border-r border-slate-800">⏰ Meeting Clock</th>
@@ -736,11 +844,11 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
                       return (
                         <tr key={item.srNo} className="hover:bg-slate-800/60 transition group">
-                          <td style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-2.5 text-center text-slate-500 border-b border-r border-slate-800/80 sticky z-20 bg-slate-900 group-hover:bg-slate-800">
+                          <td style={{ width: '44px', minWidth: '44px', left: 0 }} className="p-2.5 text-center text-slate-500 border-b border-r border-slate-800/80 sticky z-20 bg-slate-900 group-hover:bg-slate-800">
                             {idx + 1}
                           </td>
 
-                          <td style={{ width: '200px', minWidth: '200px', maxWidth: '200px', left: '44px' }} className="p-2.5 font-sans font-bold text-white border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-20 bg-slate-900 group-hover:bg-slate-800 truncate">
+                          <td style={{ width: '200px', minWidth: '200px', left: '44px' }} className="p-2.5 font-sans font-bold text-white border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-20 bg-slate-900 group-hover:bg-slate-800 truncate">
                             Dr. {item.doctorName}
                           </td>
 
@@ -815,6 +923,91 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* 🌟 3. DOCTOR REMINDER & SPECIAL NOTES BUILDER */}
+          <div className="p-4 bg-slate-950 rounded-2xl border-2 border-pink-500/50 shadow-xl space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <BellRing size={16} className="text-pink-400 animate-bounce" />
+                <h3 className="text-xs font-bold text-pink-300 uppercase tracking-wider">
+                  Doctor Reminders &amp; Special Notes for {selectedDateStr} ({reminders.length} Active)
+                </h3>
+              </div>
+              <span className="text-[10px] text-slate-400 font-mono">Prints on Dairy Slip &amp; WhatsApp Share</span>
+            </div>
+
+            {/* Reminder Input Form */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 text-xs">
+              {/* Doctor Search for Reminder */}
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Select Doctor for Reminder..."
+                  value={selectedReminderDocName ? `Dr. ${selectedReminderDocName}` : reminderSearchDoc}
+                  onChange={e => {
+                    setSelectedReminderDocName('');
+                    setReminderSearchDoc(e.target.value);
+                  }}
+                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:border-pink-400 focus:outline-none"
+                />
+
+                {reminderSearchDoc.trim().length > 0 && !selectedReminderDocName && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border-2 border-pink-500/60 rounded-xl shadow-2xl p-1.5 z-50 max-h-36 overflow-y-auto space-y-1">
+                    {reminderDoctorMatches.map(d => (
+                      <div
+                        key={d.srNo}
+                        onClick={() => {
+                          setSelectedReminderDocName(d.doctorName);
+                          setReminderSearchDoc('');
+                        }}
+                        className="p-1.5 rounded-lg bg-slate-950 hover:bg-pink-950/60 text-xs cursor-pointer text-white font-bold flex justify-between"
+                      >
+                        <span>Dr. {d.doctorName}</span>
+                        <span className="text-[10px] text-pink-400">Pick ➔</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <input
+                type="text"
+                placeholder="Reminder Note (e.g. Call for Rx, Birthday wish, Collect payment)..."
+                value={newReminderNote}
+                onChange={e => setNewReminderNote(e.target.value)}
+                className="flex-[2] bg-slate-900 border border-slate-700 text-amber-300 rounded-xl px-3 py-2 text-xs focus:border-pink-400 focus:outline-none"
+              />
+
+              <button
+                type="button"
+                onClick={handleAddReminder}
+                className="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 text-white font-bold rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0 shadow-md"
+              >
+                <Plus size={14} /> + Add Reminder
+              </button>
+            </div>
+
+            {/* Reminders List */}
+            {reminders.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                {reminders.map(rem => (
+                  <div key={rem.id} className="p-2.5 rounded-xl bg-slate-900 border border-pink-500/30 flex items-center justify-between text-xs gap-2">
+                    <div className="truncate">
+                      <span className="font-bold text-pink-300 block truncate">Dr. {rem.doctorName}</span>
+                      <span className="text-slate-300 text-[11px] block truncate">{rem.note}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteReminder(rem.id)}
+                      className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* REMAINING DOCTORS BACKLOG IN SELECTED AREAS */}
@@ -948,10 +1141,10 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
             <table className="w-full text-left text-xs border-separate border-spacing-0">
               <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-30">
                 <tr>
-                  <th style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-2.5 text-center bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-slate-400">
+                  <th style={{ width: '44px', minWidth: '44px', left: 0 }} className="p-2.5 text-center bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-slate-400">
                     #
                   </th>
-                  <th style={{ width: '200px', minWidth: '200px', maxWidth: '200px', left: '44px' }} className="p-2.5 bg-slate-950 border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-white">
+                  <th style={{ width: '200px', minWidth: '200px', left: '44px' }} className="p-2.5 bg-slate-950 border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-white">
                     Doctor Name
                   </th>
                   <th className="p-2.5 min-w-[120px] border-b border-r border-slate-800">Speciality</th>
@@ -962,53 +1155,149 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono text-xs bg-slate-900">
-                {Object.values(profiles)
-                  .filter(d => {
-                    const matchSearch = !setupSearch || d.doctorName.toLowerCase().includes(setupSearch.toLowerCase()) || d.area.toLowerCase().includes(setupSearch.toLowerCase());
-                    const matchArea = masterAreaFilter === 'ALL' || d.area.toLowerCase().includes(masterAreaFilter.toLowerCase()) || d.station.toLowerCase().includes(masterAreaFilter.toLowerCase());
-                    const matchAct = masterActivityFilter === 'ALL' || (d.activityType && d.activityType.toUpperCase().includes(masterActivityFilter.toUpperCase()));
-                    return matchSearch && matchArea && matchAct;
-                  })
-                  .map(doc => (
-                    <tr key={doc.srNo} className="hover:bg-slate-800/60 transition group">
-                      <td style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-2 text-center text-slate-500 border-b border-r border-slate-800/80 sticky z-20 bg-slate-900 group-hover:bg-slate-800">
-                        {doc.srNo}
-                      </td>
+                {Object.values(profiles).map(doc => (
+                  <tr key={doc.srNo} className="hover:bg-slate-800/60 transition group">
+                    <td style={{ width: '44px', minWidth: '44px', left: 0 }} className="p-2 text-center text-slate-500 border-b border-r border-slate-800/80 sticky z-20 bg-slate-900 group-hover:bg-slate-800">
+                      {doc.srNo}
+                    </td>
 
-                      <td style={{ width: '200px', minWidth: '200px', maxWidth: '200px', left: '44px' }} className="p-2 font-sans font-bold text-white border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-20 bg-slate-900 group-hover:bg-slate-800 truncate">
-                        Dr. {doc.doctorName}
-                      </td>
+                    <td style={{ width: '200px', minWidth: '200px', left: '44px' }} className="p-2 font-sans font-bold text-white border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-20 bg-slate-900 group-hover:bg-slate-800 truncate">
+                      Dr. {doc.doctorName}
+                    </td>
 
-                      <td className="p-2 font-sans text-slate-400 border-b border-r border-slate-800/80">{doc.speciality}</td>
-                      
-                      <td className="p-2 font-sans font-bold text-amber-300 border-b border-r border-slate-800/80">
-                        {doc.area}
-                      </td>
+                    <td className="p-2 font-sans text-slate-400 border-b border-r border-slate-800/80">{doc.speciality}</td>
+                    <td className="p-2 font-sans font-bold text-amber-300 border-b border-r border-slate-800/80">{doc.area}</td>
 
-                      <td className="p-1.5 border-b border-r border-slate-800/80">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenClockModal(doc)}
-                          className="flex items-center gap-1.5 bg-gradient-to-r from-purple-950 to-indigo-950 hover:from-purple-900 border border-purple-500/50 px-2.5 py-1 rounded-lg text-purple-300 hover:text-white transition cursor-pointer font-bold"
-                        >
-                          <Clock size={13} className="text-purple-400" />
-                          <span>{doc.approxTime}</span>
-                        </button>
-                      </td>
+                    <td className="p-1.5 border-b border-r border-slate-800/80">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenClockModal(doc)}
+                        className="flex items-center gap-1.5 bg-gradient-to-r from-purple-950 to-indigo-950 hover:from-purple-900 border border-purple-500/50 px-2.5 py-1 rounded-lg text-purple-300 hover:text-white transition cursor-pointer font-bold"
+                      >
+                        <Clock size={13} className="text-purple-400" />
+                        <span>{doc.approxTime}</span>
+                      </button>
+                    </td>
 
-                      <td className="p-2 font-sans text-slate-300 text-xs border-b border-r border-slate-800/80">
-                        {doc.notes}
-                      </td>
+                    <td className="p-2 font-sans text-slate-300 text-xs border-b border-r border-slate-800/80">
+                      {doc.notes}
+                    </td>
 
-                      <td className="p-2 text-center border-b border-slate-800">
-                        <span className={`px-2 py-0.5 rounded font-bold ${doc.monthlyTargetVisits >= 4 ? 'bg-amber-950 text-amber-300' : 'bg-slate-950 text-slate-400'}`}>
-                          {doc.monthlyTargetVisits}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                    <td className="p-2 text-center border-b border-slate-800">
+                      <span className={`px-2 py-0.5 rounded font-bold ${doc.monthlyTargetVisits >= 4 ? 'bg-amber-950 text-amber-300' : 'bg-slate-950 text-slate-400'}`}>
+                        {doc.monthlyTargetVisits}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 5. AUTHENTIC HANDWRITTEN DAIRY SLIP MODAL & PRINT VIEW */}
+      {showDairySlipModal && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
+          <div className="bg-white text-slate-950 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+            
+            {/* Modal Actions Bar */}
+            <div className="flex items-center justify-between p-4 bg-slate-100 border-b border-slate-200">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 font-sans">
+                <StickyNote size={15} className="text-amber-600" /> Handwritten Diary Slip
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleShareToWhatsApp}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow"
+                >
+                  <MessageCircle size={13} className="fill-white" /> WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow"
+                >
+                  <Printer size={13} /> Print
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDairySlipModal(false)}
+                  className="p-1 hover:bg-slate-200 rounded-full text-slate-500 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* 📜 AUTHENTIC RULED NOTEBOOK PAPER VIEW */}
+            <div 
+              id="handwritten-slip"
+              className="p-6 md:p-8 flex-1 overflow-y-auto space-y-4 font-sans select-text"
+              style={{
+                backgroundColor: '#FFFDF9',
+                backgroundImage: 'repeating-linear-gradient(#FFFDF9, #FFFDF9 31px, #E2E8F0 32px)',
+                borderLeft: '4px solid #EF4444',
+                lineHeight: '32px'
+              }}
+            >
+              {/* TOP HINDI INVOCATION */}
+              <div className="text-center pb-2">
+                <span className="text-lg md:text-xl font-black text-blue-950 tracking-wider font-serif inline-block border-b-2 border-blue-900 pb-1">
+                  ॐ नमो भगवते वासुदेवाय नमः
+                </span>
+                <div className="text-[11px] font-bold text-slate-500 mt-1">
+                  📅 {selectedDateStr} ({dayOfWeekName}) &bull; {selectedAreas.join(', ')}
+                </div>
+              </div>
+
+              {/* DOCTORS IN ENCIRCLED NUMBER FORMAT */}
+              <div className="space-y-1 text-sm md:text-base font-semibold text-slate-900">
+                {(!currentPlan || currentPlan.plannedCalls.length === 0) ? (
+                  <div className="text-center text-slate-400 py-6 italic">No doctors scheduled for this day.</div>
+                ) : (
+                  currentPlan.plannedCalls.map((c, i) => {
+                    const circleNum = CIRCLE_NUMBERS[i] || `(${i + 1})`;
+                    const actName = c.activityType && c.activityType !== 'REGULAR' ? ` - ${c.activityType}` : '';
+                    const time = c.approxTime ? ` (${c.approxTime})` : '';
+
+                    return (
+                      <div key={c.srNo} className="flex items-baseline justify-between gap-2 border-b border-slate-200/60 pb-0.5">
+                        <span className="font-bold text-blue-950">
+                          <span className="text-base text-slate-700 mr-1.5">{circleNum}</span>
+                          {c.doctorName}{actName}
+                        </span>
+                        <span className="text-xs font-mono font-bold text-slate-600 shrink-0">
+                          {time}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* REMINDERS SECTION */}
+              {reminders.length > 0 && (
+                <div className="pt-4 border-t-2 border-dashed border-slate-300 space-y-1">
+                  <div className="text-xs font-black text-rose-600 uppercase tracking-wider">
+                    📌 Reminders / Special Notes:
+                  </div>
+                  {reminders.map((r, rIdx) => (
+                    <div key={r.id} className="text-xs text-slate-800 font-medium">
+                      • <b className="text-blue-900">Dr. {r.doctorName}:</b> {r.note}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* FOOTER */}
+              <div className="pt-4 text-right text-[11px] font-mono text-slate-500 border-t border-slate-200">
+                BE: BANWARI LAL MEENA (Udaipur HQ)
+              </div>
+            </div>
+
           </div>
         </div>
       )}
