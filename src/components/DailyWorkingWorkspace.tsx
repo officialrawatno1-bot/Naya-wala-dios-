@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-  ArrowLeft, Calendar as CalendarIcon, Clock, MapPin, CheckCircle2, 
-  AlertTriangle, Plus, Trash2, Download, Printer, RefreshCw, 
-  UserCheck, Stethoscope, Sparkles, Filter, ChevronRight, Check, 
-  Building2, X, Search, ShieldCheck, Compass, Info, Edit3, ChevronLeft,
-  Sliders, ShieldAlert, Lock, Zap
+  ArrowLeft, Calendar as CalendarIcon, Clock, MapPin, 
+  AlertTriangle, Trash2, Printer, 
+  Stethoscope, Sparkles, Check, 
+  Building2, X, Search, Compass, Edit3, ChevronLeft, ChevronRight,
+  Lock, Zap
 } from 'lucide-react';
 import { 
   dailyWorkingStore, 
@@ -12,7 +12,6 @@ import {
   PlannedCallItem, 
   DayPlanRecord,
   UDAIPUR_AREAS_MASTER,
-  TIME_SLOTS_MASTER,
   EX_STATIONS_MASTER
 } from '../data/dailyWorkingStore';
 import { CloudSyncBar } from './CloudSyncBar';
@@ -21,8 +20,7 @@ interface Props {
   onBack: () => void;
 }
 
-const WEEK_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-const QUICK_MINUTES = [0, 10, 15, 30, 45];
+const WEEK_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 const HOLIDAYS_2026: Record<string, string> = {
   '15/08/2026': 'INDEPENDENCE DAY',
@@ -56,12 +54,12 @@ const getRecencyTier = (days: number): 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED' => 
 export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const [activeSubTab, setActiveSubTab] = useState<'DAY_PLAN' | 'MTP_PLACEHOLDER' | 'MASTER_SETUP'>('DAY_PLAN');
   const [selectedDateStr, setSelectedDateStr] = useState<string>('18/08/2026');
-  const [selectedAreas, setSelectedAreas] = useState<string[]>(['Hospital Road']);
+  const [selectedAreas, setSelectedAreas] = useState<string[]>(['Geetanjali Hospital']);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   // Calendar Modal State
   const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [calMonth, setCalMonth] = useState<number>(7);
+  const [calMonth, setCalMonth] = useState<number>(7); // August (0-indexed 7)
   const [calYear, setCalYear] = useState<number>(2026);
 
   // Search & Filter States
@@ -74,25 +72,20 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const [profiles, setProfiles] = useState<Record<number, DoctorFieldProfile>>(() => dailyWorkingStore.profiles);
   const [currentPlan, setCurrentPlan] = useState<DayPlanRecord | null>(null);
 
-  // 🌟 DUAL-LOCATION & CLOCK MODAL STATE
+  // 🌟 CLEAN CLOCK MODAL STATE (Top: Dial + AM/PM, Middle: Hospital Selector, Days: Mon-Sat, Bottom: Purple Save)
   const [clockTargetDoc, setClockTargetDoc] = useState<DoctorFieldProfile | null>(null);
   const [clockMode, setClockMode] = useState<'HOUR' | 'MINUTE'>('HOUR');
   const [clockHour, setClockHour] = useState<number>(8);
   const [clockMinute, setClockMinute] = useState<number>(10);
   const [clockPeriod, setClockPeriod] = useState<'AM' | 'PM'>('PM');
-  const [clockHospital, setClockHospital] = useState<string>('Hospital Road');
-  const [clockHospitalDays, setClockHospitalDays] = useState<string[]>(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']);
-  const [clockClinic, setClockClinic] = useState<string>('');
-  const [clockClinicTime, setClockClinicTime] = useState<string>('06:30 PM');
-  const [clockClinicDays, setClockClinicDays] = useState<string[]>(['MON', 'WED', 'FRI']);
-  const [clockNotes, setClockNotes] = useState<string>('');
+  const [clockSelectedArea, setClockSelectedArea] = useState<string>('Hospital Road');
+  const [clockDays, setClockDays] = useState<string[]>(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']);
 
   const clockDialRef = useRef<SVGSVGElement | null>(null);
   const [isDraggingClock, setIsDraggingClock] = useState(false);
 
   // Date metadata
   const selectedDateObj = useMemo(() => parseDateDDMMYYYY(selectedDateStr), [selectedDateStr]);
-  const dayOfWeekShort = useMemo(() => selectedDateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(), [selectedDateObj]);
   const dayOfWeekName = useMemo(() => selectedDateObj.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase(), [selectedDateObj]);
   const isSunday = selectedDateObj.getDay() === 0;
   const holidayName = HOLIDAYS_2026[selectedDateStr];
@@ -111,22 +104,18 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     }
   }, [selectedDateStr]);
 
-  // Open clock modal with Dual-Location configuration
+  // Open clock modal
   const handleOpenClockModal = (doc: DoctorFieldProfile) => {
     setClockTargetDoc(doc);
     setClockHour(doc.hour || 8);
     setClockMinute(doc.minute || 0);
     setClockPeriod(doc.period || 'PM');
-    setClockHospital(doc.primaryHospital || doc.area || 'Hospital Road');
-    setClockHospitalDays(doc.primaryDays || ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']);
-    setClockClinic(doc.secondaryClinic || '');
-    setClockClinicTime(doc.secondaryTime || '06:30 PM');
-    setClockClinicDays(doc.secondaryDays || ['MON', 'WED', 'FRI']);
-    setClockNotes(doc.notes || '');
+    setClockSelectedArea(doc.area || doc.primaryHospital || 'Hospital Road');
+    setClockDays(doc.availableDays || ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']);
     setClockMode('HOUR');
   };
 
-  // Dial rotation
+  // Dial rotation calculation
   const handleRotateDial = (clientX: number, clientY: number) => {
     if (!clockDialRef.current) return;
     const rect = clockDialRef.current.getBoundingClientRect();
@@ -149,25 +138,32 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     }
   };
 
+  const handleToggleDay = (day: string) => {
+    if (clockDays.includes(day)) {
+      setClockDays(clockDays.filter(d => d !== day));
+    } else {
+      setClockDays([...clockDays, day]);
+    }
+  };
+
   const handleSaveClockSchedule = () => {
     if (!clockTargetDoc) return;
     const formattedTime = `${String(clockHour).padStart(2, '0')}:${String(clockMinute).padStart(2, '0')} ${clockPeriod}`;
 
+    const isEx = EX_STATIONS_MASTER.some(ex => ex.toUpperCase() === clockSelectedArea.toUpperCase());
+
     const updatedProfile: DoctorFieldProfile = {
       ...clockTargetDoc,
-      primaryHospital: clockHospital,
-      primaryTime: formattedTime,
-      primaryDays: clockHospitalDays,
-      secondaryClinic: clockClinic,
-      secondaryTime: clockClinicTime,
-      secondaryDays: clockClinicDays,
-      area: clockHospital,
+      primaryHospital: clockSelectedArea,
+      area: clockSelectedArea,
       approxTime: formattedTime,
       hour: clockHour,
       minute: clockMinute,
       period: clockPeriod,
-      availableDays: clockHospitalDays,
-      notes: clockNotes
+      availableDays: clockDays,
+      isExStation: isEx,
+      station: isEx ? clockSelectedArea : 'UDAIPUR',
+      notes: `${clockSelectedArea} (${formattedTime})`
     };
 
     const copy = { ...profiles, [clockTargetDoc.srNo]: updatedProfile };
@@ -180,8 +176,8 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
           return {
             ...p,
             approxTime: formattedTime,
-            clinicArea: clockHospital,
-            otRemarks: clockNotes || 'Available'
+            clinicArea: clockSelectedArea,
+            otRemarks: updatedProfile.notes
           };
         }
         return p;
@@ -192,14 +188,13 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     }
 
     setClockTargetDoc(null);
-    setStatusMsg(`🎉 Dr. ${clockTargetDoc.doctorName} schedule & timing updated to ${formattedTime}!`);
+    setStatusMsg(`🎉 Dr. ${clockTargetDoc.doctorName} schedule updated to ${clockSelectedArea} at ${formattedTime}!`);
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
-  // Generate automated plan with Dual-Location awareness & Real MSL Dates
+  // Generate automated plan
   const generatePlanForAreas = (areasChoice: string[], dateStr: string) => {
     const dObj = parseDateDDMMYYYY(dateStr);
-    const dayShort = dObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
     const dayName = dObj.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
     const sunday = dObj.getDay() === 0;
     const hName = HOLIDAYS_2026[dateStr];
@@ -226,17 +221,12 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     const activeExStation = areasChoice.find(a => EX_STATIONS_MASTER.some(ex => ex.toUpperCase() === a.toUpperCase()));
 
     if (activeExStation) {
-      // 🌟 EX-TOWN RULE -> Load ALL Doctors of that station in ONE single day!
-      matchedDoctors = allProfilesList.filter(d => d.station.toUpperCase() === activeExStation.toUpperCase() && d.isExStation);
+      matchedDoctors = allProfilesList.filter(d => (d.station || '').toUpperCase() === activeExStation.toUpperCase() && d.isExStation);
     } else {
       matchedDoctors = allProfilesList.filter(d => {
         if (d.isExStation) return false;
-
-        // Check if doctor is in selected area at primary hospital OR secondary clinic today
-        const matchesPrimary = areasChoice.some(c => d.primaryHospital.toLowerCase().includes(c.toLowerCase().trim()));
-        const matchesSecondary = d.secondaryClinic && areasChoice.some(c => d.secondaryClinic.toLowerCase().includes(c.toLowerCase().trim()));
-
-        return matchesPrimary || matchesSecondary;
+        const matchesPrimary = areasChoice.some(c => (d.primaryHospital || d.area || '').toLowerCase().includes(c.toLowerCase().trim()));
+        return matchesPrimary;
       });
 
       matchedDoctors.sort((a, b) => {
@@ -245,13 +235,12 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         return bAct - aAct;
       });
 
-      matchedDoctors = matchedDoctors.slice(0, 12);
+      matchedDoctors = matchedDoctors.slice(0, 15);
     }
 
     matchedDoctors.sort((a, b) => a.approxTime.localeCompare(b.approxTime));
 
     const plannedItems: PlannedCallItem[] = matchedDoctors.map(doc => {
-      // 🌟 REAL LAST VISIT DATE DYNAMICALLY FROM MSL (Dr. Deepak Aametha & All)
       const { lastDate, daysAgo } = dailyWorkingStore.getRealLastVisitDate(doc.srNo, dateStr);
       const tier = getRecencyTier(daysAgo);
 
@@ -296,7 +285,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
       const withoutEx = selectedAreas.filter(a => !EX_STATIONS_MASTER.some(ex => ex.toUpperCase() === a.toUpperCase()));
       if (withoutEx.includes(areaName)) {
         updated = withoutEx.filter(a => a !== areaName);
-        if (updated.length === 0) updated = ['Hospital Road'];
+        if (updated.length === 0) updated = ['Geetanjali Hospital'];
       } else {
         updated = [...withoutEx, areaName];
       }
@@ -306,7 +295,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     generatePlanForAreas(updated, selectedDateStr);
   };
 
-  // 1-Click Sync from MSL Sheet
   const handleSyncFromMsl = () => {
     const synced = dailyWorkingStore.syncFromMslSheet();
     setProfiles({ ...dailyWorkingStore.profiles });
@@ -314,7 +302,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
-  // Remaining doctors in area (Backlog list)
+  // Backlog remaining list
   const remainingDoctorsInArea = useMemo(() => {
     if (!currentPlan) return [];
     const plannedSrNos = new Set(currentPlan.plannedCalls.map(p => p.srNo));
@@ -324,13 +312,12 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
     let areaDocs: DoctorFieldProfile[] = [];
     if (activeExStation) {
-      areaDocs = allProfiles.filter(d => d.station.toUpperCase() === activeExStation.toUpperCase() && d.isExStation);
+      areaDocs = allProfiles.filter(d => (d.station || '').toUpperCase() === activeExStation.toUpperCase() && d.isExStation);
     } else {
       areaDocs = allProfiles.filter(d => {
         if (d.isExStation) return false;
-        const inP = selectedAreas.some(c => d.primaryHospital.toLowerCase().includes(c.toLowerCase().trim()));
-        const inS = d.secondaryClinic && selectedAreas.some(c => d.secondaryClinic.toLowerCase().includes(c.toLowerCase().trim()));
-        return inP || inS;
+        const inArea = selectedAreas.some(c => (d.primaryHospital || d.area || '').toLowerCase().includes(c.toLowerCase().trim()));
+        return inArea;
       });
     }
 
@@ -390,19 +377,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     dailyWorkingStore.saveDayPlan(updated);
   };
 
-  // Calendar Controls
-  const handlePrevMonth = () => {
-    if (calMonth === 0) { setCalMonth(11); setCalYear(prev => prev - 1); }
-    else setCalMonth(prev => prev - 1);
-  };
-  const handleNextMonth = () => {
-    if (calMonth === 11) { setCalMonth(0); setCalYear(prev => prev + 1); }
-    else setCalMonth(prev => prev + 1);
-  };
-
-  const calMonthDaysCount = new Date(calYear, calMonth + 1, 0).getDate();
-  const calFirstDayIndex = new Date(calYear, calMonth, 1).getDay();
-
   // Clock Hand Angles
   const hourAngle = ((clockHour % 12) + clockMinute / 60) * 30;
   const minuteAngle = clockMinute * 6;
@@ -429,12 +403,11 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 <Lock size={11} className="text-purple-400" /> Freeze Panes Active
               </span>
             </h1>
-            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA &bull; HQ: UDAIPUR &bull; Real MSL Date Engine &bull; Dual Location</p>
+            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA &bull; HQ: UDAIPUR &bull; 19 Udaipur Hospitals &amp; Ex-Station Routes</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* MSL Sync Button */}
           <button
             type="button"
             onClick={handleSyncFromMsl}
@@ -464,7 +437,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 : 'bg-slate-950 text-slate-500 border-slate-900 hover:text-slate-400'
             }`}
           >
-            <Compass size={15} /> 2. Monthly Tour Program (MTP)
+            <Compass size={15} /> 2. MTP
             <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-mono">Placeholder</span>
           </button>
 
@@ -483,7 +456,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
       </div>
 
       <CloudSyncBar
-        storageKey="field/daily_working_system_v5"
+        storageKey="field/daily_working_system_v6"
         sheetTitle="Daily Working & Route Intelligence Hub"
         getData={() => ({
           profiles: dailyWorkingStore.profiles,
@@ -499,7 +472,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
           }
           if (cloudData.dayPlans) {
             dailyWorkingStore.dayPlans = cloudData.dayPlans;
-            try { localStorage.setItem('dios_daily_plans_v5', JSON.stringify(cloudData.dayPlans)); } catch (e) {}
+            try { localStorage.setItem('dios_daily_plans_v6', JSON.stringify(cloudData.dayPlans)); } catch (e) {}
           }
         }}
         onSaveLocal={() => {
@@ -546,7 +519,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               <div className="flex items-center gap-2 bg-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-800">
                 <MapPin size={15} className="text-amber-400" />
                 <span className="text-slate-400">Active Working Areas:</span>
-                <span className="text-amber-300 font-bold font-mono truncate max-w-[240px]">
+                <span className="text-amber-300 font-bold font-mono truncate max-w-[280px]">
                   {selectedAreas.join(', ')}
                 </span>
               </div>
@@ -563,7 +536,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* 🌟 POINT 5: MULTI-AREA SELECTION HUB WITH SEARCH BAR */}
+          {/* MULTI-AREA SELECTION HUB */}
           <div className="p-4 bg-slate-950 rounded-2xl border-2 border-amber-500/60 shadow-xl space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -572,11 +545,10 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider">
                     "Aaj Kahan Working Karni Hai?" &bull; Multi-Area Hub
                   </h3>
-                  <p className="text-[11px] text-slate-400">Search &amp; Select multiple hospitals at once!</p>
+                  <p className="text-[11px] text-slate-400">Select any hospital or station to load today's doctors!</p>
                 </div>
               </div>
 
-              {/* Area Search Input */}
               <div className="relative w-full sm:w-64">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
@@ -615,7 +587,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
               {/* Ex-Station Chips */}
               <div className="pt-2 border-t border-slate-900">
-                <span className="text-[10px] text-cyan-400 uppercase font-bold tracking-wider mr-2">Ex-Station Tours (All in 1 Day):</span>
+                <span className="text-[10px] text-cyan-400 uppercase font-bold tracking-wider mr-2">🚌 Ex-Station Tours (All in 1 Day):</span>
                 <div className="inline-flex flex-wrap gap-1.5 mt-1">
                   {EX_STATIONS_MASTER.map(st => {
                     const isChecked = selectedAreas.includes(st);
@@ -654,7 +626,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
           )}
 
-          {/* 🌟 POINT 3: TODAY'S ACTION TABLE (WITH FROZEN DOCTOR NAME & NUMBER) */}
+          {/* TODAY'S ACTION TABLE (WITH FROZEN DOCTOR NAME & NUMBER) */}
           <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 shadow-xl space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <div className="flex items-center gap-2">
@@ -673,21 +645,19 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               <table className="w-full text-left text-xs border-separate border-spacing-0">
                 <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-30">
                   <tr>
-                    {/* ❄️ FROZEN COL 1: # */}
                     <th style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-2.5 text-center bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-slate-400">
                       #
                     </th>
-                    {/* ❄️ FROZEN COL 2: DOCTOR NAME */}
                     <th style={{ width: '200px', minWidth: '200px', maxWidth: '200px', left: '44px' }} className="p-2.5 bg-slate-950 border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-white">
                       Doctor Name
                     </th>
                     <th className="p-2.5 text-center w-36 text-purple-300 border-b border-r border-slate-800">⏰ Meeting Clock</th>
                     <th className="p-2.5 min-w-[120px] text-cyan-300 border-b border-r border-slate-800">Speciality</th>
-                    <th className="p-2.5 min-w-[160px] border-b border-r border-slate-800">Clinic / Hospital</th>
+                    <th className="p-2.5 min-w-[160px] border-b border-r border-slate-800">Hospital / Area</th>
                     <th className="p-2.5 text-center w-24 text-purple-300 border-b border-r border-slate-800">Activity</th>
                     <th className="p-2.5 text-center w-20 text-emerald-400 border-b border-r border-slate-800">Visit #</th>
                     <th className="p-2.5 text-center w-36 border-b border-r border-slate-800">Last Visit (Recency)</th>
-                    <th className="p-2.5 min-w-[150px] text-amber-400 border-b border-r border-slate-800">Sitting / Notes</th>
+                    <th className="p-2.5 min-w-[160px] text-amber-400 border-b border-r border-slate-800">Sitting Days &amp; Timings</th>
                     <th className="p-2.5 text-center w-24 border-b border-r border-slate-800">Call Status</th>
                     <th className="p-2.5 text-center w-12 border-b border-slate-800">Action</th>
                   </tr>
@@ -705,17 +675,14 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
                       return (
                         <tr key={item.srNo} className="hover:bg-slate-800/60 transition group">
-                          {/* ❄️ FROZEN TD 1: # */}
                           <td style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-2.5 text-center text-slate-500 border-b border-r border-slate-800/80 sticky z-20 bg-slate-900 group-hover:bg-slate-800">
                             {idx + 1}
                           </td>
 
-                          {/* ❄️ FROZEN TD 2: DOCTOR NAME */}
                           <td style={{ width: '200px', minWidth: '200px', maxWidth: '200px', left: '44px' }} className="p-2.5 font-sans font-bold text-white border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-20 bg-slate-900 group-hover:bg-slate-800 truncate">
                             Dr. {item.doctorName}
                           </td>
 
-                          {/* CLOCK TRIGGER BUTTON */}
                           <td className="p-1.5 text-center border-b border-r border-slate-800/80">
                             <button
                               type="button"
@@ -738,7 +705,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                             {item.visitNumber}/{item.totalMonthlyTarget}
                           </td>
                           
-                          {/* 🌟 COLOR-CODED LAST VISIT */}
                           <td className="p-2.5 text-center border-b border-r border-slate-800/80">
                             <span className={`px-2 py-1 rounded-lg font-mono font-bold text-[10px] border flex items-center justify-center gap-1 ${
                               item.recencyTier === 'GREEN' 
@@ -754,7 +720,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                             </span>
                           </td>
 
-                          <td className="p-2.5 font-sans text-slate-400 text-xs border-b border-r border-slate-800/80">{item.otRemarks}</td>
+                          <td className="p-2.5 font-sans text-amber-300/90 text-xs border-b border-r border-slate-800/80">{item.otRemarks}</td>
                           
                           <td className="p-1.5 text-center border-b border-r border-slate-800/80">
                             <select
@@ -796,17 +762,17 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               <div className="flex items-center gap-2">
                 <Building2 size={16} className="text-cyan-400" />
                 <h3 className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
-                  Remaining / Unplanned Doctors in {selectedAreas.join(', ')} ({remainingDoctorsInArea.length} Backlog)
+                  Remaining Doctors in {selectedAreas.join(', ')} ({remainingDoctorsInArea.length} Backlog)
                 </h3>
               </div>
               <span className="text-[10px] text-slate-400">
-                1-Click Add any doctor to today's action plan
+                1-Click Add to today's action plan
               </span>
             </div>
 
             {remainingDoctorsInArea.length === 0 ? (
               <div className="py-4 text-center text-xs text-slate-500">
-                Is area ke sabhi doctors aaj ke plan me scheduled ho chuke hain! Zero backlog.
+                Is area ke sabhi doctors aaj ke plan me scheduled hain! Zero backlog.
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-[320px] overflow-y-auto pr-1">
@@ -815,7 +781,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                     <div className="truncate">
                       <div className="font-bold text-white truncate">Dr. {doc.doctorName}</div>
                       <div className="text-[10px] text-slate-400 font-mono">
-                        {doc.speciality} &bull; {doc.primaryHospital || doc.area}
+                        {doc.speciality} &bull; {doc.area} &bull; {doc.approxTime}
                       </div>
                       
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[9px] font-bold mt-1 border ${
@@ -871,19 +837,19 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 <Edit3 size={16} className="text-purple-400" />
                 19 Hospitals &amp; Doctor Schedule Master (One-Time Setup)
               </h3>
-              <p className="text-xs text-slate-400">Freeze Panes &bull; Filter by Hospital / Activity &bull; Dual-Location Configuration</p>
+              <p className="text-xs text-slate-400">Freeze Panes &bull; Filter by Hospital / Activity &bull; Clean Schedule Setting</p>
             </div>
 
             {/* Filters Bar */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-amber-400 font-bold uppercase">Hospital:</span>
+                <span className="text-[10px] text-amber-400 font-bold uppercase">Hospital / Hub:</span>
                 <select
                   value={masterAreaFilter}
                   onChange={e => setMasterAreaFilter(e.target.value)}
                   className="bg-transparent text-white font-bold text-xs focus:outline-none cursor-pointer"
                 >
-                  <option value="ALL" className="bg-slate-900">All 19 Hospitals</option>
+                  <option value="ALL" className="bg-slate-900">All Locations</option>
                   {UDAIPUR_AREAS_MASTER.map(a => <option key={a} value={a} className="bg-slate-900">{a}</option>)}
                   {EX_STATIONS_MASTER.map(s => <option key={s} value={s} className="bg-slate-900">🚌 {s}</option>)}
                 </select>
@@ -900,7 +866,8 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   <option value="CRM" className="bg-slate-900">CRM</option>
                   <option value="WCFYH" className="bg-slate-900">WCFYH</option>
                   <option value="TABLE TOP" className="bg-slate-900">Table Top</option>
-                  <option value="REGULAR" className="bg-slate-900">Regular</option>
+                  <option value="A2 GHEE" className="bg-slate-900">A2 Ghee</option>
+                  <option value="GLUCOMETER" className="bg-slate-900">Glucometer</option>
                 </select>
               </div>
 
@@ -921,19 +888,16 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
             <table className="w-full text-left text-xs border-separate border-spacing-0">
               <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-30">
                 <tr>
-                  {/* ❄️ FROZEN HEADER 1 */}
                   <th style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-2.5 text-center bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-slate-400">
                     #
                   </th>
-                  {/* ❄️ FROZEN HEADER 2 */}
                   <th style={{ width: '200px', minWidth: '200px', maxWidth: '200px', left: '44px' }} className="p-2.5 bg-slate-950 border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-white">
                     Doctor Name
                   </th>
                   <th className="p-2.5 min-w-[120px] border-b border-r border-slate-800">Speciality</th>
-                  <th className="p-2.5 min-w-[180px] text-amber-400 border-b border-r border-slate-800">Primary Hospital</th>
-                  <th className="p-2.5 min-w-[180px] text-cyan-300 border-b border-r border-slate-800">Secondary Clinic</th>
+                  <th className="p-2.5 min-w-[180px] text-amber-400 border-b border-r border-slate-800">Hospital / Station</th>
                   <th className="p-2.5 min-w-[140px] text-purple-300 border-b border-r border-slate-800">⏰ Meeting Clock</th>
-                  <th className="p-2.5 min-w-[160px] border-b border-r border-slate-800">Notes / Days</th>
+                  <th className="p-2.5 min-w-[200px] border-b border-r border-slate-800">Sitting Timings &amp; Notes</th>
                   <th className="p-2.5 text-center w-24 border-b border-slate-800">Visits/M</th>
                 </tr>
               </thead>
@@ -941,35 +905,26 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 {Object.values(profiles)
                   .filter(d => {
                     const matchSearch = !setupSearch || d.doctorName.toLowerCase().includes(setupSearch.toLowerCase()) || d.area.toLowerCase().includes(setupSearch.toLowerCase());
-                    const matchArea = masterAreaFilter === 'ALL' || d.primaryHospital.toLowerCase().includes(masterAreaFilter.toLowerCase()) || d.area.toLowerCase().includes(masterAreaFilter.toLowerCase());
+                    const matchArea = masterAreaFilter === 'ALL' || d.area.toLowerCase().includes(masterAreaFilter.toLowerCase()) || d.station.toLowerCase().includes(masterAreaFilter.toLowerCase());
                     const matchAct = masterActivityFilter === 'ALL' || (d.activityType && d.activityType.toUpperCase().includes(masterActivityFilter.toUpperCase()));
                     return matchSearch && matchArea && matchAct;
                   })
                   .map(doc => (
                     <tr key={doc.srNo} className="hover:bg-slate-800/60 transition group">
-                      {/* ❄️ FROZEN TD 1: # */}
                       <td style={{ width: '44px', minWidth: '44px', maxWidth: '44px', left: 0 }} className="p-2 text-center text-slate-500 border-b border-r border-slate-800/80 sticky z-20 bg-slate-900 group-hover:bg-slate-800">
                         {doc.srNo}
                       </td>
 
-                      {/* ❄️ FROZEN TD 2: DOCTOR NAME */}
                       <td style={{ width: '200px', minWidth: '200px', maxWidth: '200px', left: '44px' }} className="p-2 font-sans font-bold text-white border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-20 bg-slate-900 group-hover:bg-slate-800 truncate">
                         Dr. {doc.doctorName}
                       </td>
 
                       <td className="p-2 font-sans text-slate-400 border-b border-r border-slate-800/80">{doc.speciality}</td>
                       
-                      {/* Primary Hospital */}
                       <td className="p-2 font-sans font-bold text-amber-300 border-b border-r border-slate-800/80">
-                        {doc.primaryHospital || doc.area}
+                        {doc.area}
                       </td>
 
-                      {/* Secondary Clinic */}
-                      <td className="p-2 font-sans text-cyan-300 border-b border-r border-slate-800/80">
-                        {doc.secondaryClinic || '-'}
-                      </td>
-
-                      {/* Interactive Clock Trigger */}
                       <td className="p-1.5 border-b border-r border-slate-800/80">
                         <button
                           type="button"
@@ -981,12 +936,10 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                         </button>
                       </td>
 
-                      {/* Notes / Special Hours */}
-                      <td className="p-2 font-sans text-slate-400 text-xs border-b border-r border-slate-800/80">
-                        {doc.notes || 'Mon-Sat Sitting'}
+                      <td className="p-2 font-sans text-slate-300 text-xs border-b border-r border-slate-800/80">
+                        {doc.notes}
                       </td>
 
-                      {/* Target Visits */}
                       <td className="p-2 text-center border-b border-slate-800">
                         <span className={`px-2 py-0.5 rounded font-bold ${doc.monthlyTargetVisits >= 4 ? 'bg-amber-950 text-amber-300' : 'bg-slate-950 text-slate-400'}`}>
                           {doc.monthlyTargetVisits}
@@ -1001,11 +954,11 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
       )}
 
       {/* ========================================================================= */}
-      {/* 5. 🌟 DUAL-LOCATION & INTERACTIVE TOUCH ANALOG CLOCK MODAL               */}
+      {/* 5. 🌟 EXACT CLEAN CLOCK MODAL (Circular Clock + Area Selector + Mon-Sat + Purple Save) */}
       {/* ========================================================================= */}
       {clockTargetDoc && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
-          <div className="bg-white text-slate-900 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl flex flex-col p-5 space-y-3">
+          <div className="bg-white text-slate-900 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl flex flex-col p-6 space-y-4">
             
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -1013,23 +966,23 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 <button
                   type="button"
                   onClick={() => setClockTargetDoc(null)}
-                  className="p-1 hover:bg-slate-100 rounded-full text-slate-600"
+                  className="p-1 hover:bg-slate-100 rounded-full text-slate-600 cursor-pointer"
                 >
                   <ArrowLeft size={18} />
                 </button>
-                <h3 className="text-sm font-black text-slate-800 tracking-wide">
-                  Set Doctor Schedule &bull; Dr. {clockTargetDoc.doctorName.split(' ')[0]}
+                <h3 className="text-base font-black text-slate-900 tracking-wide">
+                  Set Doctor Schedule &bull; Dr. {clockTargetDoc.doctorName}
                 </h3>
               </div>
-              <button onClick={() => setClockTargetDoc(null)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+              <button onClick={() => setClockTargetDoc(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={18} /></button>
             </div>
 
-            {/* Mode Switcher */}
+            {/* Hand Mode Switcher */}
             <div className="flex items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={() => setClockMode('HOUR')}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
                   clockMode === 'HOUR' ? 'bg-[#8B5CF6] text-white border-[#8B5CF6] shadow' : 'bg-slate-100 text-slate-600 border-slate-200'
                 }`}
               >
@@ -1038,15 +991,15 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               <button
                 type="button"
                 onClick={() => setClockMode('MINUTE')}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
                   clockMode === 'MINUTE' ? 'bg-[#EC4899] text-white border-[#EC4899] shadow' : 'bg-slate-100 text-slate-600 border-slate-200'
                 }`}
               >
-                ⏱️ Minute Hand ({clockMinute}m)
+                ⏱️ Minute Hand (Chhota Kanta: {clockMinute}m)
               </button>
             </div>
 
-            {/* ANALOG DIAL */}
+            {/* TOP: EXACT CIRCULAR TOUCH CLOCK WITH GHANTA + MINUTE HAND */}
             <div className="flex flex-col items-center justify-center select-none">
               <div className="relative w-56 h-56 flex items-center justify-center">
                 <svg
@@ -1097,6 +1050,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                     );
                   })}
 
+                  {/* Ghanta Hand (Purple) */}
                   <line
                     x1="130"
                     y1="130"
@@ -1106,6 +1060,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                     strokeWidth="4.5"
                     strokeLinecap="round"
                   />
+                  {/* Minute Hand / Chhota Kanta (Pink) */}
                   <line
                     x1="130"
                     y1="130"
@@ -1119,9 +1074,9 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 </svg>
               </div>
 
-              {/* Digital Time Readout */}
-              <div className="flex items-center gap-3 mt-1">
-                <span className="text-2xl font-black font-mono text-slate-800 tracking-tight">
+              {/* Digital Time Readout & AM/PM Buttons */}
+              <div className="flex items-center gap-3 mt-2">
+                <span className="text-3xl font-black font-mono text-slate-800 tracking-tight">
                   {String(clockHour).padStart(2, '0')}:{String(clockMinute).padStart(2, '0')}
                 </span>
 
@@ -1129,7 +1084,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   <button
                     type="button"
                     onClick={() => setClockPeriod('AM')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                       clockPeriod === 'AM' ? 'bg-[#8B5CF6] text-white shadow' : 'text-slate-600'
                     }`}
                   >
@@ -1138,7 +1093,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   <button
                     type="button"
                     onClick={() => setClockPeriod('PM')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                       clockPeriod === 'PM' ? 'bg-[#8B5CF6] text-white shadow' : 'text-slate-600'
                     }`}
                   >
@@ -1146,115 +1101,63 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   </button>
                 </div>
               </div>
-
-              {/* Quick Minutes */}
-              <div className="flex items-center gap-1.5 mt-1.5">
-                {QUICK_MINUTES.map(m => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setClockMinute(m)}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold transition ${
-                      clockMinute === m ? 'bg-[#EC4899] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    :{String(m).padStart(2, '0')}
-                  </button>
-                ))}
-              </div>
             </div>
 
-            {/* 🌟 DUAL LOCATION CONFIGURATION */}
-            <div className="space-y-2.5 pt-2 border-t border-slate-100 text-xs">
-              
-              {/* Shift 1: Primary Hospital */}
-              <div className="p-2.5 bg-purple-50 rounded-xl border border-purple-100 space-y-1.5">
-                <div className="font-bold text-purple-900 flex items-center justify-between text-[11px]">
-                  <span>🏥 Location 1: Primary Hospital (Morning)</span>
-                  <span className="font-mono text-purple-600 font-bold">{clockHour}:{String(clockMinute).padStart(2, '0')} {clockPeriod}</span>
-                </div>
-                <select
-                  value={clockHospital}
-                  onChange={e => setClockHospital(e.target.value)}
-                  className="w-full bg-white border border-purple-200 text-slate-800 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-none"
-                >
-                  <optgroup label="19 Udaipur Hospitals & Hubs">
-                    {UDAIPUR_AREAS_MASTER.map(ar => <option key={ar} value={ar}>{ar}</option>)}
-                  </optgroup>
-                  <optgroup label="Ex-Station Tours">
-                    {EX_STATIONS_MASTER.map(st => <option key={st} value={st}>🚌 {st}</option>)}
-                  </optgroup>
-                </select>
-                <div className="flex justify-between items-center pt-1">
-                  {WEEK_DAYS.slice(0, 6).map(day => (
+            {/* MIDDLE: SIMPLE HOSPITAL / AREA HUB SELECTOR */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                <Building2 size={14} className="text-purple-600" />
+                Hospital / Area Hub:
+              </label>
+              <select
+                value={clockSelectedArea}
+                onChange={e => setClockSelectedArea(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl px-3 py-2 focus:outline-none focus:border-purple-500 cursor-pointer"
+              >
+                <optgroup label="🏥 19 Udaipur Hospitals & Areas">
+                  {UDAIPUR_AREAS_MASTER.map(ar => <option key={ar} value={ar}>{ar}</option>)}
+                </optgroup>
+                <optgroup label="🚌 Ex-Stations">
+                  {EX_STATIONS_MASTER.map(st => <option key={st} value={st}>🚌 {st}</option>)}
+                </optgroup>
+              </select>
+            </div>
+
+            {/* DAYS STRIP: MON TUE WED THU FRI SAT (Green = Sitting, Red = Off) */}
+            <div className="space-y-1.5 pt-1">
+              <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                <span>Sitting Days:</span>
+                <span className="text-[10px] text-slate-500 font-normal">Green = Sitting &bull; Red = Off</span>
+              </label>
+              <div className="grid grid-cols-6 gap-1.5">
+                {WEEK_DAYS.map(day => {
+                  const isSitting = clockDays.includes(day);
+                  return (
                     <button
                       key={day}
                       type="button"
-                      onClick={() => {
-                        if (clockHospitalDays.includes(day)) setClockHospitalDays(clockHospitalDays.filter(d => d !== day));
-                        else setClockHospitalDays([...clockHospitalDays, day]);
-                      }}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        clockHospitalDays.includes(day) ? 'bg-purple-600 text-white' : 'bg-white text-slate-400 border'
+                      onClick={() => handleToggleDay(day)}
+                      className={`py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm ${
+                        isSitting 
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white' 
+                          : 'bg-rose-500 hover:bg-rose-400 text-white'
                       }`}
                     >
                       {day}
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-
-              {/* Shift 2: Secondary Clinic */}
-              <div className="p-2.5 bg-cyan-50 rounded-xl border border-cyan-100 space-y-1.5">
-                <div className="font-bold text-cyan-900 flex items-center justify-between text-[11px]">
-                  <span>🏢 Location 2: Private Clinic (Evening)</span>
-                  <input
-                    type="text"
-                    value={clockClinicTime}
-                    onChange={e => setClockClinicTime(e.target.value)}
-                    placeholder="06:30 PM"
-                    className="w-20 bg-white border border-cyan-200 text-cyan-800 text-[10px] font-mono font-bold rounded px-1.5 py-0.5 text-center"
-                  />
-                </div>
-                <select
-                  value={clockClinic}
-                  onChange={e => setClockClinic(e.target.value)}
-                  className="w-full bg-white border border-cyan-200 text-slate-800 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-none"
-                >
-                  <option value="">-- No Evening Clinic --</option>
-                  {UDAIPUR_AREAS_MASTER.map(ar => <option key={ar} value={ar}>{ar}</option>)}
-                </select>
-                {clockClinic && (
-                  <div className="flex justify-between items-center pt-1">
-                    {WEEK_DAYS.slice(0, 6).map(day => (
-                      <button
-                        key={day}
-                        type="button"
-                        onClick={() => {
-                          if (clockClinicDays.includes(day)) setClockClinicDays(clockClinicDays.filter(d => d !== day));
-                          else setClockClinicDays([...clockClinicDays, day]);
-                        }}
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          clockClinicDays.includes(day) ? 'bg-cyan-600 text-white' : 'bg-white text-slate-400 border'
-                        }`}
-                      >
-                        {day}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
             </div>
 
-            {/* Save Button */}
-            <div className="pt-1">
+            {/* BOTTOM: SINGLE PURPLE SAVE SCHEDULE BUTTON */}
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={handleSaveClockSchedule}
-                className="w-full py-2.5 bg-[#8B5CF6] hover:bg-[#7C3AED] active:scale-98 text-white font-bold text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-purple-500/30 transition cursor-pointer"
+                className="w-full py-3 bg-[#8B5CF6] hover:bg-[#7C3AED] active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-purple-500/30 transition cursor-pointer flex items-center justify-center gap-2"
               >
-                SAVE DUAL LOCATION &amp; TIMING
+                <Check size={16} /> SAVE SCHEDULE
               </button>
             </div>
 
@@ -1326,11 +1229,11 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 </div>
 
                 <div className="grid grid-cols-7 gap-1 text-center font-mono text-xs">
-                  {Array.from({ length: calFirstDayIndex }).map((_, i) => (
+                  {Array.from({ length: new Date(calYear, calMonth, 1).getDay() }).map((_, i) => (
                     <div key={`cal_emp_${i}`} className="h-9"></div>
                   ))}
 
-                  {Array.from({ length: calMonthDaysCount }).map((_, i) => {
+                  {Array.from({ length: new Date(calYear, calMonth + 1, 0).getDate() }).map((_, i) => {
                     const dNum = i + 1;
                     const dObj = new Date(calYear, calMonth, dNum);
                     const dStr = formatDateDDMMYYYY(dObj);

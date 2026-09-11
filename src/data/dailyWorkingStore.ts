@@ -26,20 +26,17 @@ export const UDAIPUR_AREAS_MASTER = [
 ];
 
 export const EX_STATIONS_MASTER = [
-  'Dungarpur',
-  'Banswara',
   'Rajsamand',
-  'Chittorgarh'
+  'Chittorgarh',
+  'Dungarpur',
+  'Banswara'
 ];
 
 export const TIME_SLOTS_MASTER = [
-  '09:30 AM', '09:45 AM', '10:00 AM', '10:15 AM', '10:30 AM', '10:45 AM',
-  '11:00 AM', '11:15 AM', '11:30 AM', '11:45 AM', '12:00 PM', '12:15 PM',
-  '12:30 PM', '12:45 PM', '01:00 PM', '01:15 PM', '01:30 PM', '02:00 PM',
-  '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM', '05:00 PM',
-  '05:15 PM', '05:30 PM', '05:45 PM', '06:00 PM', '06:15 PM', '06:30 PM',
-  '06:45 PM', '07:00 PM', '07:15 PM', '07:30 PM', '07:45 PM', '08:00 PM',
-  '08:15 PM', '08:30 PM'
+  '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM',
+  '12:30 PM', '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM', '03:00 PM',
+  '03:30 PM', '04:00 PM', '04:30 PM', '05:00 PM', '05:30 PM', '06:00 PM',
+  '06:30 PM', '07:00 PM', '07:30 PM', '08:00 PM', '08:10 PM', '08:30 PM'
 ];
 
 export interface DoctorFieldProfile {
@@ -47,17 +44,13 @@ export interface DoctorFieldProfile {
   doctorName: string;
   speciality: string;
   activityType: string;
-  // 🌟 DUAL-LOCATION SYSTEM (Hospital + Private Clinic)
   primaryHospital: string;
-  primaryTime: string;
-  primaryDays: string[];
-  secondaryClinic: string;
-  secondaryTime: string;
-  secondaryDays: string[];
-  area: string; // active area fallback
+  area: string;
   approxTime: string;
+  hour: number;
+  minute: number;
+  period: 'AM' | 'PM';
   availableDays: string[];
-  notAvailableDays: string[];
   notes: string;
   isExStation: boolean;
   station: string;
@@ -92,16 +85,10 @@ export interface DayPlanRecord {
   savedAt: string;
 }
 
-const PROFILES_STORAGE_KEY = 'dios_doctor_field_profiles_v5';
-const DAY_PLANS_STORAGE_KEY = 'dios_daily_plans_v5';
+const PROFILES_STORAGE_KEY = 'dios_doctor_field_profiles_v6';
+const DAY_PLANS_STORAGE_KEY = 'dios_daily_plans_v6';
 
-// 🌟 EXACT EX-STATION MAPPINGS
-const DUNGARPUR_SR = new Set([90, 81, 80, 78, 17]);
-const BANSWARA_SR = new Set([25, 114, 108, 92, 98, 91, 109]);
-const RAJASMAND_SR = new Set([83, 82, 103, 104, 101, 73, 70, 110]);
-const CHITTOR_SR = new Set([86, 85, 84, 87, 88, 89, 93, 74, 120]);
-
-const clean = (s: string) => (s || '').toUpperCase().replace(/^(DR\.?|DR\s+)/i, '').replace(/[^A-Z]/g, '');
+const cleanName = (s: string) => (s || '').toUpperCase().replace(/^(DR\.?|DR\s+)/i, '').replace(/[^A-Z]/g, '');
 
 export class DailyWorkingStore {
   public profiles: Record<number, DoctorFieldProfile>;
@@ -112,47 +99,35 @@ export class DailyWorkingStore {
     this.dayPlans = this.loadDayPlans();
   }
 
-  // 🌟 DYNAMIC REAL LAST VISIT DATE PARSER (Reads MSL & DCR for Dr. Deepak Aametha and ALL doctors)
   public getRealLastVisitDate(docSrNo: number, targetDateStr: string = '18/08/2026'): { lastDate: string; daysAgo: number } {
     const mslDocs = memoryStore.mslData || MASTER_123_MSL_DOCTORS;
     const doc = mslDocs.find(d => d.srNo === docSrNo);
-    const targetTime = new Date(2026, 7, 18).getTime(); // Aug 18, 2026
+    const targetTime = new Date(2026, 7, 18).getTime();
 
     let foundDates: Date[] = [];
 
     if (doc) {
-      // Check August visit dates first
       const augDates = String((doc as any).aug || '').split(',');
       augDates.forEach(d => {
         const dNum = parseInt(d.trim());
-        if (!isNaN(dNum) && dNum > 0 && dNum <= 18) {
-          foundDates.push(new Date(2026, 7, dNum));
-        }
+        if (!isNaN(dNum) && dNum > 0 && dNum <= 18) foundDates.push(new Date(2026, 7, dNum));
       });
 
-      // Check July visit dates
       const julDates = String((doc as any).jul || '').split(',');
       julDates.forEach(d => {
         const dNum = parseInt(d.trim());
-        if (!isNaN(dNum) && dNum > 0 && dNum <= 31) {
-          foundDates.push(new Date(2026, 6, dNum));
-        }
+        if (!isNaN(dNum) && dNum > 0 && dNum <= 31) foundDates.push(new Date(2026, 6, dNum));
       });
 
-      // Check June visit dates
       const junDates = String((doc as any).jun || '').split(',');
       junDates.forEach(d => {
         const dNum = parseInt(d.trim());
-        if (!isNaN(dNum) && dNum > 0 && dNum <= 30) {
-          foundDates.push(new Date(2026, 5, dNum));
-        }
+        if (!isNaN(dNum) && dNum > 0 && dNum <= 30) foundDates.push(new Date(2026, 5, dNum));
       });
     }
 
-    // Special verification for Dr. Deepak Aametha (SrNo 32)
     if (docSrNo === 32) {
-      // Dr Deepak Aametha WCFYH Campaign met on 22-Jul and 16-Jun
-      foundDates.push(new Date(2026, 6, 22)); // 22 July 2026
+      foundDates.push(new Date(2026, 6, 22));
     }
 
     if (foundDates.length > 0) {
@@ -177,129 +152,255 @@ export class DailyWorkingStore {
     const sourceDoctors = memoryStore.mslData || MASTER_123_MSL_DOCTORS;
     const initial: Record<number, DoctorFieldProfile> = {};
 
-    sourceDoctors.forEach((doc, idx) => {
-      const cName = clean(doc.doctorName);
+    sourceDoctors.forEach((doc) => {
+      const c = cleanName(doc.doctorName);
+
       let station = 'UDAIPUR';
       let isEx = false;
-      let pHospital = 'Hospital Road';
-      let pTime = '11:00 AM';
-      let pDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-      let sClinic = '';
-      let sTime = '06:00 PM';
-      let sDays = ['MON', 'WED', 'FRI'];
-      let notAvailableDays: string[] = [];
-      let notes = '';
+      let area = 'Hospital Road';
+      let approxTime = '06:30 PM';
+      let hour = 6;
+      let minute = 30;
+      let period: 'AM' | 'PM' = 'PM';
+      let availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+      let notes = 'Daily Sitting';
 
-      // 1. DUNGARPUR
-      if (DUNGARPUR_SR.has(doc.srNo)) {
-        station = 'Dungarpur'; pHospital = 'Dungarpur'; isEx = true; pTime = '11:30 AM';
-      }
-      // 2. BANSWARA
-      else if (BANSWARA_SR.has(doc.srNo)) {
-        station = 'Banswara'; pHospital = 'Banswara'; isEx = true; pTime = '12:00 PM';
-      }
-      // 3. RAJASMAND / KANKROLI
-      else if (RAJASMAND_SR.has(doc.srNo)) {
-        station = 'Rajsamand'; pHospital = 'Rajsamand'; isEx = true; pTime = '11:00 AM';
-      }
-      // 4. CHITTORGARH / NIMBAHERA
-      else if (CHITTOR_SR.has(doc.srNo)) {
-        station = 'Chittorgarh'; pHospital = 'Chittorgarh'; isEx = true; pTime = '11:30 AM';
-      }
-      // 5. GEETANJALI HOSPITAL (Thu, Fri 1:00 - 3:30 PM) + Private Clinic in Evening
-      else if (
-        cName.includes('ABHIJEET') || cName.includes('LALITSHREEMALI') || cName.includes('RAVIMANGLIYA') ||
-        cName.includes('AMEETMEHTA') || cName.includes('NAVGEET') || cName.includes('MANUSHARMA') ||
-        cName.includes('JITENAJINGAR') || cName.includes('SURAJGUPTA') || cName.includes('GKMUKHIYA') ||
-        cName.includes('RAHULSEHLOT') || cName.includes('VINODMEHTA') || cName.includes('DILIPJAIN') ||
-        cName.includes('RAMESHPATEL') || cName.includes('SANJAYGANDHI') || cName.includes('NEHASHARMA')
+      // =========================================================================
+      // 🚌 EX-STATIONS MAPPING (Exact List from User)
+      // =========================================================================
+
+      // 1. Rajsamand: HC Soni, Anmol Pagariya, Kripa Shankar, Bhupesh Partani, MK Meena, Manish Khandelwal, M Vijayvargiy, Satish Choudhary, Sunil Upadhay
+      if (
+        c.includes('HCSONI') || c.includes('ANMOLPAGARIYA') || c.includes('KRIPASHANKAR') ||
+        c.includes('BHUPESHPARTANI') || c.includes('MKMEENA') || c.includes('MANISHKHANDELWAL') ||
+        c.includes('MVIJAYVARGIY') || c.includes('SATISHCHOUDHARY') || c.includes('SUNILUPADHAY')
       ) {
-        pHospital = 'Geetanjali Hospital';
-        pTime = '01:30 PM';
-        pDays = ['THU', 'FRI'];
-        sClinic = 'Bhopalpura';
-        sTime = '06:00 PM';
-        sDays = ['MON', 'TUE', 'WED', 'SAT'];
-        notes = 'Geetanjali: Thu/Fri 1:00-3:30 PM | Clinic: Mon/Tue/Wed/Sat 6 PM';
+        station = 'Rajsamand';
+        area = 'Rajsamand';
+        isEx = true;
+        approxTime = '11:30 AM';
+        hour = 11; minute = 30; period = 'AM';
+        notes = 'Rajsamand Ex-Station Day';
       }
-      // 6. GBH BEDWAS (Fri, Sat 1:00 - 3:00 PM)
+      // 2. Chittorgarh: Lalit Jainani, Anish Jain, Madhup Baxi, Shushil Chouhan, Sandeep Chandoliya, Anurag Jain, JL Pungliya
       else if (
-        cName.includes('DENNY') || cName.includes('DENY') || cName.includes('KAPILBHARGAV') ||
-        cName.includes('PRIYANKAMINOCHA') || cName.includes('PARTH') || cName.includes('JITESHAGRAWAL') ||
-        cName.includes('RAJENDRASAMAR') || cName.includes('ASHWINISHANBHAG') || cName.includes('HARBEERSINGH') ||
-        cName.includes('MAHESHDESAI') || cName.includes('MUKESHBARJATIYA')
+        c.includes('LALITJAINANI') || c.includes('ANISHJAIN') || c.includes('MADHUPBAXI') ||
+        c.includes('SHUSHILCHOUHAN') || c.includes('SANDEEPCHANDOLIYA') || c.includes('ANURAGJAIN') ||
+        c.includes('JLPUNGLIYA') || c.includes('PUNGLIYA')
       ) {
-        pHospital = 'GBH American Bedwas';
-        pTime = '01:30 PM';
-        pDays = ['FRI', 'SAT'];
-        sClinic = 'Hospital Road';
-        sTime = '06:30 PM';
-        sDays = ['MON', 'TUE', 'WED', 'THU'];
-        notes = 'Bedwas: Fri/Sat 1-3 PM | Clinic: Mon-Thu 6:30 PM';
+        station = 'Chittorgarh';
+        area = 'Chittorgarh';
+        isEx = true;
+        approxTime = '12:00 PM';
+        hour = 12; minute = 0; period = 'PM';
+        notes = 'Chittorgarh Ex-Station Day';
       }
-      // 7. GBH CITY
-      else if (cName.includes('PRERNABAHETI') || cName.includes('PANKAJTAPARIA') || cName.includes('NAMAN') || cName.includes('RAVIRAJ')) {
-        pHospital = 'GBH American City'; pTime = '11:30 AM'; sClinic = 'Hospital Road'; sTime = '06:30 PM';
-      }
-      // 8. PIMS CITY
-      else if (cName.includes('HITESH') && doc.srNo === 24) {
-        pHospital = 'PIMS City'; pTime = '12:00 PM'; sClinic = 'Hospital Road'; sTime = '08:00 PM';
-      }
-      // 9. PMCH BEDLA (Tue & Fri 11:00 AM - 1:00 PM)
+      // 3. Dungarpur: Pintu Aahari, Kanti Lal Megwal, Rajesh Siroiya, KN Das, Rahul Panchal
       else if (
-        cName.includes('SABOHRA') || cName.includes('JAGDISHBISHNOI') || cName.includes('RKSHARMA') ||
-        cName.includes('CPPUROHIT') || cName.includes('HARISHSANADHY') || cName.includes('SUNITA') ||
-        cName.includes('RNLADHA') || cName.includes('NILESHPATHIRA')
+        c.includes('PINTUAAHARI') || c.includes('KANTILALMEGWAL') || c.includes('RAJESHSIROIYA') ||
+        c.includes('KNDAS') || (c.includes('RAHULPANCHAL') && doc.srNo === 17)
       ) {
-        pHospital = 'PMCH Bedla';
-        pTime = '11:30 AM';
-        pDays = ['TUE', 'FRI'];
-        sClinic = 'Hospital Road';
-        sTime = '06:30 PM';
-        sDays = ['MON', 'WED', 'THU', 'SAT'];
-        notes = 'PMCH Bedla: Tue/Fri 11 AM - 1 PM';
+        station = 'Dungarpur';
+        area = 'Dungarpur';
+        isEx = true;
+        approxTime = '11:30 AM';
+        hour = 11; minute = 30; period = 'AM';
+        notes = 'Dungarpur Ex-Station Day';
       }
-      // 10. BHOPALPURA
-      else if (cName.includes('KCJAIN') || cName.includes('DPSINGH') || cName.includes('SANDEEPBHATNAGAR')) {
-        pHospital = 'Bhopalpura'; pTime = '06:00 PM'; sClinic = 'Paras Hospital'; sTime = '04:30 PM';
+      // 4. Banswara: Jimesh Pandya, Ashwin Patidar, Deepa Katara, Harish Charpota, Mayank Sharma, Navneet Patel Kiyda, Yash Shah
+      else if (
+        c.includes('JIMESHPANDYA') || c.includes('ASHWINPATIDAR') || c.includes('DEEPAKATARA') ||
+        c.includes('HARISHCHARPOTA') || c.includes('MAYANKSHARMA') || c.includes('NAVNEETPATEL') ||
+        c.includes('YASHSHAH')
+      ) {
+        station = 'Banswara';
+        area = 'Banswara';
+        isEx = true;
+        approxTime = '12:00 PM';
+        hour = 12; minute = 0; period = 'PM';
+        notes = 'Banswara Ex-Station Day (372 KM Rule)';
       }
-      // 11. HOSPITAL ROAD (Deepak Aametha 8:10 PM, Hitesh 8 PM, JC Devpura 6:30 PM, Mukesh Sharma 8 PM)
-      else if (cName.includes('DEEPAKAAMETHA')) {
-        pHospital = 'Hospital Road'; pTime = '08:10 PM'; sClinic = 'Paras Hospital'; sTime = '01:00 PM';
-      } else if (cName.includes('JCDEVPURA')) {
-        pHospital = 'Hospital Road'; pTime = '06:30 PM'; notes = 'Evening 6:30 - 7:00 PM';
-      } else if (cName.includes('MUKESHSHARMA')) {
-        pHospital = 'Hospital Road'; pTime = '08:00 PM';
+
+      // =========================================================================
+      // 🏥 UDAIPUR HOSPITALS & AREAS (Exact Mapping from User)
+      // =========================================================================
+
+      // 🏥 Geetanjali Hospital (Thu, Fri | 01:00 PM – 03:30 PM):
+      // Abhijeet Basu, Lalit Shreemali, Ravi Mangaliya, Ameet Mehta, Navgeet Mathur, Manu Sharma, Jitena Jingar, Suraj Gupta, GK Mukhiya, Rahul (Sehlot), Vinod (Mehta/Bokadia), Dilip Jain, Ramesh Patel, Sanjay Gandhi, Neha Sharma.
+      else if (
+        c.includes('ABHIJEETBASU') || c.includes('LALITSHREEMALI') || c.includes('RAVIMANGLIYA') || c.includes('RAVIMANGALIA') ||
+        c.includes('AMEETMEHTA') || c.includes('NAVGEETMATHUR') || c.includes('MANUSHARMA') ||
+        c.includes('JITENAJINGAR') || c.includes('SURAJGUPTA') || c.includes('GKMUKHIYA') ||
+        c.includes('RAHULSEHLOT') || c.includes('VINODMEHTA') || c.includes('VINODBOKADIA') ||
+        c.includes('DILIPJAIN') || (c.includes('RAMESHPATEL') && doc.srNo === 11) ||
+        c.includes('SANJAYGANDHI') || c.includes('NEHASHARMA')
+      ) {
+        area = 'Geetanjali Hospital';
+        approxTime = '01:30 PM';
+        hour = 1; minute = 30; period = 'PM';
+        availableDays = ['THU', 'FRI'];
+        notes = 'Thu, Fri | 01:00 PM – 03:30 PM';
       }
-      // 12. SHOBHAGPURA (Abhay 6:30, Manish 6-7, Danny Wed-Fri 6-8)
-      else if (cName.includes('ABHAYJAIN')) {
-        pHospital = 'Shobhagpura'; pTime = '06:30 PM'; sClinic = 'Paras Hospital'; sTime = '04:30 PM';
-      } else if (cName.includes('MANISHKULSHERT') || cName.includes('MANISHKULSHRE')) {
-        pHospital = 'Shobhagpura'; pTime = '06:30 PM'; sClinic = 'Paras Hospital'; sTime = '05:00 PM';
+
+      // 🏥 GBH American Bedwas (Fri, Sat | 01:00 PM – 03:00 PM):
+      // Danny (Deny), Kapil Bhargav, Priyanka Minocha, Parth, Jitesh Agrawal, Rajendra Samar, Ashwini Shanbhag, Harbeer Singh, Mahesh Desai, Mukesh Barjatiya.
+      else if (
+        c.includes('DENNY') || c.includes('DENY') || c.includes('KAPILBHARGAV') ||
+        c.includes('PRIYANKAMINOCHA') || c.includes('PARTH') || c.includes('JITESHAGRAWAL') ||
+        c.includes('RAJENDRASAMAR') || c.includes('ASHWINISHANBHAG') || c.includes('HARBEERSINGH') ||
+        c.includes('MAHESHDESAI') || (c.includes('MUKESHBARJATIYA') && doc.srNo === 53)
+      ) {
+        area = 'GBH American Bedwas';
+        approxTime = '01:30 PM';
+        hour = 1; minute = 30; period = 'PM';
+        availableDays = ['FRI', 'SAT'];
+        notes = 'Fri, Sat | 01:00 PM – 03:00 PM';
       }
-      // 13. MALLATALAI (Sandeep Kansara 7 PM, SK Kaushiq 8 PM)
-      else if (cName.includes('SANDEEPKANSARA')) {
-        pHospital = 'Mallatalai'; pTime = '07:00 PM';
-      } else if (cName.includes('SKKUASHIK') || cName.includes('SKKAUSHIQ')) {
-        pHospital = 'Mallatalai'; pTime = '08:00 PM';
+
+      // 🏥 GBH American City:
+      // Prerna Baheti, Pankaj Taparia, Naman N Taneja, Raviraj Singh Ahada.
+      else if (
+        c.includes('PRERNABAHETI') || c.includes('PANKAJTAPARIA') || c.includes('NAMANNTANEJA') ||
+        c.includes('NAMAN') || c.includes('RAVIRAJ')
+      ) {
+        area = 'GBH American City';
+        approxTime = '11:30 AM';
+        hour = 11; minute = 30; period = 'AM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'GBH City Morning Visit';
       }
-      // 14. PARAS HOSPITAL (Friday 4:00 - 5:30 PM)
-      else if (cName.includes('AMITKHANDELWAL') || cName.includes('ASHUTOSHSONI')) {
-        pHospital = 'Paras Hospital'; pTime = '04:30 PM'; pDays = ['FRI']; notes = 'Friday 4:00 - 5:30 PM';
+
+      // 🏥 PIMS City: Hitesh Yadav (12:00 PM)
+      else if (c.includes('HITESH') && doc.srNo === 24) {
+        area = 'PIMS City';
+        approxTime = '12:00 PM';
+        hour = 12; minute = 0; period = 'PM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'PIMS City (12:00 PM) & Hospital Road Evening';
       }
-      // 15. ZINC CITY & DEBARI
-      else if (cName.includes('SALMASHAH') || cName.includes('ABHISHEKKUMAR') || cName.includes('VINODKUMARRAI') || cName.includes('VINODKRAI')) {
-        pHospital = 'Hindustan Zinc City'; pTime = '11:00 AM';
-      } else if (cName.includes('SUMITSIROIYA')) {
-        pHospital = 'Hindustan Zinc Debari'; pTime = '12:00 PM'; sClinic = 'Hiran Magri'; sTime = '07:00 PM';
+
+      // 🏥 PMCH Bedla (Tue, Fri | 11:00 AM – 01:00 PM):
+      // S.A. Bohra, Jagdish Bishnoi, RK Sharma, CP Purohit, Harish Sanadhya, Sunita, RN Ladha, Nilesh Pathira.
+      else if (
+        c.includes('SABOHRA') || c.includes('JAGDISHVISHNOI') || c.includes('JAGDISHBISHNOI') ||
+        c.includes('RKSHARMA') || (c.includes('CPPUROHIT') && doc.srNo === 34) ||
+        c.includes('HARISHSANADHY') || c.includes('SUNITA') || c.includes('RNLADHA') ||
+        c.includes('NILESHPATHIRA')
+      ) {
+        area = 'PMCH Bedla';
+        approxTime = '11:30 AM';
+        hour = 11; minute = 30; period = 'AM';
+        availableDays = ['TUE', 'FRI'];
+        notes = 'Tue, Fri | 11:00 AM – 01:00 PM';
       }
-      // 16. SHIKARWADI (AK Vats Wed & Thu 5 PM)
-      else if (cName.includes('AKVATS')) {
-        pHospital = 'Shikarwadi'; pTime = '05:00 PM'; pDays = ['WED', 'THU']; notes = 'Wed & Thu 5:00 PM';
+
+      // 🏢 Bhopalpura: KC Jain, DP Singh, Mukesh Barjatiya, Sandeep Bhatnagar (06:00 PM)
+      else if (c.includes('KCJAIN') || c.includes('DPSINGH') || (c.includes('SANDEEPBHATNAGAR') && doc.srNo === 16)) {
+        area = 'Bhopalpura';
+        approxTime = '06:00 PM';
+        hour = 6; minute = 0; period = 'PM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'Bhopalpura Evening Clinic (06:00 PM)';
       }
-      // 17. HIRAN MAGRI
-      else if (cName.includes('PARASJAIN') || cName.includes('BALDEVMEENA') || cName.includes('KAVITABADJAT')) {
-        pHospital = 'Hiran Magri'; pTime = '07:30 PM';
+
+      // 🏥 Hospital Road (Exact Evening Timings):
+      // Dr. Deepak Aametha: 08:10 PM | Dr. Hitesh Yadav: 08:00 PM | Dr. JC Devpura: 06:30 PM - 07:00 PM | Dr. Mukesh Sharma: 08:00 PM
+      else if (c.includes('DEEPAKAAMETHA')) {
+        area = 'Hospital Road';
+        approxTime = '08:10 PM';
+        hour = 8; minute = 10; period = 'PM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'Hospital Road Clinic (08:10 PM Exact)';
+      } else if (c.includes('JCDEVPURA')) {
+        area = 'Hospital Road';
+        approxTime = '06:30 PM';
+        hour = 6; minute = 30; period = 'PM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'Hospital Road (06:30 PM - 07:00 PM)';
+      } else if (c.includes('MUKESHSHARMA') && doc.srNo === 33) {
+        area = 'Hospital Road';
+        approxTime = '08:00 PM';
+        hour = 8; minute = 0; period = 'PM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'Hospital Road (08:00 PM)';
+      }
+
+      // 🏢 Shobhagpura (Exact Evening Timings):
+      // Dr. Abhay Jain: 06:30 PM | Dr. Manish Kulshreshtha: 06:00 PM - 07:00 PM | Dr. Danny: 06:00 PM - 08:00 PM (Wed, Thu, Fri)
+      else if (c.includes('ABHAYJAIN')) {
+        area = 'Shobhagpura';
+        approxTime = '06:30 PM';
+        hour = 6; minute = 30; period = 'PM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'Shobhagpura (06:30 PM)';
+      } else if (c.includes('MANISHKULSHERT') || c.includes('MANISHKULSHRESH')) {
+        area = 'Shobhagpura';
+        approxTime = '06:30 PM';
+        hour = 6; minute = 30; period = 'PM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'Shobhagpura (06:00 PM - 07:00 PM)';
+      }
+
+      // 🏢 Mallatalai (Exact Evening Timings):
+      // Dr. Sandeep Kansara: 07:00 PM | Dr. SK Kaushiq: 08:00 PM
+      else if (c.includes('SANDEEPKANSARA')) {
+        area = 'Mallatalai';
+        approxTime = '07:00 PM';
+        hour = 7; minute = 0; period = 'PM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'Mallatalai Clinic (07:00 PM)';
+      } else if (c.includes('SKKUASHIK') || c.includes('SKKAUSHIQ')) {
+        area = 'Mallatalai';
+        approxTime = '08:00 PM';
+        hour = 8; minute = 0; period = 'PM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'Mallatalai Clinic (08:00 PM)';
+      }
+
+      // 🏥 Paras Hospital (Friday | 04:00 PM – 05:30 PM):
+      // Abhay Jain, Manish Kulshreshtha, Sandeep Bhatnagar, Amit Khandelwal, Ashutosh Soni
+      else if (c.includes('AMITKHANDELWAL') || c.includes('ASHUTOSHSONI')) {
+        area = 'Paras Hospital';
+        approxTime = '04:30 PM';
+        hour = 4; minute = 30; period = 'PM';
+        availableDays = ['FRI'];
+        notes = 'Paras Hospital (Friday | 04:00 PM – 05:30 PM)';
+      }
+
+      // 🏭 Hindustan Zinc City & Debari:
+      // Zinc City: Salma Shah, Abhishek Kumar, Vinod K Rai (11:00 AM).
+      // Debari: Sumit Siroya (12:00 PM).
+      else if (c.includes('SALMASHAH') || c.includes('ABHISHEKKUMAR') || c.includes('VINODKUMARRAI') || c.includes('VINODKRAI')) {
+        area = 'Hindustan Zinc City';
+        approxTime = '11:00 AM';
+        hour = 11; minute = 0; period = 'AM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'Zinc City Hospital (11:00 AM)';
+      } else if (c.includes('SUMITSIROIYA')) {
+        area = 'Hindustan Zinc Debari';
+        approxTime = '12:00 PM';
+        hour = 12; minute = 0; period = 'PM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'Zinc Debari (12:00 PM) & Hiran Magri Evening';
+      }
+
+      // 🏢 Hiran Magri (07:30 PM):
+      // Paras Jain, Ramesh Patel, Mahesh Desai, Manu Sharma, Navgeet Mathur, Sumit Siroya, CP Purohit, Harish Sanadhya
+      else if (c.includes('PARASJAIN')) {
+        area = 'Hiran Magri';
+        approxTime = '07:30 PM';
+        hour = 7; minute = 30; period = 'PM';
+        availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        notes = 'Hiran Magri Evening Clinic (07:30 PM)';
+      }
+
+      // 🏥 Shikarwadi (Wed, Thu | 05:00 PM): AK Vats
+      else if (c.includes('AKVATS')) {
+        area = 'Shikarwadi';
+        approxTime = '05:00 PM';
+        hour = 5; minute = 0; period = 'PM';
+        availableDays = ['WED', 'THU'];
+        notes = 'Shikarwadi (Wed, Thu | 05:00 PM)';
       }
 
       const hasAct = !!(doc.activityType && doc.activityType.trim() !== '-');
@@ -309,16 +410,13 @@ export class DailyWorkingStore {
         doctorName: doc.doctorName,
         speciality: doc.speciality || 'CONSULTANT',
         activityType: doc.activityType || '',
-        primaryHospital: pHospital,
-        primaryTime: pTime,
-        primaryDays: pDays,
-        secondaryClinic: sClinic,
-        secondaryTime: sTime,
-        secondaryDays: sDays,
-        area: pHospital,
-        approxTime: pTime,
-        availableDays: pDays,
-        notAvailableDays: notAvailableDays,
+        primaryHospital: area,
+        area: area,
+        approxTime: approxTime,
+        hour: hour,
+        minute: minute,
+        period: period,
+        availableDays: availableDays,
         notes: notes,
         isExStation: isEx,
         station: station,
@@ -355,7 +453,6 @@ export class DailyWorkingStore {
     return this.dayPlans[dateStr];
   }
 
-  // 🌟 1-CLICK SYNC FROM SHEET 14 (MSL SCHEDULE)
   public syncFromMslSheet(): number {
     const mslList = memoryStore.mslData || MASTER_123_MSL_DOCTORS;
     let count = 0;
