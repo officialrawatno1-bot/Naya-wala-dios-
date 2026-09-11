@@ -4,7 +4,7 @@ import {
   AlertTriangle, Trash2, Printer, 
   Stethoscope, Sparkles, Check, 
   Building2, X, Search, Compass, Edit3, ChevronLeft, ChevronRight,
-  Lock, Zap
+  Lock, Zap, Plus
 } from 'lucide-react';
 import { 
   dailyWorkingStore, 
@@ -59,7 +59,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
   // Calendar Modal State
   const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [calMonth, setCalMonth] = useState<number>(7); // August (0-indexed 7)
+  const [calMonth, setCalMonth] = useState<number>(7);
   const [calYear, setCalYear] = useState<number>(2026);
 
   // Search & Filter States
@@ -68,11 +68,14 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const [masterAreaFilter, setMasterAreaFilter] = useState('ALL');
   const [masterActivityFilter, setMasterActivityFilter] = useState('ALL');
 
+  // Quick Any-Doctor Search Bar State
+  const [globalDocSearch, setGlobalDocSearch] = useState('');
+
   // Store references
   const [profiles, setProfiles] = useState<Record<number, DoctorFieldProfile>>(() => dailyWorkingStore.profiles);
   const [currentPlan, setCurrentPlan] = useState<DayPlanRecord | null>(null);
 
-  // 🌟 CLEAN CLOCK MODAL STATE (Top: Dial + AM/PM, Middle: Hospital Selector, Days: Mon-Sat, Bottom: Purple Save)
+  // 🌟 CLEAN TOUCH CLOCK MODAL
   const [clockTargetDoc, setClockTargetDoc] = useState<DoctorFieldProfile | null>(null);
   const [clockMode, setClockMode] = useState<'HOUR' | 'MINUTE'>('HOUR');
   const [clockHour, setClockHour] = useState<number>(8);
@@ -91,7 +94,12 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const holidayName = HOLIDAYS_2026[selectedDateStr];
   const isHoliday = !!holidayName;
 
-  // Sync plan on date change
+  // On mount and date change: ensure profiles are synced with MSL
+  useEffect(() => {
+    const res = dailyWorkingStore.syncFromMslSheet();
+    setProfiles({ ...dailyWorkingStore.profiles });
+  }, []);
+
   useEffect(() => {
     const existing = dailyWorkingStore.getPlanForDate(selectedDateStr);
     if (existing) {
@@ -104,7 +112,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     }
   }, [selectedDateStr]);
 
-  // Open clock modal
   const handleOpenClockModal = (doc: DoctorFieldProfile) => {
     setClockTargetDoc(doc);
     setClockHour(doc.hour || 8);
@@ -115,7 +122,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     setClockMode('HOUR');
   };
 
-  // Dial rotation calculation
   const handleRotateDial = (clientX: number, clientY: number) => {
     if (!clockDialRef.current) return;
     const rect = clockDialRef.current.getBoundingClientRect();
@@ -149,7 +155,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const handleSaveClockSchedule = () => {
     if (!clockTargetDoc) return;
     const formattedTime = `${String(clockHour).padStart(2, '0')}:${String(clockMinute).padStart(2, '0')} ${clockPeriod}`;
-
     const isEx = EX_STATIONS_MASTER.some(ex => ex.toUpperCase() === clockSelectedArea.toUpperCase());
 
     const updatedProfile: DoctorFieldProfile = {
@@ -192,7 +197,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
-  // Generate automated plan
   const generatePlanForAreas = (areasChoice: string[], dateStr: string) => {
     const dObj = parseDateDDMMYYYY(dateStr);
     const dayName = dObj.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
@@ -296,13 +300,12 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   };
 
   const handleSyncFromMsl = () => {
-    const synced = dailyWorkingStore.syncFromMslSheet();
+    const res = dailyWorkingStore.syncFromMslSheet();
     setProfiles({ ...dailyWorkingStore.profiles });
-    setStatusMsg(`⚡ ${synced} Doctors synchronized live from Sheet 14 (MSL Schedule)!`);
-    setTimeout(() => setStatusMsg(null), 3000);
+    setStatusMsg(`🎉 MSL Sync Complete! Total: ${res.total} Doctors active (${res.synced} Synced, ${res.added} Newly Added)!`);
+    setTimeout(() => setStatusMsg(null), 3500);
   };
 
-  // Backlog remaining list
   const remainingDoctorsInArea = useMemo(() => {
     if (!currentPlan) return [];
     const plannedSrNos = new Set(currentPlan.plannedCalls.map(p => p.srNo));
@@ -334,9 +337,24 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     }).sort((a, b) => b.daysSinceLastVisit - a.daysSinceLastVisit);
   }, [currentPlan, selectedAreas, profiles, selectedDateStr]);
 
-  const handleAddDoctorToTodayPlan = (doc: DoctorFieldProfile, lastDate: string, daysDiff: number, tier: any) => {
+  // Global search doctors across all 129+ profiles
+  const globalMatchingDoctors = useMemo(() => {
+    if (!globalDocSearch.trim()) return [];
+    const q = globalDocSearch.toLowerCase();
+    const plannedSrNos = new Set(currentPlan?.plannedCalls.map(p => p.srNo) || []);
+
+    return Object.values(profiles)
+      .filter(d => !plannedSrNos.has(d.srNo))
+      .filter(d => d.doctorName.toLowerCase().includes(q) || (d.speciality || '').toLowerCase().includes(q) || (d.area || '').toLowerCase().includes(q) || String(d.srNo).includes(q))
+      .slice(0, 10);
+  }, [profiles, globalDocSearch, currentPlan]);
+
+  const handleAddDoctorToTodayPlan = (doc: DoctorFieldProfile, lastDate?: string, daysDiff?: number, tier?: any) => {
     if (!currentPlan) return;
     if (currentPlan.plannedCalls.some(p => p.srNo === doc.srNo)) return;
+
+    const realLast = lastDate !== undefined && daysDiff !== undefined ? { lastDate, daysAgo: daysDiff } : dailyWorkingStore.getRealLastVisitDate(doc.srNo, selectedDateStr);
+    const resolvedTier = tier || getRecencyTier(realLast.daysAgo);
 
     const newItem: PlannedCallItem = {
       srNo: doc.srNo,
@@ -348,9 +366,9 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
       otRemarks: doc.notes || 'Available',
       visitNumber: 2,
       totalMonthlyTarget: doc.monthlyTargetVisits,
-      lastVisitDate: lastDate,
-      daysSinceLastVisit: daysDiff,
-      recencyTier: tier,
+      lastVisitDate: realLast.lastDate,
+      daysSinceLastVisit: realLast.daysAgo,
+      recencyTier: resolvedTier,
       status: 'PLANNED',
       notes: ''
     };
@@ -358,6 +376,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     const updated = { ...currentPlan, plannedCalls: [...currentPlan.plannedCalls, newItem] };
     setCurrentPlan(updated);
     dailyWorkingStore.saveDayPlan(updated);
+    setGlobalDocSearch('');
   };
 
   const handleRemoveDoctorFromPlan = (srNo: number) => {
@@ -377,7 +396,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     dailyWorkingStore.saveDayPlan(updated);
   };
 
-  // Clock Hand Angles
   const hourAngle = ((clockHour % 12) + clockMinute / 60) * 30;
   const minuteAngle = clockMinute * 6;
   const activeAngle = clockMode === 'HOUR' ? (clockHour % 12) * 30 : minuteAngle;
@@ -399,11 +417,11 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
           <div>
             <h1 className="text-base md:text-lg font-bold text-white flex items-center gap-2">
               📋 DAILY WORKING &amp; ROUTE INTELLIGENCE
-              <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2.5 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
-                <Lock size={11} className="text-purple-400" /> Freeze Panes Active
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-mono font-bold">
+                {Object.keys(profiles).length} MSL Doctors Loaded
               </span>
             </h1>
-            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA &bull; HQ: UDAIPUR &bull; 19 Udaipur Hospitals &amp; Ex-Station Routes</p>
+            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA &bull; HQ: UDAIPUR &bull; Live Dynamic Recency Date Engine</p>
           </div>
         </div>
 
@@ -411,9 +429,10 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
           <button
             type="button"
             onClick={handleSyncFromMsl}
-            className="flex items-center gap-1 px-3 py-2 bg-slate-950 hover:bg-slate-800 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition cursor-pointer shadow"
+            className="flex items-center gap-1 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 text-slate-950 rounded-xl text-xs font-bold transition cursor-pointer shadow-md"
+            title="Scan MSL Sheet 14 and auto-discover all new doctors"
           >
-            <Zap size={14} className="text-yellow-300" /> ⚡ Sync MSL
+            <Zap size={14} className="text-slate-950" /> ⚡ Sync MSL ({Object.keys(profiles).length})
           </button>
 
           <button
@@ -450,13 +469,13 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
             }`}
           >
-            <Edit3 size={14} /> 19 Hospitals Master
+            <Edit3 size={14} /> 19 Hospitals Master ({Object.keys(profiles).length})
           </button>
         </div>
       </div>
 
       <CloudSyncBar
-        storageKey="field/daily_working_system_v6"
+        storageKey="field/daily_working_system_v7"
         sheetTitle="Daily Working & Route Intelligence Hub"
         getData={() => ({
           profiles: dailyWorkingStore.profiles,
@@ -472,7 +491,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
           }
           if (cloudData.dayPlans) {
             dailyWorkingStore.dayPlans = cloudData.dayPlans;
-            try { localStorage.setItem('dios_daily_plans_v6', JSON.stringify(cloudData.dayPlans)); } catch (e) {}
+            try { localStorage.setItem('dios_daily_plans_v7', JSON.stringify(cloudData.dayPlans)); } catch (e) {}
           }
         }}
         onSaveLocal={() => {
@@ -497,7 +516,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
       {activeSubTab === 'DAY_PLAN' && (
         <div className="space-y-5">
           
-          {/* TAP TO OPEN CALENDAR BAR */}
+          {/* TAP TO OPEN CALENDAR BAR & GLOBAL DOCTOR SEARCH */}
           <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3 text-xs">
               <button
@@ -518,11 +537,45 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
               <div className="flex items-center gap-2 bg-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-800">
                 <MapPin size={15} className="text-amber-400" />
-                <span className="text-slate-400">Active Working Areas:</span>
+                <span className="text-slate-400">Active Area:</span>
                 <span className="text-amber-300 font-bold font-mono truncate max-w-[280px]">
                   {selectedAreas.join(', ')}
                 </span>
               </div>
+            </div>
+
+            {/* QUICK 1-CLICK ANY-DOCTOR SEARCH & ADD TO TODAY PLAN */}
+            <div className="relative w-full md:w-80">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400" />
+                <input
+                  type="text"
+                  placeholder="Quick Add Any MSL Doctor to Today..."
+                  value={globalDocSearch}
+                  onChange={e => setGlobalDocSearch(e.target.value)}
+                  className="w-full bg-slate-900 border border-cyan-500/40 text-xs text-white rounded-xl pl-9 pr-3 py-2 focus:border-cyan-400 focus:outline-none placeholder-slate-500 shadow-inner"
+                />
+              </div>
+
+              {globalMatchingDoctors.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border-2 border-cyan-500/60 rounded-xl shadow-2xl p-1.5 z-50 max-h-48 overflow-y-auto space-y-1">
+                  {globalMatchingDoctors.map(d => (
+                    <div
+                      key={d.srNo}
+                      onClick={() => handleAddDoctorToTodayPlan(d)}
+                      className="flex items-center justify-between p-2 rounded-lg bg-slate-950 hover:bg-cyan-950/70 border border-transparent hover:border-cyan-500/40 text-xs cursor-pointer transition"
+                    >
+                      <div>
+                        <div className="font-bold text-white">Dr. {d.doctorName}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{d.speciality} &bull; {d.area} &bull; {d.approxTime}</div>
+                      </div>
+                      <button className="px-2 py-0.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded text-[10px] transition shrink-0">
+                        + Add
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -531,7 +584,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 onClick={() => window.print()}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer shadow"
               >
-                <Printer size={15} className="text-cyan-400" /> Print Sheet
+                <Printer size={15} className="text-cyan-400" /> Print
               </button>
             </div>
           </div>
@@ -545,7 +598,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider">
                     "Aaj Kahan Working Karni Hai?" &bull; Multi-Area Hub
                   </h3>
-                  <p className="text-[11px] text-slate-400">Select any hospital or station to load today's doctors!</p>
+                  <p className="text-[11px] text-slate-400">Select any hospital or station to load scheduled doctors!</p>
                 </div>
               </div>
 
@@ -553,7 +606,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
                   type="text"
-                  placeholder="Search hospital or area..."
+                  placeholder="Filter areas..."
                   value={areaSearchText}
                   onChange={e => setAreaSearchText(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl pl-8 pr-3 py-1.5 text-xs focus:border-amber-400 focus:outline-none"
@@ -587,7 +640,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
               {/* Ex-Station Chips */}
               <div className="pt-2 border-t border-slate-900">
-                <span className="text-[10px] text-cyan-400 uppercase font-bold tracking-wider mr-2">🚌 Ex-Station Tours (All in 1 Day):</span>
+                <span className="text-[10px] text-cyan-400 uppercase font-bold tracking-wider mr-2">🚌 Ex-Station Tours (All Doctors in 1 Day):</span>
                 <div className="inline-flex flex-wrap gap-1.5 mt-1">
                   {EX_STATIONS_MASTER.map(st => {
                     const isChecked = selectedAreas.includes(st);
@@ -632,7 +685,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               <div className="flex items-center gap-2">
                 <Stethoscope size={16} className="text-cyan-400" />
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                  Today's Planned Action Route &bull; {selectedDateStr} ({currentPlan?.plannedCalls.length || 0} Scheduled)
+                  Today's Action Route &bull; {selectedDateStr} ({currentPlan?.plannedCalls.length || 0} Scheduled)
                 </h3>
               </div>
 
@@ -666,7 +719,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   {(!currentPlan || currentPlan.plannedCalls.length === 0) ? (
                     <tr>
                       <td colSpan={11} className="p-8 text-center text-slate-500 font-sans">
-                        Aaj ke liye koi calls planned nahi hain.
+                        Aaj ke liye koi calls planned nahi hain. Upar hospital select karein ya doctor search karke plan me add karein.
                       </td>
                     </tr>
                   ) : (
@@ -835,12 +888,11 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Edit3 size={16} className="text-purple-400" />
-                19 Hospitals &amp; Doctor Schedule Master (One-Time Setup)
+                19 Hospitals &amp; Doctor Schedule Master ({Object.keys(profiles).length} Total Doctors)
               </h3>
               <p className="text-xs text-slate-400">Freeze Panes &bull; Filter by Hospital / Activity &bull; Clean Schedule Setting</p>
             </div>
 
-            {/* Filters Bar */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800">
                 <span className="text-[10px] text-amber-400 font-bold uppercase">Hospital / Hub:</span>
@@ -953,14 +1005,11 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 5. 🌟 EXACT CLEAN CLOCK MODAL (Circular Clock + Area Selector + Mon-Sat + Purple Save) */}
-      {/* ========================================================================= */}
+      {/* CLEAN TOUCH CLOCK MODAL */}
       {clockTargetDoc && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
           <div className="bg-white text-slate-900 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl flex flex-col p-6 space-y-4">
             
-            {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div className="flex items-center gap-2">
                 <button
@@ -977,7 +1026,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               <button onClick={() => setClockTargetDoc(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={18} /></button>
             </div>
 
-            {/* Hand Mode Switcher */}
             <div className="flex items-center justify-center gap-2">
               <button
                 type="button"
@@ -995,11 +1043,10 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   clockMode === 'MINUTE' ? 'bg-[#EC4899] text-white border-[#EC4899] shadow' : 'bg-slate-100 text-slate-600 border-slate-200'
                 }`}
               >
-                ⏱️ Minute Hand (Chhota Kanta: {clockMinute}m)
+                ⏱️ Minute Hand ({clockMinute}m)
               </button>
             </div>
 
-            {/* TOP: EXACT CIRCULAR TOUCH CLOCK WITH GHANTA + MINUTE HAND */}
             <div className="flex flex-col items-center justify-center select-none">
               <div className="relative w-56 h-56 flex items-center justify-center">
                 <svg
@@ -1050,7 +1097,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                     );
                   })}
 
-                  {/* Ghanta Hand (Purple) */}
                   <line
                     x1="130"
                     y1="130"
@@ -1060,7 +1106,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                     strokeWidth="4.5"
                     strokeLinecap="round"
                   />
-                  {/* Minute Hand / Chhota Kanta (Pink) */}
                   <line
                     x1="130"
                     y1="130"
@@ -1074,7 +1119,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 </svg>
               </div>
 
-              {/* Digital Time Readout & AM/PM Buttons */}
               <div className="flex items-center gap-3 mt-2">
                 <span className="text-3xl font-black font-mono text-slate-800 tracking-tight">
                   {String(clockHour).padStart(2, '0')}:{String(clockMinute).padStart(2, '0')}
@@ -1103,7 +1147,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
 
-            {/* MIDDLE: SIMPLE HOSPITAL / AREA HUB SELECTOR */}
             <div className="space-y-1.5 pt-2 border-t border-slate-100">
               <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
                 <Building2 size={14} className="text-purple-600" />
@@ -1123,7 +1166,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               </select>
             </div>
 
-            {/* DAYS STRIP: MON TUE WED THU FRI SAT (Green = Sitting, Red = Off) */}
             <div className="space-y-1.5 pt-1">
               <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                 <span>Sitting Days:</span>
@@ -1150,7 +1192,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
 
-            {/* BOTTOM: SINGLE PURPLE SAVE SCHEDULE BUTTON */}
             <div className="pt-2">
               <button
                 type="button"
