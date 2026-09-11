@@ -184,7 +184,7 @@ export async function generateMasterReviewWorkbook() {
 
   const s4 = buildSheet04_UnSalesProg(sheet04Data);
   const ws4 = XLSX.utils.aoa_to_sheet(s4.wsData);
-  ws4['!merges'] = s4.merges; ws4['!cols'] = s4.cols;
+  ws4['!merges'] = s4.merges; ws4['!cols'] = s4.cols; if (s4.rows) ws4['!rows'] = s4.rows;
   XLSX.utils.book_append_sheet(wb, ws4, s4.sheetName);
 
   const s5 = buildSheet05_NearByExpiry(sheet05Data);

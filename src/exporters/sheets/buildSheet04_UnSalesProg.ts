@@ -114,6 +114,7 @@ export function buildSheet04_UnSalesProg(data?: any) {
     wsData,
     sheetName: '4_UN.SALES PROG.',
     merges,
-    cols
+    cols,
+    rows: [{ hpt: 20 }, { hpt: 26 }, { hpt: 22 }]
   };
 }
