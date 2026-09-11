@@ -1,12 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Cake, Heart, Calendar, Search, Download, Filter, 
   Check, X, Sparkles, Building2, UserCheck, AlertTriangle, 
   Baby, Users, ArrowLeft, RefreshCw, Edit3, ChevronRight,
-  ShieldCheck, Eye, EyeOff, Plus, Trash2, Zap
+  ShieldCheck, Eye, EyeOff, Plus, Trash2, Zap, Gift
 } from 'lucide-react';
 import { CBO_MASTER_130_DOCTORS, CboDoctorMaster } from '../data/cboMasterDoctors';
-import { memoryStore, MslDoctor } from '../data/memoryStore';
+import { memoryStore } from '../data/memoryStore';
 import { CloudSyncBar } from './CloudSyncBar';
 
 interface Props {
@@ -114,7 +114,6 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
     notes: ''
   });
 
-  // 🌟 TWO-WAY SYNC: Sync to MSL with 'BIRTHDAY_HUB' source tag
   const syncToMslLocalStorage = (updatedDocList: any[], updatedDocSrNo?: number) => {
     try {
       if (typeof window !== 'undefined') {
@@ -233,7 +232,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
 
     persistAll(updatedDocs, updatedFam, editingDoc.srNo);
     setEditingDoc(null);
-    setStatusMsg(`🎉 Dr. ${editingDoc.doctorName} Celebrations & MSL Schedule (Marked from Birthday Hub) successfully synced!`);
+    setStatusMsg(`🎉 Dr. ${editingDoc.doctorName} Celebrations & Family Schedule saved!`);
     setTimeout(() => setStatusMsg(null), 3500);
   };
 
@@ -297,7 +296,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 max-w-7xl mx-auto space-y-5">
       
-      {/* Top Navbar */}
+      {/* 1. TOP NAVBAR */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <button
           onClick={onBack}
@@ -308,12 +307,12 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
 
         <div className="flex items-center gap-3">
           <span className="text-[11px] bg-pink-950 text-pink-300 border border-pink-500/40 px-3 py-1 rounded-full font-mono font-bold flex items-center gap-1.5 shadow-lg shadow-pink-950/50">
-            <Sparkles size={13} className="text-pink-400 animate-pulse" /> LIVE TWO-WAY MSL SYNC ACTIVE
+            <Sparkles size={13} className="text-pink-400 animate-pulse" /> COLOR-CODED CELEBRATIONS ACTIVE
           </span>
         </div>
       </div>
 
-      {/* Title */}
+      {/* 2. TITLE & COLOR PALETTE LEGEND */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-3">
@@ -323,8 +322,18 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
             Doctor Birthday &amp; Anniversary Hub
           </h1>
           <p className="text-slate-400 text-xs md:text-sm mt-1">
-            Official 130 Doctors Report &bull; Auto-marks in Sheet 14 MSL when updated
+            Distinct Color Scheme for Doctor DOB, DOA, Sons, Daughters, Father DOB &amp; Parents Anniversary
           </p>
+        </div>
+
+        {/* 🌟 VIBRANT COLOR PALETTE LEGEND */}
+        <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-900/90 rounded-2xl border border-slate-800 text-[10px] font-bold font-mono">
+          <span className="px-2 py-0.5 rounded-lg bg-pink-950 text-pink-300 border border-pink-500/40">🎂 Dr DOB</span>
+          <span className="px-2 py-0.5 rounded-lg bg-purple-950 text-purple-300 border border-purple-500/40">💍 Dr DOA</span>
+          <span className="px-2 py-0.5 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-500/40">👦 Sons</span>
+          <span className="px-2 py-0.5 rounded-lg bg-rose-950 text-rose-300 border border-rose-500/40">👧 Daughters</span>
+          <span className="px-2 py-0.5 rounded-lg bg-amber-950 text-amber-300 border border-amber-500/40">👴 Father</span>
+          <span className="px-2 py-0.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-500/40">💐 Parents DOA</span>
         </div>
       </div>
 
@@ -358,21 +367,21 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* Metrics */}
+      {/* 3. METRICS */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-md">
           <div className="text-[10px] text-slate-400 uppercase font-semibold">Total Doctors</div>
           <div className="text-xl font-black text-white font-mono mt-1">{metrics.total}</div>
         </div>
-        <div className="bg-slate-900 p-3.5 rounded-2xl border border-pink-500/30 shadow-md">
+        <div className="bg-slate-900 p-3.5 rounded-2xl border border-pink-500/40 shadow-md">
           <div className="text-[10px] text-pink-400 uppercase font-semibold">Missing DOB</div>
           <div className="text-xl font-black text-pink-300 font-mono mt-1">{metrics.missingDobCount}</div>
         </div>
-        <div className="bg-slate-900 p-3.5 rounded-2xl border border-purple-500/30 shadow-md">
+        <div className="bg-slate-900 p-3.5 rounded-2xl border border-purple-500/40 shadow-md">
           <div className="text-[10px] text-purple-400 uppercase font-semibold">Missing DOA</div>
           <div className="text-xl font-black text-purple-300 font-mono mt-1">{metrics.missingDoaCount}</div>
         </div>
-        <div className="bg-slate-900 p-3.5 rounded-2xl border border-rose-500/30 shadow-md">
+        <div className="bg-slate-900 p-3.5 rounded-2xl border border-rose-500/40 shadow-md">
           <div className="text-[10px] text-rose-400 uppercase font-semibold">Missing Both</div>
           <div className="text-xl font-black text-rose-300 font-mono mt-1">{metrics.missingBothCount}</div>
         </div>
@@ -382,7 +391,7 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* Station Tabs & Status Filters */}
+      {/* 4. STATION TABS & FILTERS */}
       <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 space-y-3">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
           <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mr-1 shrink-0 flex items-center gap-1">
@@ -478,23 +487,37 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* Table */}
+      {/* 5. TABLE WITH COLOR-CODED HEADERS, INPUTS & CHIPS */}
       <div className="overflow-x-auto max-h-[560px] border border-slate-800 rounded-2xl shadow-2xl bg-slate-950 relative">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
-          <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-30">
+          <thead className="sticky top-0 bg-slate-950 font-bold uppercase border-b border-slate-800 z-30">
             <tr>
               <th style={{ width: '44px', minWidth: '44px', left: 0 }} className="p-2.5 text-center bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-slate-400">#</th>
               <th style={{ width: '210px', minWidth: '210px', left: '44px' }} className="p-2.5 bg-slate-950 border-b border-r-2 border-pink-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-white">Doctor Name</th>
               <th className="p-2.5 text-center w-28 text-amber-400 border-b border-r border-slate-800">Station</th>
-              <th className="p-2.5 min-w-[130px] border-b border-r border-slate-800">Speciality</th>
-              <th className="p-2.5 text-center min-w-[140px] text-pink-300 border-b border-r border-slate-800">🎂 Doctor DOB</th>
-              <th className="p-2.5 text-center min-w-[140px] text-purple-300 border-b border-r border-slate-800">💍 Doctor DOA</th>
-              <th className="p-2.5 min-w-[180px] border-b border-r border-slate-800 text-cyan-300">Sync Status &bull; Source Tag</th>
-              <th className="p-2.5 text-center w-20 border-b border-slate-800">Action</th>
+              <th className="p-2.5 min-w-[120px] text-slate-300 border-b border-r border-slate-800">Speciality</th>
+              
+              {/* 🎂 DOCTOR DOB (PINK) */}
+              <th className="p-2.5 text-center min-w-[130px] bg-pink-950/30 text-pink-300 border-b border-r border-slate-800">
+                🎂 Doctor DOB
+              </th>
+
+              {/* 💍 DOCTOR DOA (PURPLE) */}
+              <th className="p-2.5 text-center min-w-[130px] bg-purple-950/30 text-purple-300 border-b border-r border-slate-800">
+                💍 Doctor DOA
+              </th>
+
+              {/* 👨‍👩‍👧‍👦 FAMILY CELEBRATIONS */}
+              <th className="p-2.5 min-w-[260px] border-b border-r border-slate-800 text-cyan-300">
+                👨‍👩‍👧‍👦 Family Celebrations (Color-Coded)
+              </th>
+              
+              <th className="p-2.5 text-center w-20 border-b border-slate-800 text-slate-400">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 font-mono text-xs bg-slate-900">
             {filteredDoctors.map(doc => {
+              const fam = familyData[doc.srNo] || {};
               const hasDob = !!(doc.dob && doc.dob.trim().length >= 4);
               const hasDoa = !!(doc.doa && doc.doa.trim().length >= 4);
               const source = doc.lastUpdatedSource;
@@ -519,45 +542,87 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
                     {doc.speciality}
                   </td>
 
-                  {/* INLINE DOB */}
-                  <td className="p-1.5 text-center border-b border-r border-slate-800/80">
+                  {/* 🎂 DOCTOR DOB INPUT (VIBRANT PINK) */}
+                  <td className="p-1.5 text-center border-b border-r border-slate-800/80 bg-pink-950/10">
                     <input
                       type="text"
                       value={doc.dob || ''}
                       onChange={e => handleInlineDateChange(doc.srNo, 'dob', e.target.value)}
                       placeholder="DD/MM/YYYY"
                       className={`w-full py-1 px-1.5 rounded-lg text-center font-mono font-bold text-xs border focus:outline-none ${
-                        hasDob ? 'bg-slate-950 text-pink-300 border-slate-800 focus:border-pink-500' : 'bg-rose-950/40 text-rose-300 border-rose-500/50'
+                        hasDob ? 'bg-slate-950 text-pink-300 border-pink-500/40 focus:border-pink-400' : 'bg-rose-950/40 text-rose-300 border-rose-500/50'
                       }`}
                     />
+                    {source === 'BIRTHDAY_HUB' && (
+                      <span className="block text-[7.5px] text-pink-400 font-sans tracking-tight text-center font-bold truncate mt-0.5">
+                        🎂 From Birthday Hub
+                      </span>
+                    )}
                   </td>
 
-                  {/* INLINE DOA */}
-                  <td className="p-1.5 text-center border-b border-r border-slate-800/80">
+                  {/* 💍 DOCTOR DOA INPUT (ROYAL PURPLE) */}
+                  <td className="p-1.5 text-center border-b border-r border-slate-800/80 bg-purple-950/10">
                     <input
                       type="text"
                       value={doc.doa || ''}
                       onChange={e => handleInlineDateChange(doc.srNo, 'doa', e.target.value)}
                       placeholder="DD/MM/YYYY"
                       className={`w-full py-1 px-1.5 rounded-lg text-center font-mono font-bold text-xs border focus:outline-none ${
-                        hasDoa ? 'bg-slate-950 text-purple-300 border-slate-800 focus:border-purple-500' : 'bg-rose-950/40 text-rose-300 border-rose-500/50'
+                        hasDoa ? 'bg-slate-950 text-purple-300 border-purple-500/40 focus:border-purple-400' : 'bg-rose-950/40 text-rose-300 border-rose-500/50'
                       }`}
                     />
+                    {source === 'BIRTHDAY_HUB' && (
+                      <span className="block text-[7.5px] text-purple-400 font-sans tracking-tight text-center font-bold truncate mt-0.5">
+                        💍 From Birthday Hub
+                      </span>
+                    )}
                   </td>
 
-                  {/* 🌟 SMART BIDIRECTIONAL SYNC TAG */}
+                  {/* 🌟 DISTINCT COLOR-CODED FAMILY CHIPS */}
                   <td className="p-2 font-sans border-b border-r border-slate-800/80">
-                    {source === 'MSL' ? (
-                      <span className="inline-flex items-center gap-1 bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 px-2 py-0.5 rounded-md text-[10px] font-bold font-mono">
-                        <Zap size={11} className="text-cyan-400" /> Synced from Sheet 14 (MSL)
-                      </span>
-                    ) : source === 'BIRTHDAY_HUB' ? (
-                      <span className="inline-flex items-center gap-1 bg-pink-950/80 text-pink-300 border border-pink-500/40 px-2 py-0.5 rounded-md text-[10px] font-bold font-mono">
-                        <Cake size={11} className="text-pink-400" /> Updated from Birthday Chart
-                      </span>
-                    ) : (
-                      <span className="text-slate-600 text-[10px] font-mono">Verified CBO Baseline</span>
-                    )}
+                    <div className="flex flex-wrap gap-1">
+                      {/* 👦 Sons (Ocean Cyan) */}
+                      {fam.son1_dob && (
+                        <span className="bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 text-[10px] px-2 py-0.5 rounded-lg font-mono font-bold">
+                          👦 Son 1: {fam.son1_dob}
+                        </span>
+                      )}
+                      {fam.son2_dob && (
+                        <span className="bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 text-[10px] px-2 py-0.5 rounded-lg font-mono font-bold">
+                          👦 Son 2: {fam.son2_dob}
+                        </span>
+                      )}
+
+                      {/* 👧 Daughters (Bright Coral Rose) */}
+                      {fam.daughter1_dob && (
+                        <span className="bg-rose-950/80 text-rose-300 border border-rose-500/40 text-[10px] px-2 py-0.5 rounded-lg font-mono font-bold">
+                          👧 Daughter 1: {fam.daughter1_dob}
+                        </span>
+                      )}
+                      {fam.daughter2_dob && (
+                        <span className="bg-rose-950/80 text-rose-300 border border-rose-500/40 text-[10px] px-2 py-0.5 rounded-lg font-mono font-bold">
+                          👧 Daughter 2: {fam.daughter2_dob}
+                        </span>
+                      )}
+
+                      {/* 👴 Father DOB (Warm Amber) */}
+                      {fam.father_dob && (
+                        <span className="bg-amber-950/80 text-amber-300 border border-amber-500/40 text-[10px] px-2 py-0.5 rounded-lg font-mono font-bold">
+                          👴 Father: {fam.father_dob}
+                        </span>
+                      )}
+
+                      {/* 💐 Parents / Father DOA (Radiant Emerald Green) */}
+                      {fam.father_doa && (
+                        <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 text-[10px] px-2 py-0.5 rounded-lg font-mono font-bold">
+                          💐 Parents DOA: {fam.father_doa}
+                        </span>
+                      )}
+
+                      {!fam.son1_dob && !fam.son2_dob && !fam.daughter1_dob && !fam.daughter2_dob && !fam.father_dob && !fam.father_doa && (
+                        <span className="text-slate-600 text-[11px] italic">No family dates added</span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="p-2 text-center border-b border-slate-800">
@@ -576,97 +641,173 @@ export const BirthdayAnniversaryWorkspace: React.FC<Props> = ({ onBack }) => {
         </table>
       </div>
 
-      {/* Modal */}
+      {/* 6. MODAL: DEDICATED COLOR SECTIONS FOR DOCTOR, SONS, DAUGHTERS, PARENTS */}
       {editingDoc && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-5">
           <div className="bg-slate-900 border-2 border-pink-500/60 rounded-3xl max-w-2xl w-full p-5 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
+            
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <span className="p-2.5 bg-pink-500/20 text-pink-400 rounded-2xl border border-pink-500/30">
                   <Cake size={22} />
                 </span>
                 <div>
-                  <h3 className="text-base font-bold text-white">Dr. {editingDoc.doctorName} &bull; #{editingDoc.srNo}</h3>
-                  <p className="text-xs text-slate-400">Station: {editingDoc.station} &bull; Speciality: {editingDoc.speciality}</p>
+                  <h3 className="text-base font-bold text-white">
+                    Dr. {editingDoc.doctorName} &bull; #{editingDoc.srNo} ({editingDoc.drCode})
+                  </h3>
+                  <p className="text-xs text-slate-400">Station: <b className="text-amber-400">{editingDoc.station}</b> &bull; Speciality: {editingDoc.speciality}</p>
                 </div>
               </div>
               <button onClick={() => setEditingDoc(null)} className="text-slate-400 hover:text-white p-1 cursor-pointer"><X size={18} /></button>
             </div>
 
-            <div className="overflow-y-auto space-y-4 pr-1">
+            <div className="overflow-y-auto space-y-3.5 pr-1">
+              
+              {/* SECTION 1: DOCTOR DATES (PINK & PURPLE) */}
               <div className="p-3.5 bg-slate-950 rounded-2xl border border-pink-500/40 space-y-2.5">
                 <div className="text-xs font-bold text-pink-300 uppercase tracking-wider flex items-center justify-between">
-                  <span>1. Doctor Celebrations (Will mark MSL as updated from Birthday Hub):</span>
+                  <span>1. Doctor Celebrations (Syncs Live to Sheet 14 MSL):</span>
+                  <span className="text-[10px] text-emerald-400 font-mono">Two-Way Synced</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] text-slate-300 font-semibold mb-1">🎂 Doctor DOB:</label>
+                  <div className="p-2 bg-pink-950/20 border border-pink-500/40 rounded-xl">
+                    <label className="block text-[11px] text-pink-300 font-bold mb-1 flex items-center gap-1">
+                      <Cake size={13} className="text-pink-400" /> 🎂 Doctor Birthday (DOB):
+                    </label>
                     <input
                       type="text"
                       placeholder="DD/MM/YYYY"
                       value={editForm.dob}
                       onChange={e => setEditForm({ ...editForm, dob: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 text-pink-300 font-mono font-bold rounded-xl px-3 py-1.5 text-xs text-center"
+                      className="w-full bg-slate-900 border border-pink-500/40 text-pink-300 font-mono font-bold rounded-lg px-3 py-1.5 text-xs text-center focus:border-pink-400 focus:outline-none"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[11px] text-slate-300 font-semibold mb-1">💍 Doctor DOA (Anniversary):</label>
+
+                  <div className="p-2 bg-purple-950/20 border border-purple-500/40 rounded-xl">
+                    <label className="block text-[11px] text-purple-300 font-bold mb-1 flex items-center gap-1">
+                      <Heart size={13} className="text-purple-400" /> 💍 Doctor Anniversary (DOA):
+                    </label>
                     <input
                       type="text"
                       placeholder="DD/MM/YYYY"
                       value={editForm.doa}
                       onChange={e => setEditForm({ ...editForm, doa: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 text-purple-300 font-mono font-bold rounded-xl px-3 py-1.5 text-xs text-center"
+                      className="w-full bg-slate-900 border border-purple-500/40 text-purple-300 font-mono font-bold rounded-lg px-3 py-1.5 text-xs text-center focus:border-purple-400 focus:outline-none"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Children */}
+              {/* SECTION 2: 👦 SONS' BIRTHDAYS (OCEAN CYAN) */}
               <div className="p-3.5 bg-slate-950 rounded-2xl border border-cyan-500/40 space-y-2.5">
-                <div className="text-xs font-bold text-cyan-300 uppercase tracking-wider">2. Children's Birthdays:</div>
+                <div className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Baby size={15} className="text-cyan-400" />
+                  <span>2. Sons' Birthdays (Ocean Cyan):</span>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">👦 Son 1 Birthday:</label>
-                    <input type="text" placeholder="DD/MM/YYYY" value={editForm.son1_dob} onChange={e => setEditForm({ ...editForm, son1_dob: e.target.value })} className="w-full bg-slate-900 border border-slate-700 text-cyan-300 font-mono rounded-xl px-3 py-1.5 text-xs text-center" />
+                  <div className="p-2 bg-cyan-950/20 border border-cyan-500/30 rounded-xl">
+                    <label className="block text-[11px] text-cyan-300 font-bold mb-1">👦 Son 1 Birthday (DOB):</label>
+                    <input
+                      type="text"
+                      placeholder="DD/MM/YYYY"
+                      value={editForm.son1_dob}
+                      onChange={e => setEditForm({ ...editForm, son1_dob: e.target.value })}
+                      className="w-full bg-slate-900 border border-cyan-500/40 text-cyan-300 font-mono font-bold rounded-lg px-3 py-1.5 text-xs text-center focus:border-cyan-400 focus:outline-none"
+                    />
                   </div>
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">👦 Son 2 Birthday:</label>
-                    <input type="text" placeholder="DD/MM/YYYY" value={editForm.son2_dob} onChange={e => setEditForm({ ...editForm, son2_dob: e.target.value })} className="w-full bg-slate-900 border border-slate-700 text-cyan-300 font-mono rounded-xl px-3 py-1.5 text-xs text-center" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">👧 Daughter 1 Birthday:</label>
-                    <input type="text" placeholder="DD/MM/YYYY" value={editForm.daughter1_dob} onChange={e => setEditForm({ ...editForm, daughter1_dob: e.target.value })} className="w-full bg-slate-900 border border-slate-700 text-cyan-300 font-mono rounded-xl px-3 py-1.5 text-xs text-center" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">👧 Daughter 2 Birthday:</label>
-                    <input type="text" placeholder="DD/MM/YYYY" value={editForm.daughter2_dob} onChange={e => setEditForm({ ...editForm, daughter2_dob: e.target.value })} className="w-full bg-slate-900 border border-slate-700 text-cyan-300 font-mono rounded-xl px-3 py-1.5 text-xs text-center" />
+
+                  <div className="p-2 bg-cyan-950/20 border border-cyan-500/30 rounded-xl">
+                    <label className="block text-[11px] text-cyan-300 font-bold mb-1">👦 Son 2 Birthday (DOB):</label>
+                    <input
+                      type="text"
+                      placeholder="DD/MM/YYYY"
+                      value={editForm.son2_dob}
+                      onChange={e => setEditForm({ ...editForm, son2_dob: e.target.value })}
+                      className="w-full bg-slate-900 border border-cyan-500/40 text-cyan-300 font-mono font-bold rounded-lg px-3 py-1.5 text-xs text-center focus:border-cyan-400 focus:outline-none"
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* Parents */}
-              <div className="p-3.5 bg-slate-950 rounded-2xl border border-amber-500/40 space-y-2.5">
-                <div className="text-xs font-bold text-amber-300 uppercase tracking-wider">3. Parents / Father Celebrations:</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">👴 Father DOB:</label>
-                    <input type="text" placeholder="DD/MM/YYYY" value={editForm.father_dob} onChange={e => setEditForm({ ...editForm, father_dob: e.target.value })} className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-mono rounded-xl px-3 py-1.5 text-xs text-center" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">💍 Parents / Father DOA:</label>
-                    <input type="text" placeholder="DD/MM/YYYY" value={editForm.father_doa} onChange={e => setEditForm({ ...editForm, father_doa: e.target.value })} className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-mono rounded-xl px-3 py-1.5 text-xs text-center" />
-                  </div>
+              {/* SECTION 3: 👧 DAUGHTERS' BIRTHDAYS (CORAL ROSE) */}
+              <div className="p-3.5 bg-slate-950 rounded-2xl border border-rose-500/40 space-y-2.5">
+                <div className="text-xs font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Baby size={15} className="text-rose-400" />
+                  <span>3. Daughters' Birthdays (Coral Rose):</span>
                 </div>
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">🎁 Notes &amp; Gift Preferences:</label>
-                  <input type="text" placeholder="Bouquet preference, chocolate cake, etc..." value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-xl px-3 py-1.5 text-xs" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-2 bg-rose-950/20 border border-rose-500/30 rounded-xl">
+                    <label className="block text-[11px] text-rose-300 font-bold mb-1">👧 Daughter 1 Birthday (DOB):</label>
+                    <input
+                      type="text"
+                      placeholder="DD/MM/YYYY"
+                      value={editForm.daughter1_dob}
+                      onChange={e => setEditForm({ ...editForm, daughter1_dob: e.target.value })}
+                      className="w-full bg-slate-900 border border-rose-500/40 text-rose-300 font-mono font-bold rounded-lg px-3 py-1.5 text-xs text-center focus:border-rose-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="p-2 bg-rose-950/20 border border-rose-500/30 rounded-xl">
+                    <label className="block text-[11px] text-rose-300 font-bold mb-1">👧 Daughter 2 Birthday (DOB):</label>
+                    <input
+                      type="text"
+                      placeholder="DD/MM/YYYY"
+                      value={editForm.daughter2_dob}
+                      onChange={e => setEditForm({ ...editForm, daughter2_dob: e.target.value })}
+                      className="w-full bg-slate-900 border border-rose-500/40 text-rose-300 font-mono font-bold rounded-lg px-3 py-1.5 text-xs text-center focus:border-rose-400 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
+
+              {/* SECTION 4: 👴 FATHER (AMBER) & 💐 PARENTS DOA (EMERALD) */}
+              <div className="p-3.5 bg-slate-950 rounded-2xl border border-amber-500/40 space-y-2.5">
+                <div className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Users size={15} className="text-amber-400" />
+                  <span>4. Father &amp; Parents Celebrations:</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-2 bg-amber-950/20 border border-amber-500/30 rounded-xl">
+                    <label className="block text-[11px] text-amber-300 font-bold mb-1">👴 Father Birthday (DOB):</label>
+                    <input
+                      type="text"
+                      placeholder="DD/MM/YYYY"
+                      value={editForm.father_dob}
+                      onChange={e => setEditForm({ ...editForm, father_dob: e.target.value })}
+                      className="w-full bg-slate-900 border border-amber-500/40 text-amber-300 font-mono font-bold rounded-lg px-3 py-1.5 text-xs text-center focus:border-amber-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="p-2 bg-emerald-950/20 border border-emerald-500/30 rounded-xl">
+                    <label className="block text-[11px] text-emerald-300 font-bold mb-1">💐 Parents Anniversary (DOA):</label>
+                    <input
+                      type="text"
+                      placeholder="DD/MM/YYYY"
+                      value={editForm.father_doa}
+                      onChange={e => setEditForm({ ...editForm, father_doa: e.target.value })}
+                      className="w-full bg-slate-900 border border-emerald-500/40 text-emerald-300 font-mono font-bold rounded-lg px-3 py-1.5 text-xs text-center focus:border-emerald-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1 flex items-center gap-1">
+                    <Gift size={12} className="text-amber-400" /> 🎁 Gift Preferences &amp; Celebration Notes:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Bouquet preference, chocolate cake, clinic timing..."
+                    value={editForm.notes}
+                    onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-xl px-3 py-1.5 text-xs focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
             </div>
 
             <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400 font-mono">Will mark "From Birthday Hub" badge in MSL</span>
+              <span className="text-[11px] text-slate-400 font-mono">Will mark "From Birthday Hub" in MSL</span>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => setEditingDoc(null)} className="px-4 py-2 bg-slate-800 text-slate-300 text-xs rounded-xl cursor-pointer">Cancel</button>
                 <button type="button" onClick={handleSaveModal} className="px-5 py-2 bg-gradient-to-r from-pink-600 to-purple-600 text-white font-bold text-xs rounded-xl cursor-pointer flex items-center gap-1.5">
