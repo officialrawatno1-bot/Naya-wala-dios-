@@ -12,7 +12,8 @@ import {
   PlannedCallItem, 
   DayPlanRecord,
   UDAIPUR_AREAS_MASTER,
-  EX_STATIONS_MASTER
+  EX_STATIONS_MASTER,
+  normalizeStationName
 } from '../data/dailyWorkingStore';
 import { CloudSyncBar } from './CloudSyncBar';
 
@@ -75,7 +76,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const [profiles, setProfiles] = useState<Record<number, DoctorFieldProfile>>(() => dailyWorkingStore.profiles);
   const [currentPlan, setCurrentPlan] = useState<DayPlanRecord | null>(null);
 
-  // 🌟 CLEAN TOUCH CLOCK MODAL
+  // Clean Touch Clock Modal
   const [clockTargetDoc, setClockTargetDoc] = useState<DoctorFieldProfile | null>(null);
   const [clockMode, setClockMode] = useState<'HOUR' | 'MINUTE'>('HOUR');
   const [clockHour, setClockHour] = useState<number>(8);
@@ -94,9 +95,8 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const holidayName = HOLIDAYS_2026[selectedDateStr];
   const isHoliday = !!holidayName;
 
-  // On mount and date change: ensure profiles are synced with MSL
   useEffect(() => {
-    const res = dailyWorkingStore.syncFromMslSheet();
+    dailyWorkingStore.syncFromMslSheet();
     setProfiles({ ...dailyWorkingStore.profiles });
   }, []);
 
@@ -155,7 +155,9 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const handleSaveClockSchedule = () => {
     if (!clockTargetDoc) return;
     const formattedTime = `${String(clockHour).padStart(2, '0')}:${String(clockMinute).padStart(2, '0')} ${clockPeriod}`;
-    const isEx = EX_STATIONS_MASTER.some(ex => ex.toUpperCase() === clockSelectedArea.toUpperCase());
+    const normStation = normalizeStationName(clockSelectedArea);
+    const isEx = normStation !== 'UDAIPUR';
+    const displayStation = isEx ? (normStation.charAt(0) + normStation.slice(1).toLowerCase()) : 'UDAIPUR';
 
     const updatedProfile: DoctorFieldProfile = {
       ...clockTargetDoc,
@@ -167,7 +169,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
       period: clockPeriod,
       availableDays: clockDays,
       isExStation: isEx,
-      station: isEx ? clockSelectedArea : 'UDAIPUR',
+      station: displayStation,
       notes: `${clockSelectedArea} (${formattedTime})`
     };
 
@@ -222,10 +224,14 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     const allProfilesList = Object.values(profiles);
     let matchedDoctors: DoctorFieldProfile[] = [];
 
-    const activeExStation = areasChoice.find(a => EX_STATIONS_MASTER.some(ex => ex.toUpperCase() === a.toUpperCase()));
+    // 🌟 ROBUST EX-STATION MATCHER VIA UNIVERSAL NORMALIZER
+    const activeExChoice = areasChoice.find(a => EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(a)));
 
-    if (activeExStation) {
-      matchedDoctors = allProfilesList.filter(d => (d.station || '').toUpperCase() === activeExStation.toUpperCase() && d.isExStation);
+    if (activeExChoice) {
+      const targetNorm = normalizeStationName(activeExChoice);
+      // Load ALL doctors of this Ex-Station in 1 Single Day!
+      matchedDoctors = allProfilesList.filter(d => normalizeStationName(d.station) === targetNorm && d.isExStation);
+      matchedDoctors.sort((a, b) => a.approxTime.localeCompare(b.approxTime));
     } else {
       matchedDoctors = allProfilesList.filter(d => {
         if (d.isExStation) return false;
@@ -241,8 +247,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
       matchedDoctors = matchedDoctors.slice(0, 15);
     }
-
-    matchedDoctors.sort((a, b) => a.approxTime.localeCompare(b.approxTime));
 
     const plannedItems: PlannedCallItem[] = matchedDoctors.map(doc => {
       const { lastDate, daysAgo } = dailyWorkingStore.getRealLastVisitDate(doc.srNo, dateStr);
@@ -283,10 +287,10 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const handleToggleArea = (areaName: string) => {
     let updated: string[] = [];
 
-    if (EX_STATIONS_MASTER.some(ex => ex.toUpperCase() === areaName.toUpperCase())) {
+    if (EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(areaName))) {
       updated = [areaName];
     } else {
-      const withoutEx = selectedAreas.filter(a => !EX_STATIONS_MASTER.some(ex => ex.toUpperCase() === a.toUpperCase()));
+      const withoutEx = selectedAreas.filter(a => !EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(a)));
       if (withoutEx.includes(areaName)) {
         updated = withoutEx.filter(a => a !== areaName);
         if (updated.length === 0) updated = ['Geetanjali Hospital'];
@@ -311,11 +315,12 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     const plannedSrNos = new Set(currentPlan.plannedCalls.map(p => p.srNo));
     const allProfiles = Object.values(profiles);
 
-    const activeExStation = selectedAreas.find(a => EX_STATIONS_MASTER.some(ex => ex.toUpperCase() === a.toUpperCase()));
+    const activeExChoice = selectedAreas.find(a => EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(a)));
 
     let areaDocs: DoctorFieldProfile[] = [];
-    if (activeExStation) {
-      areaDocs = allProfiles.filter(d => (d.station || '').toUpperCase() === activeExStation.toUpperCase() && d.isExStation);
+    if (activeExChoice) {
+      const targetNorm = normalizeStationName(activeExChoice);
+      areaDocs = allProfiles.filter(d => normalizeStationName(d.station) === targetNorm && d.isExStation);
     } else {
       areaDocs = allProfiles.filter(d => {
         if (d.isExStation) return false;
@@ -337,7 +342,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     }).sort((a, b) => b.daysSinceLastVisit - a.daysSinceLastVisit);
   }, [currentPlan, selectedAreas, profiles, selectedDateStr]);
 
-  // Global search doctors across all 129+ profiles
   const globalMatchingDoctors = useMemo(() => {
     if (!globalDocSearch.trim()) return [];
     const q = globalDocSearch.toLowerCase();
@@ -418,7 +422,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
             <h1 className="text-base md:text-lg font-bold text-white flex items-center gap-2">
               📋 DAILY WORKING &amp; ROUTE INTELLIGENCE
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-mono font-bold">
-                {Object.keys(profiles).length} MSL Doctors Loaded
+                {Object.keys(profiles).length} MSL Doctors Active
               </span>
             </h1>
             <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA &bull; HQ: UDAIPUR &bull; Live Dynamic Recency Date Engine</p>
@@ -475,7 +479,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
       </div>
 
       <CloudSyncBar
-        storageKey="field/daily_working_system_v7"
+        storageKey="field/daily_working_system_v8"
         sheetTitle="Daily Working & Route Intelligence Hub"
         getData={() => ({
           profiles: dailyWorkingStore.profiles,
@@ -491,7 +495,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
           }
           if (cloudData.dayPlans) {
             dailyWorkingStore.dayPlans = cloudData.dayPlans;
-            try { localStorage.setItem('dios_daily_plans_v7', JSON.stringify(cloudData.dayPlans)); } catch (e) {}
+            try { localStorage.setItem('dios_daily_plans_v11', JSON.stringify(cloudData.dayPlans)); } catch (e) {}
           }
         }}
         onSaveLocal={() => {
@@ -638,25 +642,29 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   })}
               </div>
 
-              {/* Ex-Station Chips */}
+              {/* 🌟 100% ACCURATE EX-STATION TOUR CHIPS */}
               <div className="pt-2 border-t border-slate-900">
                 <span className="text-[10px] text-cyan-400 uppercase font-bold tracking-wider mr-2">🚌 Ex-Station Tours (All Doctors in 1 Day):</span>
                 <div className="inline-flex flex-wrap gap-1.5 mt-1">
                   {EX_STATIONS_MASTER.map(st => {
                     const isChecked = selectedAreas.includes(st);
+                    const normTarget = normalizeStationName(st);
+                    const docCount = Object.values(profiles).filter(d => normalizeStationName(d.station) === normTarget && d.isExStation).length;
+
                     return (
                       <button
                         key={st}
                         type="button"
                         onClick={() => handleToggleArea(st)}
-                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-sm ${
                           isChecked
-                            ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-md font-black'
-                            : 'bg-slate-900 text-cyan-300 border-cyan-900/60 hover:border-cyan-500'
+                            ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 border-cyan-400 font-black shadow-md shadow-cyan-950/60'
+                            : 'bg-slate-900 text-cyan-300 border-cyan-900/60 hover:border-cyan-400'
                         }`}
+                        title={`Load all ${docCount} doctors of ${st} in 1-Day Tour`}
                       >
-                        <span>🚌 {st} Tour</span>
-                        {isChecked && <Check size={13} className="text-slate-950" />}
+                        <span>🚌 {st} Tour ({docCount} Drs)</span>
+                        {isChecked && <Check size={13} className="text-slate-950 stroke-[3]" />}
                       </button>
                     );
                   })}
@@ -706,7 +714,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                     </th>
                     <th className="p-2.5 text-center w-36 text-purple-300 border-b border-r border-slate-800">⏰ Meeting Clock</th>
                     <th className="p-2.5 min-w-[120px] text-cyan-300 border-b border-r border-slate-800">Speciality</th>
-                    <th className="p-2.5 min-w-[160px] border-b border-r border-slate-800">Hospital / Area</th>
+                    <th className="p-2.5 min-w-[160px] border-b border-r border-slate-800">Hospital / Station Area</th>
                     <th className="p-2.5 text-center w-24 text-purple-300 border-b border-r border-slate-800">Activity</th>
                     <th className="p-2.5 text-center w-20 text-emerald-400 border-b border-r border-slate-800">Visit #</th>
                     <th className="p-2.5 text-center w-36 border-b border-r border-slate-800">Last Visit (Recency)</th>
@@ -1005,7 +1013,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* CLEAN TOUCH CLOCK MODAL */}
+      {/* Clean Touch Clock Modal */}
       {clockTargetDoc && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
           <div className="bg-white text-slate-900 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl flex flex-col p-6 space-y-4">
@@ -1206,7 +1214,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* CALENDAR POPUP MODAL */}
+      {/* Calendar Popup */}
       {showCalendarModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
           <div className="bg-slate-900 border-2 border-purple-500/70 rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl flex flex-col md:flex-row">
