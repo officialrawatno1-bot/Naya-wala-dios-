@@ -1,5 +1,5 @@
 import { CBO_MASTER_130_DOCTORS, CboDoctorMaster } from './cboMasterDoctors';
-import { memoryStore, MslDoctor } from './memoryStore';
+import { memoryStore } from './memoryStore';
 
 export const UDAIPUR_AREAS_MASTER = [
   'Hospital Road',
@@ -85,8 +85,9 @@ export interface DayPlanRecord {
   savedAt: string;
 }
 
-const PROFILES_STORAGE_KEY = 'dios_doctor_field_profiles_v8';
-const DAY_PLANS_STORAGE_KEY = 'dios_daily_plans_v8';
+// Bumped storage version to cleanly invalidate old 120-doctor cached profiles
+const PROFILES_STORAGE_KEY = 'dios_doctor_field_profiles_v10';
+const DAY_PLANS_STORAGE_KEY = 'dios_daily_plans_v10';
 
 const cleanName = (s: string) => (s || '').toUpperCase().replace(/^(DR\.?|DR\s+)/i, '').replace(/[^A-Z]/g, '');
 
@@ -154,7 +155,6 @@ export class DailyWorkingStore {
       });
     }
 
-    // Call status logs from Sheet 15
     try {
       if (typeof window !== 'undefined' && doc) {
         const rawCalls = localStorage.getItem('dios_call_status_master_doctors_v4');
@@ -178,7 +178,7 @@ export class DailyWorkingStore {
       }
     } catch (e) {}
 
-    if (docSrNo === 32) {
+    if (docSrNo === 14 || docSrNo === 32) {
       const dJul22 = new Date(2026, 6, 22);
       if (dJul22.getTime() <= targetTime) foundDates.push(dJul22);
     }
@@ -196,11 +196,14 @@ export class DailyWorkingStore {
     return { lastDate: 'No Prior Visit', daysAgo: 99 };
   }
 
-  public buildProfileForDoctor(doc: CboDoctorMaster): DoctorFieldProfile {
+  // 🌟 BUILD PROFILE: EX-HQ IS STRICTLY TIED TO ITS TOUR AREA WHILE HQ REMAINS UNTOUCHED
+  public buildProfileForDoctor(doc: CboDoctorMaster, exIndex: number = 0): DoctorFieldProfile {
     const c = cleanName(doc.doctorName);
     const station = doc.station;
     const isEx = station !== 'UDAIPUR';
-    let area = isEx ? station.charAt(0) + station.slice(1).toLowerCase() : 'Hospital Road';
+
+    // Base default values
+    let area = 'Hospital Road';
     let approxTime = '06:30 PM';
     let hour = 6;
     let minute = 30;
@@ -208,109 +211,129 @@ export class DailyWorkingStore {
     let availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     let notes = doc.clinicAddress || 'Sitting';
 
+    // =========================================================================
+    // 🚌 EX-HQ STATIONS: EXACT AREA BINDING FOR 1-DAY EX-STATION TOURS
+    // =========================================================================
     if (isEx) {
-      approxTime = '11:30 AM';
-      hour = 11; minute = 30; period = 'AM';
-      notes = `${station} Ex-Station Day (${doc.clinicAddress || 'Route'})`;
+      // Set area to exact Ex-Station name so Tour filter grabs it instantly
+      area = station.charAt(0).toUpperCase() + station.slice(1).toLowerCase();
+      
+      // Auto-sequence morning to afternoon tour timings (e.g. 10:00 AM to 03:00 PM)
+      const baseHour = 10 + Math.floor((exIndex * 25) / 60);
+      const baseMin = (exIndex * 25) % 60;
+      const isPm = baseHour >= 12;
+      const displayHour = baseHour > 12 ? baseHour - 12 : baseHour;
+
+      hour = displayHour;
+      minute = baseMin;
+      period = isPm ? 'PM' : 'AM';
+      approxTime = `${String(displayHour).padStart(2, '0')}:${String(baseMin).padStart(2, '0')} ${period}`;
+      notes = `${area} Tour &bull; ${doc.clinicAddress || 'Clinic'}`;
     }
-    // 🏥 Geetanjali Hospital (Thu, Fri | 01:00 PM – 03:30 PM)
-    else if (
-      c.includes('ABHIJEETBASU') || c.includes('LALITSHREEMALI') || c.includes('RAVIMANGLIYA') || c.includes('RAVIMANGALIA') ||
-      c.includes('AMEETMEHTA') || c.includes('NAVGEETMATHUR') || c.includes('MANUSHARMA') ||
-      c.includes('JITENAJINGAR') || c.includes('SURAJGUPTA') || c.includes('GKMUKHIYA') ||
-      c.includes('RAHULSEHLOT') || c.includes('VINODMEHTA') || c.includes('VINODBOKADIA') ||
-      c.includes('DILIPJAIN') || (c.includes('RAMESHPATEL') && doc.srNo === 32) ||
-      c.includes('SANJAYGANDHI') || c.includes('NEHASHARMA')
-    ) {
-      area = 'Geetanjali Hospital'; approxTime = '01:30 PM'; hour = 1; minute = 30; period = 'PM';
-      availableDays = ['THU', 'FRI']; notes = 'Geetanjali (Thu, Fri | 01:00 PM – 03:30 PM)';
-    }
-    // 🏥 GBH American Bedwas (Fri, Sat | 01:00 PM – 03:00 PM)
-    else if (
-      c.includes('DANNY') || c.includes('DENY') || c.includes('KAPILBHARGAV') ||
-      c.includes('PRIYANKAMINOCHA') || c.includes('PARTH') || c.includes('JITESHAGRAWAL') ||
-      c.includes('RAJENDRASAMAR') || c.includes('ASHWINISHANBHAG') || c.includes('HARBEERSINGH') ||
-      c.includes('MAHESHDESAI') || (c.includes('MUKESHBARJATIYA') && doc.srNo === 31)
-    ) {
-      area = 'GBH American Bedwas'; approxTime = '01:30 PM'; hour = 1; minute = 30; period = 'PM';
-      availableDays = ['FRI', 'SAT']; notes = 'GBH Bedwas (Fri, Sat | 01:00 PM – 03:00 PM)';
-    }
-    // 🏥 GBH American City
-    else if (
-      c.includes('PRERNABAHETI') || c.includes('PANKAJTAPARIA') || c.includes('NAMANNTANEJA') ||
-      c.includes('NAMAN') || c.includes('RAVIRAJ')
-    ) {
-      area = 'GBH American City'; approxTime = '11:30 AM'; hour = 11; minute = 30; period = 'AM';
-      notes = 'GBH City Morning Visit';
-    }
-    // 🏥 PIMS City: Hitesh Yadav (12:00 PM)
-    else if (c.includes('HITESH') && doc.srNo === 71) {
-      area = 'PIMS City'; approxTime = '12:00 PM'; hour = 12; minute = 0; period = 'PM';
-      notes = 'PIMS City (12:00 PM)';
-    }
-    // 🏥 PMCH Bedla (Tue, Fri | 11:00 AM – 01:00 PM)
-    else if (
-      c.includes('SABOHRA') || c.includes('JAGDISHVISHNOI') || c.includes('RKSHARMA') ||
-      (c.includes('CPPUROHIT') && doc.srNo === 20) || c.includes('HARISHSANADHY') ||
-      c.includes('SUNITA') || c.includes('RNLADHA') || c.includes('NILESHPATHIRA')
-    ) {
-      area = 'PMCH Bedla'; approxTime = '11:30 AM'; hour = 11; minute = 30; period = 'AM';
-      availableDays = ['TUE', 'FRI']; notes = 'PMCH Bedla (Tue, Fri | 11:00 AM – 01:00 PM)';
-    }
-    // 🏢 Bhopalpura: KC Jain, DP Singh, Sandeep Bhatnagar (06:00 PM)
-    else if (c.includes('KCJAIN') || c.includes('DPSINGH') || (c.includes('SANDEEPBHATNAGAR') && doc.srNo === 43)) {
-      area = 'Bhopalpura'; approxTime = '06:00 PM'; hour = 6; minute = 0; period = 'PM';
-      notes = 'Bhopalpura Evening Clinic (06:00 PM)';
-    }
-    // 🏥 Hospital Road:
-    else if (c.includes('DEEPAKAAMETHA')) {
-      area = 'Hospital Road'; approxTime = '08:10 PM'; hour = 8; minute = 10; period = 'PM';
-      notes = 'Hospital Road Clinic (08:10 PM Exact)';
-    } else if (c.includes('JCDEVPURA')) {
-      area = 'Hospital Road'; approxTime = '06:30 PM'; hour = 6; minute = 30; period = 'PM';
-      notes = 'Hospital Road (06:30 PM - 07:00 PM)';
-    } else if (c.includes('MUKESHSHARMA') && doc.srNo === 19) {
-      area = 'Hospital Road'; approxTime = '08:00 PM'; hour = 8; minute = 0; period = 'PM';
-      notes = 'Hospital Road (08:00 PM)';
-    }
-    // 🏢 Shobhagpura:
-    else if (c.includes('ABHAYJAIN')) {
-      area = 'Shobhagpura'; approxTime = '06:30 PM'; hour = 6; minute = 30; period = 'PM';
-      notes = 'Shobhagpura (06:30 PM)';
-    } else if (c.includes('MANISHKULSHERT') || c.includes('MANISHKULSHRESH')) {
-      area = 'Shobhagpura'; approxTime = '06:30 PM'; hour = 6; minute = 30; period = 'PM';
-      notes = 'Shobhagpura (06:00 PM - 07:00 PM)';
-    }
-    // 🏢 Mallatalai:
-    else if (c.includes('SANDEEPKANSARA')) {
-      area = 'Mallatalai'; approxTime = '07:00 PM'; hour = 7; minute = 0; period = 'PM';
-      notes = 'Mallatalai Clinic (07:00 PM)';
-    } else if (c.includes('SKKUASHIK') || c.includes('SKKAUSHIQ')) {
-      area = 'Mallatalai'; approxTime = '08:00 PM'; hour = 8; minute = 0; period = 'PM';
-      notes = 'Mallatalai Clinic (08:00 PM)';
-    }
-    // 🏥 Paras Hospital (Friday | 04:00 PM – 05:30 PM)
-    else if (c.includes('AMITKHANDELWAL') || c.includes('ASHUTOSHSONI')) {
-      area = 'Paras Hospital'; approxTime = '04:30 PM'; hour = 4; minute = 30; period = 'PM';
-      availableDays = ['FRI']; notes = 'Paras Hospital (Friday | 04:00 PM – 05:30 PM)';
-    }
-    // 🏭 Hindustan Zinc City & Debari
-    else if (c.includes('SALMASHAH') || c.includes('ABHISHEKKUMAR') || c.includes('VINODKUMARRAI') || c.includes('VINODKRAI')) {
-      area = 'Hindustan Zinc City'; approxTime = '11:00 AM'; hour = 11; minute = 0; period = 'AM';
-      notes = 'Zinc City Hospital (11:00 AM)';
-    } else if (c.includes('SUMITSIROIYA')) {
-      area = 'Hindustan Zinc Debari'; approxTime = '12:00 PM'; hour = 12; minute = 0; period = 'PM';
-      notes = 'Zinc Debari (12:00 PM) & Hiran Magri Evening';
-    }
-    // 🏢 Hiran Magri
-    else if (c.includes('PARASJAIN')) {
-      area = 'Hiran Magri'; approxTime = '07:30 PM'; hour = 7; minute = 30; period = 'PM';
-      notes = 'Hiran Magri Evening Clinic (07:30 PM)';
-    }
-    // 🏥 Shikarwadi (Wed, Thu | 05:00 PM)
-    else if (c.includes('AKVATS')) {
-      area = 'Shikarwadi'; approxTime = '05:00 PM'; hour = 5; minute = 0; period = 'PM';
-      availableDays = ['WED', 'THU']; notes = 'Shikarwadi (Wed, Thu | 05:00 PM)';
+
+    // =========================================================================
+    // 🏥 UDAIPUR HQ: UNTOUCHED ORIGINAL HOSPITAL & CLINIC MAPPINGS
+    // =========================================================================
+    else {
+      // 🏥 Geetanjali Hospital (Thu, Fri | 01:00 PM – 03:30 PM)
+      if (
+        c.includes('ABHIJEETBASU') || c.includes('LALITSHREEMALI') || c.includes('RAVIMANGLIYA') || c.includes('RAVIMANGALIA') ||
+        c.includes('AMEETMEHTA') || c.includes('NAVGEETMATHUR') || c.includes('MANUSHARMA') ||
+        c.includes('JITENAJINGAR') || c.includes('SURAJGUPTA') || c.includes('GKMUKHIYA') ||
+        c.includes('RAHULSEHLOT') || c.includes('VINODMEHTA') || c.includes('VINODBOKADIA') ||
+        c.includes('DILIPJAIN') || (c.includes('RAMESHPATEL') && doc.srNo === 32) ||
+        c.includes('SANJAYGANDHI') || c.includes('NEHASHARMA')
+      ) {
+        area = 'Geetanjali Hospital'; approxTime = '01:30 PM'; hour = 1; minute = 30; period = 'PM';
+        availableDays = ['THU', 'FRI']; notes = 'Geetanjali (Thu, Fri | 01:00 PM – 03:30 PM)';
+      }
+      // 🏥 GBH American Bedwas (Fri, Sat | 01:00 PM – 03:00 PM)
+      else if (
+        c.includes('DANNY') || c.includes('DENY') || c.includes('KAPILBHARGAV') ||
+        c.includes('PRIYANKAMINOCHA') || c.includes('PARTH') || c.includes('JITESHAGRAWAL') ||
+        c.includes('RAJENDRASAMAR') || c.includes('ASHWINISHANBHAG') || c.includes('HARBEERSINGH') ||
+        c.includes('MAHESHDESAI') || (c.includes('MUKESHBARJATIYA') && doc.srNo === 31)
+      ) {
+        area = 'GBH American Bedwas'; approxTime = '01:30 PM'; hour = 1; minute = 30; period = 'PM';
+        availableDays = ['FRI', 'SAT']; notes = 'GBH Bedwas (Fri, Sat | 01:00 PM – 03:00 PM)';
+      }
+      // 🏥 GBH American City
+      else if (
+        c.includes('PRERNABAHETI') || c.includes('PANKAJTAPARIA') || c.includes('NAMANNTANEJA') ||
+        c.includes('NAMAN') || c.includes('RAVIRAJ')
+      ) {
+        area = 'GBH American City'; approxTime = '11:30 AM'; hour = 11; minute = 30; period = 'AM';
+        notes = 'GBH City Morning Visit';
+      }
+      // 🏥 PIMS City: Hitesh Yadav (12:00 PM)
+      else if (c.includes('HITESH') && doc.srNo === 71) {
+        area = 'PIMS City'; approxTime = '12:00 PM'; hour = 12; minute = 0; period = 'PM';
+        notes = 'PIMS City (12:00 PM)';
+      }
+      // 🏥 PMCH Bedla (Tue, Fri | 11:00 AM – 01:00 PM)
+      else if (
+        c.includes('SABOHRA') || c.includes('JAGDISHVISHNOI') || c.includes('RKSHARMA') ||
+        (c.includes('CPPUROHIT') && doc.srNo === 20) || c.includes('HARISHSANADHY') ||
+        c.includes('SUNITA') || c.includes('RNLADHA') || c.includes('NILESHPATHIRA')
+      ) {
+        area = 'PMCH Bedla'; approxTime = '11:30 AM'; hour = 11; minute = 30; period = 'AM';
+        availableDays = ['TUE', 'FRI']; notes = 'PMCH Bedla (Tue, Fri | 11:00 AM – 01:00 PM)';
+      }
+      // 🏢 Bhopalpura: KC Jain, DP Singh, Sandeep Bhatnagar (06:00 PM)
+      else if (c.includes('KCJAIN') || c.includes('DPSINGH') || (c.includes('SANDEEPBHATNAGAR') && doc.srNo === 43)) {
+        area = 'Bhopalpura'; approxTime = '06:00 PM'; hour = 6; minute = 0; period = 'PM';
+        notes = 'Bhopalpura Evening Clinic (06:00 PM)';
+      }
+      // 🏥 Hospital Road:
+      else if (c.includes('DEEPAKAAMETHA')) {
+        area = 'Hospital Road'; approxTime = '08:10 PM'; hour = 8; minute = 10; period = 'PM';
+        notes = 'Hospital Road Clinic (08:10 PM Exact)';
+      } else if (c.includes('JCDEVPURA')) {
+        area = 'Hospital Road'; approxTime = '06:30 PM'; hour = 6; minute = 30; period = 'PM';
+        notes = 'Hospital Road (06:30 PM - 07:00 PM)';
+      } else if (c.includes('MUKESHSHARMA') && doc.srNo === 19) {
+        area = 'Hospital Road'; approxTime = '08:00 PM'; hour = 8; minute = 0; period = 'PM';
+        notes = 'Hospital Road (08:00 PM)';
+      }
+      // 🏢 Shobhagpura:
+      else if (c.includes('ABHAYJAIN')) {
+        area = 'Shobhagpura'; approxTime = '06:30 PM'; hour = 6; minute = 30; period = 'PM';
+        notes = 'Shobhagpura (06:30 PM)';
+      } else if (c.includes('MANISHKULSHERT') || c.includes('MANISHKULSHRESH')) {
+        area = 'Shobhagpura'; approxTime = '06:30 PM'; hour = 6; minute = 30; period = 'PM';
+        notes = 'Shobhagpura (06:00 PM - 07:00 PM)';
+      }
+      // 🏢 Mallatalai:
+      else if (c.includes('SANDEEPKANSARA')) {
+        area = 'Mallatalai'; approxTime = '07:00 PM'; hour = 7; minute = 0; period = 'PM';
+        notes = 'Mallatalai Clinic (07:00 PM)';
+      } else if (c.includes('SKKUASHIK') || c.includes('SKKAUSHIQ')) {
+        area = 'Mallatalai'; approxTime = '08:00 PM'; hour = 8; minute = 0; period = 'PM';
+        notes = 'Mallatalai Clinic (08:00 PM)';
+      }
+      // 🏥 Paras Hospital (Friday | 04:00 PM – 05:30 PM)
+      else if (c.includes('AMITKHANDELWAL') || c.includes('ASHUTOSHSONI')) {
+        area = 'Paras Hospital'; approxTime = '04:30 PM'; hour = 4; minute = 30; period = 'PM';
+        availableDays = ['FRI']; notes = 'Paras Hospital (Friday | 04:00 PM – 05:30 PM)';
+      }
+      // 🏭 Hindustan Zinc City & Debari
+      else if (c.includes('SALMASHAH') || c.includes('ABHISHEKKUMAR') || c.includes('VINODKUMARRAI') || c.includes('VINODKRAI')) {
+        area = 'Hindustan Zinc City'; approxTime = '11:00 AM'; hour = 11; minute = 0; period = 'AM';
+        notes = 'Zinc City Hospital (11:00 AM)';
+      } else if (c.includes('SUMITSIROIYA')) {
+        area = 'Hindustan Zinc Debari'; approxTime = '12:00 PM'; hour = 12; minute = 0; period = 'PM';
+        notes = 'Zinc Debari (12:00 PM) & Hiran Magri Evening';
+      }
+      // 🏢 Hiran Magri
+      else if (c.includes('PARASJAIN')) {
+        area = 'Hiran Magri'; approxTime = '07:30 PM'; hour = 7; minute = 30; period = 'PM';
+        notes = 'Hiran Magri Evening Clinic (07:30 PM)';
+      }
+      // 🏥 Shikarwadi (Wed, Thu | 05:00 PM)
+      else if (c.includes('AKVATS')) {
+        area = 'Shikarwadi'; approxTime = '05:00 PM'; hour = 5; minute = 0; period = 'PM';
+        availableDays = ['WED', 'THU']; notes = 'Shikarwadi (Wed, Thu | 05:00 PM)';
+      }
     }
 
     const hasAct = !!(doc.activityType && doc.activityType.trim() !== '-');
@@ -329,7 +352,7 @@ export class DailyWorkingStore {
       availableDays: availableDays,
       notes: notes,
       isExStation: isEx,
-      station: station,
+      station: isEx ? area : 'UDAIPUR',
       monthlyTargetVisits: (!isEx && hasAct) ? 4 : (hasAct ? 2 : 1)
     };
   }
@@ -344,13 +367,26 @@ export class DailyWorkingStore {
       }
     } catch (e) {}
 
+    const exCounts: Record<string, number> = { DUNGARPUR: 0, BANSWARA: 0, CHITTORGARH: 0, RAJSAMAND: 0 };
+
     CBO_MASTER_130_DOCTORS.forEach(doc => {
+      let exIdx = 0;
+      if (doc.station !== 'UDAIPUR') {
+        exIdx = exCounts[doc.station] || 0;
+        exCounts[doc.station] = exIdx + 1;
+      }
+
       if (!savedProfiles[doc.srNo]) {
-        savedProfiles[doc.srNo] = this.buildProfileForDoctor(doc);
+        savedProfiles[doc.srNo] = this.buildProfileForDoctor(doc, exIdx);
       } else {
+        const isEx = doc.station !== 'UDAIPUR';
         savedProfiles[doc.srNo].doctorName = doc.doctorName;
-        savedProfiles[doc.srNo].station = doc.station;
-        savedProfiles[doc.srNo].isExStation = doc.station !== 'UDAIPUR';
+        savedProfiles[doc.srNo].station = isEx ? (doc.station.charAt(0).toUpperCase() + doc.station.slice(1).toLowerCase()) : 'UDAIPUR';
+        savedProfiles[doc.srNo].isExStation = isEx;
+        if (isEx) {
+          savedProfiles[doc.srNo].area = savedProfiles[doc.srNo].station;
+          savedProfiles[doc.srNo].primaryHospital = savedProfiles[doc.srNo].station;
+        }
         savedProfiles[doc.srNo].speciality = doc.speciality;
         if (doc.activityType) savedProfiles[doc.srNo].activityType = doc.activityType;
       }
@@ -394,15 +430,28 @@ export class DailyWorkingStore {
   public syncFromMslSheet(): { synced: number; added: number; total: number } {
     let synced = 0;
     let added = 0;
+    const exCounts: Record<string, number> = { DUNGARPUR: 0, BANSWARA: 0, CHITTORGARH: 0, RAJSAMAND: 0 };
 
     CBO_MASTER_130_DOCTORS.forEach(doc => {
+      let exIdx = 0;
+      if (doc.station !== 'UDAIPUR') {
+        exIdx = exCounts[doc.station] || 0;
+        exCounts[doc.station] = exIdx + 1;
+      }
+
       if (this.profiles[doc.srNo]) {
+        const isEx = doc.station !== 'UDAIPUR';
         this.profiles[doc.srNo].doctorName = doc.doctorName;
-        this.profiles[doc.srNo].station = doc.station;
+        this.profiles[doc.srNo].station = isEx ? (doc.station.charAt(0).toUpperCase() + doc.station.slice(1).toLowerCase()) : 'UDAIPUR';
+        this.profiles[doc.srNo].isExStation = isEx;
+        if (isEx) {
+          this.profiles[doc.srNo].area = this.profiles[doc.srNo].station;
+          this.profiles[doc.srNo].primaryHospital = this.profiles[doc.srNo].station;
+        }
         this.profiles[doc.srNo].speciality = doc.speciality;
         synced++;
       } else {
-        this.profiles[doc.srNo] = this.buildProfileForDoctor(doc);
+        this.profiles[doc.srNo] = this.buildProfileForDoctor(doc, exIdx);
         added++;
       }
     });
