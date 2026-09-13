@@ -20,8 +20,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
   const [campsList, setCampsList] = useState<CampRecord[]>(() => campStore.getCamps());
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  // --- FORM STATE ---
-  const [selectedDoctor, setSelectedDoctor] = useState<CboDoctorMaster | null>(() => CBO_MASTER_130_DOCTORS[45] || null); // Default Dr. Jayesh Gandhi
+  const [selectedDoctor, setSelectedDoctor] = useState<CboDoctorMaster | null>(() => CBO_MASTER_130_DOCTORS[45] || null);
   const [doctorSearchText, setDoctorSearchText] = useState('');
   
   const [campTypeChoice, setCampTypeChoice] = useState<string>('HbA1c & Neuropathy Screening Camp');
@@ -40,7 +39,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
   const [campTime, setCampTime] = useState<string>('10:00 AM');
   const [clinicVenue, setClinicVenue] = useState<string>('Dungarpur Clinic');
 
-  // Patients Roster
   const [patients, setPatients] = useState<CampPatientEntry[]>([
     { id: 'p1', patientName: 'Ramesh Lal Sharma', ageGender: '54/M', testResult: 'HbA1c: 8.4%', brandPrescribed: 'LINAGET-D TAB', stripsSold: 2 },
     { id: 'p2', patientName: 'Mohan Lal Meena', ageGender: '48/M', testResult: 'VPT: High (Neuropathy)', brandPrescribed: 'PREMYLIN MSR TAB', stripsSold: 2 },
@@ -48,11 +46,9 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     { id: 'p4', patientName: 'Kanti Lal Soni', ageGender: '52/M', testResult: 'HbA1c: 7.9%', brandPrescribed: 'LINAGET-D TAB', stripsSold: 1 }
   ]);
 
-  // Optional POB
   const [pobAmount, setPobAmount] = useState<string>('18500');
   const [pobChemist, setPobChemist] = useState<string>('Local Chemist');
 
-  // Filtered Doctors for search
   const filteredDoctors = useMemo(() => {
     if (!doctorSearchText.trim()) return CBO_MASTER_130_DOCTORS.slice(0, 10);
     const q = doctorSearchText.toLowerCase();
@@ -61,10 +57,8 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     ).slice(0, 8);
   }, [doctorSearchText]);
 
-  // Active Camp Type string
   const activeCampType = isCustomCampType ? (customCampTypeText || 'Custom Clinical Camp') : campTypeChoice;
 
-  // Add Patient Row
   const handleAddPatientRow = () => {
     const defaultBrand = selectedFocusBrands[0] || 'LINAGET-D TAB';
     setPatients(prev => [
@@ -107,12 +101,10 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setCustomBrandText('');
   };
 
-  // Calculations for Camp Day Results
   const totalScreened = patients.filter(p => p.patientName.trim().length > 0).length || patients.length;
   const totalStrips = patients.reduce((acc, p) => acc + (Number(p.stripsSold) || 0), 0);
   const totalRx = patients.filter(p => p.brandPrescribed && p.brandPrescribed.trim().length > 0).length;
 
-  // Breakdown by Focus Brand
   const brandRxSummary = useMemo(() => {
     const map: Record<string, { rx: number; strips: number }> = {};
     patients.forEach(p => {
@@ -124,7 +116,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return map;
   }, [patients, selectedFocusBrands]);
 
-  // 🌟 1. EXACT STARTING WHATSAPP MESSAGE FORMAT
   const startingMessageText = useMemo(() => {
     const docName = selectedDoctor ? `Dr. ${selectedDoctor.doctorName} (${selectedDoctor.speciality})` : 'Doctor';
     const venue = clinicVenue || selectedDoctor?.clinicAddress || selectedDoctor?.station || 'Clinic';
@@ -133,7 +124,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return `🚩 *CAMP INITIATION UPDATE* 🚩\n\n👨‍⚕️ *Doctor:* ${docName}\n🏥 *Hospital/Clinic:* ${venue}\n🔬 *Camp Type:* ${activeCampType}\n🎯 *Focus Brands:* ${brands}\n📅 *Date & Time:* ${campDate} | ${campTime}`;
   }, [selectedDoctor, clinicVenue, activeCampType, selectedFocusBrands, campDate, campTime]);
 
-  // 🌟 2. EXACT FINAL CLOSURE & ROI WHATSAPP REPORT FORMAT (WITH AUTO-HIDE POB)
   const finalClosureReportText = useMemo(() => {
     const docName = selectedDoctor ? `Dr. ${selectedDoctor.doctorName}` : 'Doctor';
     const venue = clinicVenue || selectedDoctor?.clinicAddress || selectedDoctor?.station || 'Clinic';
@@ -147,7 +137,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     lines.push(`📊 *CAMP DAY RESULTS:*`);
     lines.push(`• Total Patients Screened: ${totalScreened} Patients`);
 
-    // Brand Breakdowns
     const entries = Object.entries(brandRxSummary);
     if (entries.length > 0) {
       const major = entries[0];
@@ -162,7 +151,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     lines.push(`• Total Prescriptions Generated on Camp Day: ${totalRx} Rx`);
     lines.push(`• Total Strips Sold/Billed on Camp Day: ${totalStrips} Strips`);
 
-    // 🌟 POB SECTION: ONLY SHOWN IF POB AMOUNT > 0
     const parsedPob = parseFloat(String(pobAmount || '0').replace(/,/g, '')) || 0;
     if (parsedPob > 0) {
       const chemistStr = pobChemist.trim() ? ` (${pobChemist.trim()})` : '';
@@ -172,7 +160,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return lines.join('\n');
   }, [selectedDoctor, clinicVenue, activeCampType, campDate, totalScreened, brandRxSummary, totalRx, totalStrips, pobAmount, pobChemist]);
 
-  // Share Actions
   const handleShareStartingWhatsApp = () => {
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(startingMessageText)}`;
     window.open(url, '_blank');
@@ -189,7 +176,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setTimeout(() => setStatusMsg(null), 2500);
   };
 
-  // Save Record
   const handleSaveCampRecord = () => {
     if (!selectedDoctor) {
       alert("Kripya Doctor select karein!");
@@ -221,7 +207,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setTimeout(() => setStatusMsg(null), 3500);
   };
 
-  // Overall Vault Stats
   const grandStats = useMemo(() => {
     let totCamps = campsList.length;
     let totScreened = campsList.reduce((acc, c) => acc + c.totalScreened, 0);
@@ -232,8 +217,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 max-w-7xl mx-auto space-y-5">
-      
-      {/* 1. TOP NAVBAR */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <button
           onClick={onBack}
@@ -268,7 +251,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* 2. TITLE & CLOUD SYNC */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-3">
@@ -309,7 +291,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 3. KPI STAT CARDS */}
+      {/* KPI Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-md">
           <div className="text-[10px] text-slate-400 uppercase font-semibold">Total Camps Archived</div>
@@ -340,13 +322,9 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* 4. TAB 1: NEW CAMP CREATOR & LIVE EXECUTION ROSTER                       */}
-      {/* ========================================================================= */}
       {activeTab === 'NEW_CAMP' && (
         <div className="space-y-5">
-          
-          {/* SECTION 1: CAMP SETUP & INITIATION */}
+          {/* SECTION 1: CAMP SETUP */}
           <div className="p-5 bg-slate-900 rounded-3xl border-2 border-amber-500/50 shadow-xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -357,14 +335,12 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   <h2 className="text-sm font-bold text-white uppercase tracking-wider">
                     Step 1: Camp Setup &amp; Doctor Selection
                   </h2>
-                  <p className="text-xs text-slate-400">Search doctor from 130 MSL list &bull; Select Focus Brands &bull; Send Starting WhatsApp</p>
+                  <p className="text-xs text-slate-400">Search doctor &bull; Choose Camp Category &bull; Send Starting WhatsApp</p>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
-              
-              {/* Doctor Search & Selection */}
               <div className="space-y-2 p-3.5 bg-slate-950 rounded-2xl border border-slate-800">
                 <label className="text-slate-300 font-bold flex items-center justify-between">
                   <span>1. Pick Doctor from 130 MSL List:</span>
@@ -379,7 +355,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
                     type="text"
-                    placeholder="Type doctor name, station (e.g. Jayesh, Gandhi, Dungarpur, Deepak)..."
+                    placeholder="Type doctor name, station..."
                     value={doctorSearchText}
                     onChange={e => setDoctorSearchText(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl pl-8 pr-3 py-2 text-xs focus:border-amber-400 focus:outline-none"
@@ -412,7 +388,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 </div>
               </div>
 
-              {/* Camp Category & Date/Time */}
               <div className="space-y-3 p-3.5 bg-slate-950 rounded-2xl border border-slate-800">
                 <div className="space-y-1.5">
                   <label className="text-slate-300 font-bold block">2. Camp Category / Type:</label>
@@ -437,7 +412,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   {isCustomCampType && (
                     <input
                       type="text"
-                      placeholder="Type custom camp name (e.g. Free Sugar & Neuropathy Clinic)..."
+                      placeholder="Type custom camp name..."
                       value={customCampTypeText}
                       onChange={e => setCustomCampTypeText(e.target.value)}
                       className="w-full bg-slate-900 border border-cyan-500/60 text-cyan-300 font-bold rounded-xl px-3 py-1.5 text-xs focus:outline-none mt-1"
@@ -475,15 +450,13 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                     />
                   </div>
                 </div>
-
               </div>
-
             </div>
 
-            {/* Major Focus Brands Multi-Select */}
+            {/* Focus Brands */}
             <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
               <label className="text-slate-300 font-bold flex items-center justify-between">
-                <span>3. Major Focus Brands (Select or Type Custom):</span>
+                <span>3. Major Focus Brands:</span>
                 <span className="text-cyan-400 font-mono font-bold">{selectedFocusBrands.join(', ')}</span>
               </label>
 
@@ -526,7 +499,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
 
-            {/* 🚩 STARTING WHATSAPP MESSAGE BOX (CRISP & CLEAN FORMAT) */}
+            {/* Starting WhatsApp Box */}
             <div className="p-4 bg-slate-950 rounded-2xl border-2 border-cyan-500/50 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -557,7 +530,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 {startingMessageText}
               </div>
             </div>
-
           </div>
 
           {/* SECTION 2: LIVE PATIENT SCREENING ROSTER */}
@@ -700,10 +672,9 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 </div>
               </div>
             </div>
-
           </div>
 
-          {/* SECTION 4: FINAL CAMP CLOSURE & ROI WHATSAPP REPORT */}
+          {/* SECTION 4: FINAL CAMP CLOSURE REPORT */}
           <div className="p-5 bg-slate-900 rounded-3xl border-2 border-emerald-500/60 shadow-2xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -745,19 +716,14 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
 
-            {/* PREVIEW BOX */}
             <div className="p-4 bg-slate-950 rounded-2xl border border-emerald-500/40 font-mono text-xs text-slate-200 whitespace-pre-wrap select-all leading-relaxed shadow-inner">
               {finalClosureReportText}
             </div>
-
           </div>
-
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 5. TAB 2: CAMP HISTORY & ARCHIVE VAULT                                   */}
-      {/* ========================================================================= */}
+      {/* TAB 2: CAMP HISTORY */}
       {activeTab === 'CAMP_HISTORY' && (
         <div className="p-5 bg-slate-900 rounded-3xl border border-slate-800 shadow-xl space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-800">
@@ -818,7 +784,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
           )}
         </div>
       )}
-
     </div>
   );
 };

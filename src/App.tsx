@@ -4,9 +4,14 @@ import { DiosWorkspace } from './components/DiosWorkspace';
 import { ReviewFormatWorkspace } from './components/ReviewFormatWorkspace';
 import { WebDataWorkspace } from './components/WebDataWorkspace';
 import { DailyWorkingWorkspace } from './components/DailyWorkingWorkspace';
+import { DoctorCampWorkspace } from './components/DoctorCampWorkspace';
 
 export default function App() {
   const [activeProject, setActiveProject] = useState<string | null>(null);
+
+  if (activeProject === 'camp-hub') {
+    return <DoctorCampWorkspace onBack={() => setActiveProject(null)} />;
+  }
 
   if (activeProject === 'dios' || activeProject === 'dios-aggregator') {
     return <DiosWorkspace onBack={() => setActiveProject(null)} />;
