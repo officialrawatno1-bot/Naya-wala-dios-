@@ -4,7 +4,15 @@ export interface CampPatientEntry {
   ageGender?: string;
   testResult: string;
   brandPrescribed: string;
-  stripsSold: number;
+  prescribedDuration: string; // e.g. "1 Month", "15 Days", "2 Months", "3 Months"
+  stripsCount: number;
+}
+
+export interface CampPobItem {
+  id: string;
+  productName: string;
+  boxes: number;
+  strips: number;
 }
 
 export interface CampRecord {
@@ -18,15 +26,15 @@ export interface CampRecord {
   campType: string;
   focusBrands: string[];
   patients: CampPatientEntry[];
-  pobAmount?: number;
+  pobItems: CampPobItem[];
   pobChemist?: string;
   totalScreened: number;
   totalRxGenerated: number;
-  totalStripsSold: number;
+  totalStripsPrescribed: number;
   savedAt: string;
 }
 
-const CAMPS_STORAGE_KEY = 'dios_doctor_camps_vault_v1';
+const CAMPS_STORAGE_KEY = 'dios_doctor_camps_vault_v2';
 
 export const CAMP_TYPES_PRESETS = [
   'DDC (Diabetes Detection Camp)',
