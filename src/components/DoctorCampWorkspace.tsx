@@ -77,7 +77,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
   const [campsList, setCampsList] = useState<CampRecord[]>(() => campStore.getCamps());
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  // Form State
   const [selectedDoctor, setSelectedDoctor] = useState<CboDoctorMaster | null>(() => CBO_MASTER_130_DOCTORS[45] || null);
   const [doctorSearchText, setDoctorSearchText] = useState('');
   
@@ -95,27 +94,22 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return `${dd}/${mm}/2026`;
   });
 
-  // Time & Touch Clock
   const [campTime, setCampTime] = useState<string>('10:00 AM');
   const [showClockModal, setShowClockModal] = useState(false);
-  const [clockMode, setClockMode] = useState<'HOUR' | 'MINUTE'>('HOUR');
   const [clockHour, setClockHour] = useState<number>(10);
   const [clockMinute, setClockMinute] = useState<number>(0);
   const [clockPeriod, setClockPeriod] = useState<'AM' | 'PM'>('AM');
-  const clockDialRef = useRef<SVGSVGElement | null>(null);
-  const [isDraggingClock, setIsDraggingClock] = useState(false);
 
   const [clinicVenue, setClinicVenue] = useState<string>('Dungarpur Clinic');
 
-  // 📝 PATIENTS ROSTER
+  // Patients Roster
   const [patients, setPatients] = useState<CampPatientEntry[]>([
     { id: 'p1', patientName: 'Ramesh Lal Sharma', mobileNumber: '9829012345', age: 54, gender: 'M', ageGender: '54/M', testResult: 'HbA1c: 8.4%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 3 },
     { id: 'p2', patientName: 'Mohan Lal Meena', mobileNumber: '9414056789', age: 48, gender: 'M', ageGender: '48/M', testResult: 'VPT: 26V (High Risk)', brandPrescribed: 'PREMYLIN MSR TAB', prescribedDuration: '1 Month', stripsCount: 3 },
-    { id: 'p3', patientName: 'Geeta Devi', mobileNumber: '', age: 60, gender: 'F', ageGender: '60/F', testResult: 'RBS: 260 mg/dL', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 3 },
-    { id: 'p4', patientName: 'Kanti Lal Soni', mobileNumber: '7014694989', age: 52, gender: 'M', ageGender: '52/M', testResult: 'HbA1c: 7.8%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '15 Days', stripsCount: 2 }
+    { id: 'p3', patientName: 'Geeta Devi', mobileNumber: '', age: 60, gender: 'F', ageGender: '60/F', testResult: 'RBS: 260 mg/dL', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 3 }
   ]);
 
-  // 🌟 NEW SCREEN / MODAL STATE FOR DEDICATED PATIENT ENTRY
+  // 🌟 DEDICATED POPUP SCREEN / MODAL STATE
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
   const [patientForm, setPatientForm] = useState<{
@@ -185,7 +179,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  // 🌟 OPEN DEDICATED NEW PATIENT MODAL / SCREEN
+  // Open Dedicated New Patient Modal
   const handleOpenNewPatientModal = () => {
     setEditingPatientId(null);
     const defaultBrand = selectedFocusBrands[0] || 'LINAGET-D TAB';
@@ -206,7 +200,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setShowPatientModal(true);
   };
 
-  // 🌟 OPEN EDIT PATIENT MODAL
   const handleOpenEditPatientModal = (p: CampPatientEntry) => {
     setEditingPatientId(p.id);
     setPatientForm({
@@ -222,7 +215,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setShowPatientModal(true);
   };
 
-  // 🌟 SAVE PATIENT FROM MODAL
   const handleSavePatientModal = () => {
     if (!patientForm.patientName.trim()) {
       alert("Kripya Patient ka Naam zaroor likhein!");
@@ -234,7 +226,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     const ageGenderStr = `${ageNum}/${genderVal}`;
 
     if (editingPatientId) {
-      // Update existing
       setPatients(prev => prev.map(item => item.id === editingPatientId ? {
         ...item,
         patientName: patientForm.patientName.trim(),
@@ -247,9 +238,8 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
         prescribedDuration: patientForm.prescribedDuration,
         stripsCount: patientForm.stripsCount
       } : item));
-      setStatusMsg(`🎉 Patient ${patientForm.patientName} successfully updated!`);
+      setStatusMsg(`🎉 Patient ${patientForm.patientName} updated!`);
     } else {
-      // Create new
       const newEntry: CampPatientEntry = {
         id: 'p_' + Date.now(),
         patientName: patientForm.patientName.trim(),
@@ -263,7 +253,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
         stripsCount: patientForm.stripsCount
       };
       setPatients(prev => [...prev, newEntry]);
-      setStatusMsg(`🎉 Patient ${newEntry.patientName} (${newEntry.brandPrescribed}) added to roster!`);
+      setStatusMsg(`🎉 Patient ${newEntry.patientName} added to roster!`);
     }
 
     setShowPatientModal(false);
@@ -274,7 +264,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setPatients(prev => prev.filter(p => p.id !== id));
   };
 
-  // POB Handlers
   const handleAddPobItem = () => {
     if (!selectedPobProduct) return;
     const item: CampPobItem = {
@@ -288,41 +277,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
 
   const handleDeletePobItem = (id: string) => {
     setPobItems(prev => prev.filter(it => it.id !== id));
-  };
-
-  // Touch Clock Calculations
-  const hourAngle = ((clockHour % 12) + clockMinute / 60) * 30;
-  const minuteAngle = clockMinute * 6;
-  const activeAngle = clockMode === 'HOUR' ? (clockHour % 12) * 30 : minuteAngle;
-  const arcLength = 660;
-  const clockProgress = (activeAngle / 360) * arcLength;
-
-  const handleRotateDial = (clientX: number, clientY: number) => {
-    if (!clockDialRef.current) return;
-    const rect = clockDialRef.current.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const dx = clientX - cx;
-    const dy = clientY - cy;
-
-    let deg = Math.atan2(dx, -dy) * (180 / Math.PI);
-    if (deg < 0) deg += 360;
-
-    if (clockMode === 'HOUR') {
-      let h = Math.round(deg / 30);
-      if (h === 0) h = 12;
-      setClockHour(h);
-    } else {
-      let m = Math.round(deg / 6);
-      if (m === 60) m = 0;
-      setClockMinute(m);
-    }
-  };
-
-  const handleSaveClockTime = () => {
-    const formatted = `${String(clockHour).padStart(2, '0')}:${String(clockMinute).padStart(2, '0')} ${clockPeriod}`;
-    setCampTime(formatted);
-    setShowClockModal(false);
   };
 
   const totalScreened = patients.filter(p => p.patientName.trim().length > 0).length || patients.length;
@@ -730,7 +684,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* 🌟 STEP 2: PATIENT ROSTER TABLE (OPEN DEDICATED SCREEN ON "+ Add New Patient") */}
+          {/* 🌟 STEP 2: PATIENT ROSTER (DEDICATED MODAL SCREEN TRIGGER) */}
           <div className="p-5 bg-slate-900 rounded-3xl border border-slate-800 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -739,17 +693,17 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 </span>
                 <div>
                   <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                    Step 2: Patient Screening Roster &bull; ({patients.length} Patients Logged)
+                    Step 2: Patient Screening Roster &bull; ({patients.length} Enrolled)
                   </h2>
-                  <p className="text-xs text-slate-400">Tap below to open dedicated Patient Entry Screen with Phone No., M/F Toggle &amp; Pack-Strips</p>
+                  <p className="text-xs text-slate-400">Click button to open dedicated Patient Entry Screen with Phone No., 1-Click M/F &amp; Pack Strips</p>
                 </div>
               </div>
 
-              {/* 🌟 DEDICATED MODAL TRIGGER */}
+              {/* 🌟 DEDICATED SCREEN BUTTON */}
               <button
                 type="button"
                 onClick={handleOpenNewPatientModal}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 text-white font-black rounded-2xl text-xs shadow-lg shadow-emerald-950 transition cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 text-white font-black rounded-2xl text-xs shadow-lg shadow-emerald-950 transition cursor-pointer active:scale-95"
               >
                 <Plus size={16} /> + Add New Patient (Open Screen)
               </button>
@@ -762,7 +716,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   <tr>
                     <th className="p-3 text-center w-10">#</th>
                     <th className="p-3 min-w-[180px]">Patient Name</th>
-                    <th className="p-3 min-w-[120px] text-slate-400">Mobile No.</th>
+                    <th className="p-3 min-w-[130px] text-slate-400">Mobile No.</th>
                     <th className="p-3 text-center w-24">Age / Gender</th>
                     <th className="p-3 min-w-[170px] text-cyan-400">Clinical Test Value</th>
                     <th className="p-3 min-w-[180px] text-amber-400">Brand Prescribed</th>
@@ -1006,7 +960,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
-                <span className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/30">
+                <span className="p-2 bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/30">
                   <Users size={22} />
                 </span>
                 <div>
@@ -1214,160 +1168,11 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 <button
                   type="button"
                   onClick={handleSavePatientModal}
-                  className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 text-white font-black text-xs rounded-2xl shadow-lg shadow-emerald-950 cursor-pointer flex items-center gap-1.5"
+                  className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 text-white font-black text-xs rounded-2xl shadow-lg shadow-emerald-950 cursor-pointer flex items-center gap-1.5 active:scale-95"
                 >
                   <Check size={16} /> Save Patient to Roster
                 </button>
               </div>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* ⏰ TOUCH CLOCK MODAL */}
-      {showClockModal && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
-          <div className="bg-white text-slate-900 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl flex flex-col p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div className="flex items-center gap-2">
-                <Clock size={18} className="text-purple-600" />
-                <h3 className="text-base font-black text-slate-900 tracking-wide">
-                  Set Camp Timing (Touch Clock)
-                </h3>
-              </div>
-              <button onClick={() => setShowClockModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={18} /></button>
-            </div>
-
-            <div className="flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setClockMode('HOUR')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                  clockMode === 'HOUR' ? 'bg-[#8B5CF6] text-white border-[#8B5CF6] shadow' : 'bg-slate-100 text-slate-600 border-slate-200'
-                }`}
-              >
-                ⏰ Ghanta Hand ({clockHour})
-              </button>
-              <button
-                type="button"
-                onClick={() => setClockMode('MINUTE')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                  clockMode === 'MINUTE' ? 'bg-[#EC4899] text-white border-[#EC4899] shadow' : 'bg-slate-100 text-slate-600 border-slate-200'
-                }`}
-              >
-                ⏱️ Minute Hand (Chhota Kanta: {clockMinute}m)
-              </button>
-            </div>
-
-            <div className="flex flex-col items-center justify-center select-none">
-              <div className="relative w-56 h-56 flex items-center justify-center">
-                <svg
-                  ref={clockDialRef}
-                  viewBox="0 0 260 260"
-                  className="w-56 h-56 cursor-pointer touch-none"
-                  onMouseDown={() => setIsDraggingClock(true)}
-                  onMouseUp={() => setIsDraggingClock(false)}
-                  onMouseMove={(e) => isDraggingClock && handleRotateDial(e.clientX, e.clientY)}
-                  onTouchStart={() => setIsDraggingClock(true)}
-                  onTouchEnd={() => setIsDraggingClock(false)}
-                  onTouchMove={(e) => isDraggingClock && handleRotateDial(e.touches[0].clientX, e.touches[0].clientY)}
-                  onClick={(e) => handleRotateDial(e.clientX, e.clientY)}
-                >
-                  <circle cx="130" cy="130" r="105" fill="none" stroke="#F1F5F9" strokeWidth="20" />
-                  <circle
-                    cx="130"
-                    cy="130"
-                    r="105"
-                    fill="none"
-                    stroke={clockMode === 'HOUR' ? '#8B5CF6' : '#EC4899'}
-                    strokeWidth="20"
-                    strokeLinecap="round"
-                    strokeDasharray={arcLength}
-                    strokeDashoffset={arcLength - clockProgress}
-                    transform="rotate(-90 130 130)"
-                  />
-                  <circle cx="130" cy="130" r="92" fill="#FFFFFF" />
-
-                  {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((h, i) => {
-                    const angle = (i * 30) * (Math.PI / 180);
-                    const x = 130 + 72 * Math.sin(angle);
-                    const y = 130 - 72 * Math.cos(angle);
-                    const isKeyNumber = [12, 3, 6, 9].includes(h);
-
-                    return (
-                      <text
-                        key={h}
-                        x={x}
-                        y={y + 4}
-                        textAnchor="middle"
-                        fontSize={isKeyNumber ? "13" : "11"}
-                        fontWeight={isKeyNumber ? "bold" : "normal"}
-                        fill={isKeyNumber ? "#8B5CF6" : "#64748B"}
-                      >
-                        {h}
-                      </text>
-                    );
-                  })}
-
-                  <line
-                    x1="130"
-                    y1="130"
-                    x2={130 + 48 * Math.sin(hourAngle * (Math.PI / 180))}
-                    y2={130 - 48 * Math.cos(hourAngle * (Math.PI / 180))}
-                    stroke="#8B5CF6"
-                    strokeWidth="4.5"
-                    strokeLinecap="round"
-                  />
-                  <line
-                    x1="130"
-                    y1="130"
-                    x2={130 + 68 * Math.sin(minuteAngle * (Math.PI / 180))}
-                    y2={130 - 68 * Math.cos(minuteAngle * (Math.PI / 180))}
-                    stroke="#EC4899"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
-                  <circle cx="130" cy="130" r="5" fill="#1E293B" />
-                </svg>
-              </div>
-
-              <div className="flex items-center gap-3 mt-2">
-                <span className="text-3xl font-black font-mono text-slate-800 tracking-tight">
-                  {String(clockHour).padStart(2, '0')}:{String(clockMinute).padStart(2, '0')}
-                </span>
-
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setClockPeriod('AM')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      clockPeriod === 'AM' ? 'bg-[#8B5CF6] text-white shadow' : 'text-slate-600'
-                    }`}
-                  >
-                    AM
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setClockPeriod('PM')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      clockPeriod === 'PM' ? 'bg-[#8B5CF6] text-white shadow' : 'text-slate-600'
-                    }`}
-                  >
-                    PM
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handleSaveClockTime}
-                className="w-full py-3 bg-[#8B5CF6] hover:bg-[#7C3AED] active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-purple-500/30 transition cursor-pointer flex items-center justify-center gap-2"
-              >
-                <Check size={16} /> SET CAMP TIME
-              </button>
             </div>
 
           </div>
