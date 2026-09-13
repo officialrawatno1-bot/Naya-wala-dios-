@@ -23,7 +23,7 @@ const DURATION_PRESETS = [
   '3 Months'
 ];
 
-// Helper to determine exact pack size of a product (10s, 15s, 14s, 4s)
+// Determine pack size (10s, 15s, 14s, 4s)
 const getPackQuantity = (brandName: string): number => {
   const mp = MASTER_PRODUCTS.find(p => p.name.toUpperCase().trim() === brandName.toUpperCase().trim());
   if (!mp) return 10;
@@ -80,7 +80,6 @@ const getCampTestPresets = (campType: string): string[] => {
   if (ct.includes('HYPER') || ct.includes('VASCULAR')) {
     return ['BP: 160/100 mmHg', 'BP: 150/95 mmHg', 'BP: 170/105 mmHg', 'Stage 2 HTN'];
   }
-  // Default: DDC (Diabetes Detection / Blood Sugar)
   return ['RBS: 240 mg/dL', 'RBS: 280 mg/dL', 'FBS: 155 mg/dL', 'PPBS: 230 mg/dL', 'RBS: 195 mg/dL'];
 };
 
@@ -89,7 +88,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
   const [campsList, setCampsList] = useState<CampRecord[]>(() => campStore.getCamps());
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  // --- FORM STATE ---
+  // Form State
   const [selectedDoctor, setSelectedDoctor] = useState<CboDoctorMaster | null>(() => CBO_MASTER_130_DOCTORS[45] || null);
   const [doctorSearchText, setDoctorSearchText] = useState('');
   
@@ -97,7 +96,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
   const [isCustomCampType, setIsCustomCampType] = useState(false);
   const [customCampTypeText, setCustomCampTypeText] = useState('');
 
-  // Major Focus Brands
   const [selectedFocusBrands, setSelectedFocusBrands] = useState<string[]>(['LINAGET-D TAB', 'PREMYLIN MSR TAB']);
   const [productSearchText, setProductSearchText] = useState('');
 
@@ -108,7 +106,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return `${dd}/${mm}/2026`;
   });
 
-  // Time & Touch Clock
   const [campTime, setCampTime] = useState<string>('10:00 AM');
   const [showClockModal, setShowClockModal] = useState(false);
   const [clockMode, setClockMode] = useState<'HOUR' | 'MINUTE'>('HOUR');
@@ -118,10 +115,9 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
   const clockDialRef = useRef<SVGSVGElement | null>(null);
   const [isDraggingClock, setIsDraggingClock] = useState(false);
 
-  // Venue / Clinic
   const [clinicVenue, setClinicVenue] = useState<string>('Dungarpur Clinic');
 
-  // 📝 SMART PATIENT ROSTER
+  // 📝 SUPER SMART PATIENT ROSTER
   const [patients, setPatients] = useState<CampPatientEntry[]>([
     { id: 'p1', patientName: 'Ramesh Lal Sharma', ageGender: '54/M', testResult: 'HbA1c: 8.4%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 3 },
     { id: 'p2', patientName: 'Mohan Lal Meena', ageGender: '48/M', testResult: 'VPT: 26V (High Risk)', brandPrescribed: 'PREMYLIN MSR TAB', prescribedDuration: '1 Month', stripsCount: 3 },
@@ -129,7 +125,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     { id: 'p4', patientName: 'Kanti Lal Soni', ageGender: '52/M', testResult: 'HbA1c: 7.8%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '15 Days', stripsCount: 2 }
   ]);
 
-  // Product-wise POB
   const [pobItems, setPobItems] = useState<CampPobItem[]>([
     { id: 'pob1', productName: 'LINAGET-D TAB', boxes: 2, strips: 20 },
     { id: 'pob2', productName: 'PREMYLIN MSR TAB', boxes: 1, strips: 10 }
@@ -156,7 +151,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return MASTER_PRODUCTS.filter(p => p.name.toLowerCase().includes(q) || String(p.sn).includes(q)).slice(0, 8);
   }, [productSearchText]);
 
-  // 1-Click Range Bundles
   const handleSelectBrandRange = (familyPrefix: string) => {
     const matching = MASTER_PRODUCTS
       .filter(p => p.name.toUpperCase().includes(familyPrefix.toUpperCase()))
@@ -177,7 +171,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  // 🌟 1-CLICK SUPER SMART ADD PATIENT ROW (AUTO-POPULATES TEST, FOCUS BRAND & PACK-CALCULATED STRIPS)
+  // 🌟 1-CLICK SUPER SMART ADD PATIENT
   const handleAddSmartPatientRow = () => {
     const defaultBrand = selectedFocusBrands[0] || 'LINAGET-D TAB';
     const defaultDuration = '1 Month';
@@ -198,7 +192,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     ]);
   };
 
-  // Smart Gender Toggle Handler
+  // 🌟 1-CLICK GENDER M/F TOGGLE
   const handleToggleGender = (id: string, currentAgeGender: string = '', newGender: 'M' | 'F') => {
     const parts = currentAgeGender.split('/');
     const age = parts[0] ? parts[0].trim() : '50';
@@ -206,7 +200,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setPatients(prev => prev.map(p => p.id === id ? { ...p, ageGender: combined } : p));
   };
 
-  // Smart Age Change Handler
   const handleAgeChange = (id: string, currentAgeGender: string = '', newAge: string) => {
     const parts = currentAgeGender.split('/');
     const gender = parts[1] ? parts[1].trim() : 'M';
@@ -214,13 +207,11 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setPatients(prev => prev.map(p => p.id === id ? { ...p, ageGender: combined } : p));
   };
 
-  // Smart Brand Change with Auto-Strips Recalculation
   const handleBrandChange = (id: string, newBrand: string, currentDuration: string) => {
     const newStrips = calculateStripsFromDuration(newBrand, currentDuration);
     setPatients(prev => prev.map(p => p.id === id ? { ...p, brandPrescribed: newBrand, stripsCount: newStrips } : p));
   };
 
-  // Smart Duration Change with Auto-Strips Recalculation
   const handleDurationChange = (id: string, newDuration: string, currentBrand: string) => {
     const newStrips = calculateStripsFromDuration(currentBrand, newDuration);
     setPatients(prev => prev.map(p => p.id === id ? { ...p, prescribedDuration: newDuration, stripsCount: newStrips } : p));
@@ -246,7 +237,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setPobItems(prev => prev.filter(it => it.id !== id));
   };
 
-  // Touch Clock Calculations
+  // Clock calculations
   const hourAngle = ((clockHour % 12) + clockMinute / 60) * 30;
   const minuteAngle = clockMinute * 6;
   const activeAngle = clockMode === 'HOUR' ? (clockHour % 12) * 30 : minuteAngle;
@@ -281,7 +272,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setShowClockModal(false);
   };
 
-  // Calculations
   const totalScreened = patients.filter(p => p.patientName.trim().length > 0).length || patients.length;
   const totalStrips = patients.reduce((acc, p) => acc + (Number(p.stripsCount) || 0), 0);
   const totalRx = patients.filter(p => p.brandPrescribed && p.brandPrescribed.trim().length > 0).length;
@@ -298,7 +288,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return map;
   }, [patients, selectedFocusBrands]);
 
-  // Starting WhatsApp Message
   const startingMessageText = useMemo(() => {
     const docName = selectedDoctor ? `Dr. ${selectedDoctor.doctorName} (${selectedDoctor.speciality})` : 'Doctor';
     const venue = clinicVenue || selectedDoctor?.clinicAddress || selectedDoctor?.station || 'Clinic';
@@ -307,7 +296,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return `🚩 *CAMP INITIATION UPDATE* 🚩\n\n👨‍⚕️ *Doctor:* ${docName}\n🏥 *Hospital/Clinic:* ${venue}\n🔬 *Camp Type:* ${activeCampType}\n🎯 *Focus Brands:* ${brands}\n📅 *Date & Time:* ${campDate} | ${campTime}`;
   }, [selectedDoctor, clinicVenue, activeCampType, selectedFocusBrands, campDate, campTime]);
 
-  // Final Closure WhatsApp Report
   const finalClosureReportText = useMemo(() => {
     const docName = selectedDoctor ? `Dr. ${selectedDoctor.doctorName}` : 'Doctor';
     const venue = clinicVenue || selectedDoctor?.clinicAddress || selectedDoctor?.station || 'Clinic';
@@ -444,7 +432,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
       </div>
 
       <CloudSyncBar
-        storageKey="camps/clinical_activities_vault_v2"
+        storageKey="camps/clinical_activities_vault_v3"
         sheetTitle="Doctor Clinical Camps & Activities Vault"
         getData={() => ({ camps: campStore.getCamps() })}
         onLoadData={(cloudData: any) => {
@@ -572,7 +560,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                       type="text"
                       value={campDate}
                       onChange={e => setCampDate(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 text-white font-mono font-bold rounded-xl px-2 py-1.5 text-center focus:border-amber-400 focus:outline-none text-xs"
+                      className="w-full bg-slate-900 border border-slate-700 text-white font-mono font-bold rounded-xl px-2.5 py-1.5 text-center focus:border-amber-400 focus:outline-none text-xs"
                     />
                   </div>
 
@@ -604,7 +592,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
 
-            {/* Major Focus Brands Range Bundles */}
+            {/* Focus Brands */}
             <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="text-slate-300 font-bold">
@@ -800,7 +788,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                               <option value="CUSTOM">&bull; Custom Reading &bull;</option>
                             </select>
 
-                            {/* Free text custom value */}
                             <input
                               type="text"
                               value={p.testResult}
@@ -1072,7 +1059,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   clockMode === 'MINUTE' ? 'bg-[#EC4899] text-white border-[#EC4899] shadow' : 'bg-slate-100 text-slate-600 border-slate-200'
                 }`}
               >
-                ⏱️ Minute Hand ({clockMinute}m)
+                ⏱️ Minute Hand (Chhota Kanta: {clockMinute}m)
               </button>
             </div>
 
