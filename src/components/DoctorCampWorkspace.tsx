@@ -45,7 +45,7 @@ const getPackQuantity = (brandName: string): number => {
   return 10;
 };
 
-// 🌟 BIDIRECTIONAL MATH 1: DURATION + DOSAGE -> STRIPS
+// 🌟 BIDIRECTIONAL MATH: DURATION -> STRIPS
 const calculateStripsFromDurationAndFreq = (brandName: string, duration: string, freq: DosageFrequency): number => {
   const packSize = getPackQuantity(brandName);
   const isWeekly = packSize === 4 || freq === 'WEEKLY';
@@ -62,7 +62,7 @@ const calculateStripsFromDurationAndFreq = (brandName: string, duration: string,
 
   if (isWeekly) {
     const weeks = Math.ceil(days / 7);
-    return Math.ceil(weeks / 4); // 4 caps per strip
+    return Math.ceil(weeks / 4);
   }
 
   const tabsPerDay = freq === 'TDS' ? 3 : freq === 'BD' ? 2 : 1;
@@ -70,15 +70,14 @@ const calculateStripsFromDurationAndFreq = (brandName: string, duration: string,
   return Math.ceil(totalTabs / packSize);
 };
 
-// 🌟 BIDIRECTIONAL MATH 2: STRIPS + DOSAGE -> DURATION (DAYS / MONTHS)
+// 🌟 BIDIRECTIONAL MATH: STRIPS -> DURATION
 const calculateDurationFromStripsAndFreq = (brandName: string, strips: number, freq: DosageFrequency): string => {
   const packSize = getPackQuantity(brandName);
   const isWeekly = packSize === 4 || freq === 'WEEKLY';
 
   if (isWeekly) {
     const totalCaps = strips * 4;
-    const weeks = totalCaps;
-    const months = Math.round(weeks / 4);
+    const months = Math.round(totalCaps / 4);
     return months <= 1 ? '1 Month' : `${months} Months`;
   }
 
@@ -92,7 +91,6 @@ const calculateDurationFromStripsAndFreq = (brandName: string, strips: number, f
   return `${months} Months`;
 };
 
-// Default test type based on selected camp
 const getDefaultTestType = (campType: string): ClinicalTestType => {
   const ct = (campType || '').toUpperCase();
   if (ct.includes('NEURO') || ct.includes('BIOTHESIO')) return 'VPT';
@@ -126,9 +124,10 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return `${dd}/${mm}/2026`;
   });
 
-  // Time & Touch Clock
+  // ⏰ Touch Clock State
   const [campTime, setCampTime] = useState<string>('10:00 AM');
   const [showClockModal, setShowClockModal] = useState(false);
+  const [clockMode, setClockMode] = useState<'HOUR' | 'MINUTE'>('HOUR');
   const [clockHour, setClockHour] = useState<number>(10);
   const [clockMinute, setClockMinute] = useState<number>(0);
   const [clockPeriod, setClockPeriod] = useState<'AM' | 'PM'>('AM');
@@ -137,7 +136,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
 
   const [clinicVenue, setClinicVenue] = useState<string>('Dungarpur Clinic');
 
-  // 📝 PATIENTS ROSTER (WITH TEST RANGE & RX YES/NO)
+  // Patients Roster
   const [patients, setPatients] = useState<CampPatientEntry[]>([
     { id: 'p1', patientName: 'Ramesh Lal Sharma', mobileNumber: '9829012345', age: 54, gender: 'M', ageGender: '54/M', testType: 'HbA1c', testValue: 8.4, testDiagnosis: '🔴 Poor Control', testResult: 'HbA1c: 8.4% (🔴 Poor Control)', isPrescribed: true, brandPrescribed: 'LINAGET-D TAB', dosageFrequency: 'OD', prescribedDuration: '1 Month', stripsCount: 3 },
     { id: 'p2', patientName: 'Mohan Lal Meena', mobileNumber: '9414056789', age: 48, gender: 'M', ageGender: '48/M', testType: 'VPT', testValue: 26, testDiagnosis: '🔴 High Risk Neuropathy', testResult: 'VPT: 26V (🔴 High Risk Neuropathy)', isPrescribed: true, brandPrescribed: 'PREMYLIN MSR TAB', dosageFrequency: 'OD', prescribedDuration: '1 Month', stripsCount: 3 },
@@ -145,7 +144,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     { id: 'p4', patientName: 'Kanti Lal Soni', mobileNumber: '7014694989', age: 52, gender: 'M', ageGender: '52/M', testType: 'RBS', testValue: 120, testDiagnosis: '🟢 Normal', testResult: 'RBS: 120 mg/dL (🟢 Normal)', isPrescribed: false, brandPrescribed: '-', dosageFrequency: 'OD', prescribedDuration: '-', stripsCount: 0 }
   ]);
 
-  // 🌟 FAST SCREENING ENTRY MODAL (NO DURATION CLUTTER)
+  // Fast Screening Modal State
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [patientForm, setPatientForm] = useState<{
     patientName: string;
@@ -175,7 +174,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
 
   const activeCampType = isCustomCampType ? (customCampTypeText || 'Custom Clinical Camp') : campTypeChoice;
 
-  // Live Range Reference for Modal
   const modalTestEval = useMemo(() => {
     const val = parseFloat(patientForm.testValue) || 0;
     return evaluateTestResult(patientForm.testType, val);
@@ -215,7 +213,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  // Open Fast Screening Modal
   const handleOpenFastPatientModal = () => {
     const defTest = getDefaultTestType(activeCampType);
     let sampleVal = '240';
@@ -235,7 +232,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setShowPatientModal(true);
   };
 
-  // Save from Fast Modal (Duration defaults to 1 Month, ready in roster table for tweaking)
   const handleSavePatientFromModal = () => {
     if (!patientForm.patientName.trim()) {
       alert("Kripya Patient ka Naam zaroor likhein!");
@@ -269,11 +265,10 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
 
     setPatients(prev => [...prev, newEntry]);
     setShowPatientModal(false);
-    setStatusMsg(`🎉 Patient ${newEntry.patientName} (${newEntry.testDiagnosis}) added to screening roster!`);
+    setStatusMsg(`🎉 Patient ${newEntry.patientName} (${newEntry.testDiagnosis}) added to roster!`);
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
-  // 🌟 TABLE INLINE TOGGLES: RX YES/NO
   const handleTogglePrescribed = (id: string, currentlyPrescribed: boolean) => {
     const nextState = !currentlyPrescribed;
     const defaultBrand = selectedFocusBrands[0] || 'LINAGET-D TAB';
@@ -301,7 +296,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     }));
   };
 
-  // Inline Frequency Change -> Auto recalculate strips
   const handleFreqChange = (id: string, newFreq: DosageFrequency, currentBrand: string, currentDuration: string) => {
     const b = currentBrand === '-' ? (selectedFocusBrands[0] || 'LINAGET-D TAB') : currentBrand;
     const dur = currentDuration === '-' ? '1 Month' : currentDuration;
@@ -314,7 +308,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     } : p));
   };
 
-  // Inline Duration Change -> Auto recalculate strips
   const handleDurationChange = (id: string, newDur: string, currentBrand: string, currentFreq: DosageFrequency) => {
     const b = currentBrand === '-' ? (selectedFocusBrands[0] || 'LINAGET-D TAB') : currentBrand;
     const newStrips = calculateStripsFromDurationAndFreq(b, newDur, currentFreq);
@@ -326,7 +319,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     } : p));
   };
 
-  // 🌟 INLINE CUSTOM STRIPS ENTRY (e.g. 18 strips) -> AUTO RECALCULATES DURATION / MONTHS!
   const handleCustomStripsChange = (id: string, customStripsStr: string, currentBrand: string, currentFreq: DosageFrequency) => {
     const numStrips = Math.max(0, parseFloat(customStripsStr) || 0);
     const b = currentBrand === '-' ? (selectedFocusBrands[0] || 'LINAGET-D TAB') : currentBrand;
@@ -343,7 +335,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setPatients(prev => prev.filter(p => p.id !== id));
   };
 
-  // POB Handlers
   const handleAddPobItem = () => {
     if (!selectedPobProduct) return;
     const item: CampPobItem = {
@@ -359,7 +350,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setPobItems(prev => prev.filter(it => it.id !== id));
   };
 
-  // Touch Clock Calculations
+  // Clock calculations
   const hourAngle = ((clockHour % 12) + clockMinute / 60) * 30;
   const minuteAngle = clockMinute * 6;
   const activeAngle = clockMode === 'HOUR' ? (clockHour % 12) * 30 : minuteAngle;
@@ -394,7 +385,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setShowClockModal(false);
   };
 
-  // Summary Metrics
   const totalScreened = patients.filter(p => p.patientName.trim().length > 0).length || patients.length;
   const totalStrips = patients.reduce((acc, p) => acc + (p.isPrescribed ? (Number(p.stripsCount) || 0) : 0), 0);
   const totalRx = patients.filter(p => p.isPrescribed && p.brandPrescribed !== '-').length;
@@ -557,7 +547,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
       </div>
 
       <CloudSyncBar
-        storageKey="camps/clinical_activities_vault_v4"
+        storageKey="camps/clinical_activities_vault_v5"
         sheetTitle="Doctor Clinical Camps & Activities Vault"
         getData={() => ({ camps: campStore.getCamps() })}
         onLoadData={(cloudData: any) => {
@@ -938,7 +928,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                           )}
                         </td>
 
-                        {/* 🌟 STRIPS INPUT: TYPE 18 STRIPS -> AUTO CALCULATES DURATION */}
+                        {/* STRIPS INPUT: TYPE 18 STRIPS -> AUTO CALCULATES DURATION */}
                         <td className="p-2 text-center">
                           {isRx ? (
                             <input
@@ -1143,15 +1133,15 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 🌟 FAST SCREENING ENTRY MODAL (NO DURATION CLUTTER - FAST & CLEAN) */}
+      {/* FAST SCREENING ENTRY MODAL */}
       {showPatientModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
           <div className="bg-slate-900 border-2 border-emerald-500/70 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col text-slate-100">
             
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
-                <span className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
-                  <Users size={20} />
+                <span className="p-2 bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/30">
+                  <Users size={22} />
                 </span>
                 <div>
                   <h3 className="text-base font-bold text-white">
@@ -1240,7 +1230,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 </div>
               </div>
 
-              {/* 🌟 TEST TYPE & EMPTY NUMBER BOX WITH LIVE RANGE DIAGNOSIS */}
+              {/* TEST TYPE & EMPTY NUMBER BOX WITH LIVE RANGE DIAGNOSIS */}
               <div className="p-3.5 bg-slate-950 rounded-2xl border-2 border-cyan-500/50 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="text-cyan-300 font-bold flex items-center gap-1">
@@ -1283,7 +1273,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                     </select>
                   </div>
 
-                  {/* Empty Value Box */}
                   <div>
                     <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Enter Test Value / Reading:</label>
                     <input
@@ -1296,15 +1285,13 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   </div>
                 </div>
 
-                {/* Range Guide Reference */}
                 <div className="p-2 bg-slate-900/80 rounded-xl border border-slate-800 text-[10px] text-slate-400 font-mono">
-                  Range Reference: <span className="text-slate-200">{modalTestEval.rangeGuide}</span>
+                  Range Guide: <span className="text-slate-200">{modalTestEval.rangeGuide}</span>
                 </div>
               </div>
 
             </div>
 
-            {/* Modal Footer */}
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
               <span className="text-[11px] text-slate-400 font-mono">Prescription &amp; strips managed in table</span>
               <div className="flex items-center gap-2">
@@ -1361,7 +1348,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   clockMode === 'MINUTE' ? 'bg-[#EC4899] text-white border-[#EC4899] shadow' : 'bg-slate-100 text-slate-600 border-slate-200'
                 }`}
               >
-                ⏱️ Minute Hand ({clockMinute}m)
+                ⏱️ Minute Hand (Chhota Kanta: {clockMinute}m)
               </button>
             </div>
 
