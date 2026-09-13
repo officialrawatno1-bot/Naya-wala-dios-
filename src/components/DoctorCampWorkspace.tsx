@@ -48,7 +48,6 @@ const getPackQuantity = (brandName: string): number => {
   return 10;
 };
 
-// 🌟 BIDIRECTIONAL MATH 1: DURATION -> STRIPS
 const calculateStripsFromDurationAndFreq = (brandName: string, durationStr: string, freq: DosageFrequency): number => {
   const packSize = getPackQuantity(brandName);
   const isWeekly = packSize === 4 || freq === 'WEEKLY';
@@ -73,7 +72,7 @@ const calculateStripsFromDurationAndFreq = (brandName: string, durationStr: stri
 
   if (isWeekly) {
     const weeks = Math.ceil(days / 7);
-    return Math.ceil(weeks / 4); // 4 caps per strip
+    return Math.ceil(weeks / 4);
   }
 
   const tabsPerDay = freq === 'TDS' ? 3 : freq === 'BD' ? 2 : 1;
@@ -81,7 +80,6 @@ const calculateStripsFromDurationAndFreq = (brandName: string, durationStr: stri
   return Math.ceil(totalTabs / packSize);
 };
 
-// 🌟 BIDIRECTIONAL MATH 2: STRIPS -> DURATION (DAYS / MONTHS)
 const calculateDurationFromStripsAndFreq = (brandName: string, strips: number, freq: DosageFrequency): string => {
   if (strips <= 0) return '15 Days';
   const packSize = getPackQuantity(brandName);
@@ -156,8 +154,9 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     { id: 'p4', patientName: 'Kanti Lal Soni', mobileNumber: '7014694989', age: 52, gender: 'M', ageGender: '52/M', testType: 'RBS', testValue: 120, testDiagnosis: '🟢 Normal', testResult: 'RBS: 120 mg/dL (🟢 Normal)', isPrescribed: false, brandPrescribed: '-', dosageFrequency: 'OD', prescribedDuration: '-', stripsCount: 0 }
   ]);
 
-  // Fast Screening Modal
+  // 🌟 FAST SCREENING MODAL & EDIT STATE
   const [showPatientModal, setShowPatientModal] = useState(false);
+  const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
   const [patientForm, setPatientForm] = useState<{
     patientName: string;
     mobileNumber: string;
@@ -174,7 +173,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     testValue: '240'
   });
 
-  // 🌟 POB STATE (GOT POB YES/NO TOGGLE)
+  // POB State
   const [gotPob, setGotPob] = useState<boolean>(true);
   const [pobItems, setPobItems] = useState<CampPobItem[]>([
     { id: 'pob1', productName: 'VALROS 10 TAB', boxes: 1, strips: 10 }
@@ -225,7 +224,9 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     }
   };
 
+  // Open Fast Screening Modal (For New Entry)
   const handleOpenFastPatientModal = () => {
+    setEditingPatientId(null);
     const defTest = getDefaultTestType(activeCampType);
     let sampleVal = '240';
     if (defTest === 'HbA1c') sampleVal = '8.4';
@@ -244,6 +245,21 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setShowPatientModal(true);
   };
 
+  // 🌟 OPEN MODAL FOR EDITING AN EXISTING PATIENT
+  const handleOpenEditPatientModal = (p: CampPatientEntry) => {
+    setEditingPatientId(p.id);
+    setPatientForm({
+      patientName: p.patientName,
+      mobileNumber: p.mobileNumber || '',
+      age: p.age || 50,
+      gender: p.gender || 'M',
+      testType: p.testType || 'RBS',
+      testValue: String(p.testValue || '240')
+    });
+    setShowPatientModal(true);
+  };
+
+  // 🌟 SAVE / UPDATE PATIENT (Handles both Create and Edit seamlessly!)
   const handleSavePatientFromModal = () => {
     if (!patientForm.patientName.trim()) {
       alert("Kripya Patient ka Naam zaroor likhein!");
@@ -252,32 +268,60 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
 
     const valNum = parseFloat(patientForm.testValue) || 0;
     const evalRes = evaluateTestResult(patientForm.testType, valNum);
+    const ageNum = patientForm.age || 50;
+    const genderVal = patientForm.gender || 'M';
+    const ageGenderStr = `${ageNum}/${genderVal}`;
 
-    const defaultBrand = selectedFocusBrands[0] || 'VALROS 10 TAB';
-    const isDiabeticOrHighRisk = evalRes.status === 'HIGH' || evalRes.status === 'CRITICAL' || evalRes.status === 'BORDERLINE';
-    const autoStrips = isDiabeticOrHighRisk ? calculateStripsFromDurationAndFreq(defaultBrand, '1 Month', 'OD') : 0;
+    if (editingPatientId) {
+      // Update Existing Patient without resetting Rx duration / prescription
+      setPatients(prev => prev.map(item => {
+        if (item.id === editingPatientId) {
+          return {
+            ...item,
+            patientName: patientForm.patientName.trim(),
+            mobileNumber: patientForm.mobileNumber.trim(),
+            age: ageNum,
+            gender: genderVal,
+            ageGender: ageGenderStr,
+            testType: patientForm.testType,
+            testValue: patientForm.testValue,
+            testDiagnosis: evalRes.label,
+            testResult: `${patientForm.testType}: ${patientForm.testValue} (${evalRes.label})`
+          };
+        }
+        return item;
+      }));
+      setStatusMsg(`🎉 Patient Dr. ${patientForm.patientName} details successfully updated!`);
+    } else {
+      // Create New Entry
+      const defaultBrand = selectedFocusBrands[0] || 'VALROS 10 TAB';
+      const isDiabeticOrHighRisk = evalRes.status === 'HIGH' || evalRes.status === 'CRITICAL' || evalRes.status === 'BORDERLINE';
+      const autoStrips = isDiabeticOrHighRisk ? calculateStripsFromDurationAndFreq(defaultBrand, '1 Month', 'OD') : 0;
 
-    const newEntry: CampPatientEntry = {
-      id: 'p_' + Date.now(),
-      patientName: patientForm.patientName.trim(),
-      mobileNumber: patientForm.mobileNumber.trim(),
-      age: patientForm.age || 50,
-      gender: patientForm.gender || 'M',
-      ageGender: `${patientForm.age || 50}/${patientForm.gender || 'M'}`,
-      testType: patientForm.testType,
-      testValue: patientForm.testValue,
-      testDiagnosis: evalRes.label,
-      testResult: `${patientForm.testType}: ${patientForm.testValue} (${evalRes.label})`,
-      isPrescribed: isDiabeticOrHighRisk,
-      brandPrescribed: isDiabeticOrHighRisk ? defaultBrand : '-',
-      dosageFrequency: 'OD',
-      prescribedDuration: isDiabeticOrHighRisk ? '1 Month' : '-',
-      stripsCount: autoStrips
-    };
+      const newEntry: CampPatientEntry = {
+        id: 'p_' + Date.now(),
+        patientName: patientForm.patientName.trim(),
+        mobileNumber: patientForm.mobileNumber.trim(),
+        age: ageNum,
+        gender: genderVal,
+        ageGender: ageGenderStr,
+        testType: patientForm.testType,
+        testValue: patientForm.testValue,
+        testDiagnosis: evalRes.label,
+        testResult: `${patientForm.testType}: ${patientForm.testValue} (${evalRes.label})`,
+        isPrescribed: isDiabeticOrHighRisk,
+        brandPrescribed: isDiabeticOrHighRisk ? defaultBrand : '-',
+        dosageFrequency: 'OD',
+        prescribedDuration: isDiabeticOrHighRisk ? '1 Month' : '-',
+        stripsCount: autoStrips
+      };
 
-    setPatients(prev => [...prev, newEntry]);
+      setPatients(prev => [...prev, newEntry]);
+      setStatusMsg(`🎉 Patient ${newEntry.patientName} (${newEntry.testDiagnosis}) added to roster!`);
+    }
+
     setShowPatientModal(false);
-    setStatusMsg(`🎉 Patient ${newEntry.patientName} (${newEntry.testDiagnosis}) added to screening roster!`);
+    setEditingPatientId(null);
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
@@ -331,9 +375,8 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     } : p));
   };
 
-  // 🌟 FIX POINT 3: STRIPS EDIT -> ACCURATELY RECALCULATES & VISIBLY UPDATES PRESCRIBED FOR
   const handleCustomStripsChange = (id: string, customStripsStr: string, currentBrand: string, currentFreq: DosageFrequency) => {
-    const cleanStr = customStripsStr.replace(/^0+/, ''); // strip leading zero
+    const cleanStr = customStripsStr.replace(/^0+/, '');
     const numStrips = Math.max(0, parseFloat(cleanStr) || 0);
     const b = currentBrand === '-' ? (selectedFocusBrands[0] || 'VALROS 10 TAB') : currentBrand;
     const calculatedDuration = calculateDurationFromStripsAndFreq(b, numStrips, currentFreq);
@@ -364,7 +407,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setPobItems(prev => prev.filter(it => it.id !== id));
   };
 
-  // Clock calculations
+  // Touch Clock Calculations
   const hourAngle = ((clockHour % 12) + clockMinute / 60) * 30;
   const minuteAngle = clockMinute * 6;
   const activeAngle = clockMode === 'HOUR' ? (clockHour % 12) * 30 : minuteAngle;
@@ -426,7 +469,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return `🚩 *CAMP INITIATION UPDATE* 🚩\n\n👨‍⚕️ *Doctor:* ${docName}\n🏥 *Hospital/Clinic:* ${venue}\n🔬 *Camp Type:* ${activeCampType}\n🎯 *Focus Brands:* ${brands}\n📅 *Date & Time:* ${campDate} | ${campTime}`;
   }, [selectedDoctor, clinicVenue, activeCampType, selectedFocusBrands, campDate, campTime]);
 
-  // 🌟 FIX POINT 2: NATURAL PHRASED WHATSAPP REPORT ("I successfully conducted the camp at Dr. ... and as per chemist feedback...")
   const finalClosureReportText = useMemo(() => {
     const docName = selectedDoctor ? `Dr. ${selectedDoctor.doctorName}` : 'Doctor';
     const docSpec = selectedDoctor?.speciality ? ` (${selectedDoctor.speciality})` : '';
@@ -452,7 +494,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
       lines.push(`• Screened patients are under evaluation.`);
     }
 
-    // POB Line: Only if Got POB is YES and pobItems exist!
     if (gotPob && pobItems.length > 0) {
       lines.push(``);
       const pobLines = pobItems.map(it => `${it.productName} (${it.boxes} Box / ${it.strips} Strips)`).join(', ');
@@ -559,7 +600,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
             Doctor Camp &amp; Clinical Activities Hub
           </h1>
           <p className="text-slate-400 text-xs md:text-sm mt-1">
-            Dynamic Bidirectional Strips/Duration Math &bull; Got POB Yes/No Toggle &bull; Natural WhatsApp Senior Update
+            Patient Edit &bull; Rx YES/NO &bull; OD/BD/TDS Frequency &bull; Bidirectional Strips Math &bull; Got POB Toggle
           </p>
         </div>
       </div>
@@ -810,7 +851,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* STEP 2: PATIENT ROSTER (DYNAMIC STRIPS & PRESCRIBED FOR BIDIRECTIONAL SYNC) */}
+          {/* STEP 2: PATIENT ROSTER (WITH EDIT ✏️ BUTTON & MODAL SYNC) */}
           <div className="p-5 bg-slate-900 rounded-3xl border border-slate-800 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -821,7 +862,9 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   <h2 className="text-sm font-bold text-white uppercase tracking-wider">
                     Step 2: Patient Screening Roster &bull; ({patients.length} Screened)
                   </h2>
-                  <p className="text-xs text-slate-400">Rx YES/NO &bull; Frequency (OD/BD/TDS) &bull; Type any strips count (e.g. 18 strips = 3-6 Months) &rarr; Auto-Syncs Prescribed For!</p>
+                  <p className="text-xs text-slate-400">
+                    Tap <b className="text-cyan-400">"Edit ✏️"</b> to modify Name, Mobile, Test Reading &bull; Strips auto-syncs duration!
+                  </p>
                 </div>
               </div>
 
@@ -847,7 +890,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                     <th className="p-2.5 text-center w-24 text-purple-300">Dosage</th>
                     <th className="p-2.5 min-w-[140px] text-purple-300">Prescribed For</th>
                     <th className="p-2.5 text-center w-24 text-emerald-400">Strips (Edit)</th>
-                    <th className="p-2.5 text-center w-12">Del</th>
+                    <th className="p-2.5 text-center w-20">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-mono text-xs bg-slate-900">
@@ -857,10 +900,21 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                     return (
                       <tr key={p.id} className={`transition ${isRx ? 'bg-slate-900 hover:bg-slate-800/40' : 'bg-slate-950/80 opacity-70'}`}>
                         <td className="p-2.5 text-center text-slate-500">{idx + 1}</td>
+                        
+                        {/* Patient Name (Clickable to Edit) */}
                         <td className="p-2.5 font-sans font-bold text-white">
-                          <div>{p.patientName}</div>
-                          {p.mobileNumber && <span className="text-[10px] text-slate-400 font-mono">📞 {p.mobileNumber}</span>}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditPatientModal(p)}
+                            className="text-left font-bold text-white hover:text-cyan-300 transition cursor-pointer flex items-center gap-1.5 group"
+                            title="Click to Edit Patient Details"
+                          >
+                            <span>{p.patientName}</span>
+                            <Edit3 size={11} className="text-slate-500 group-hover:text-cyan-400" />
+                          </button>
+                          {p.mobileNumber && <span className="text-[10px] text-slate-400 font-mono block">📞 {p.mobileNumber}</span>}
                         </td>
+
                         <td className="p-2.5 text-center">
                           <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
                             (p.gender || 'M') === 'F' ? 'bg-pink-950 text-pink-300 border border-pink-500/40' : 'bg-cyan-950 text-cyan-300 border border-cyan-500/40'
@@ -931,7 +985,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                           )}
                         </td>
 
-                        {/* 🌟 PRESCRIBED FOR (DYNAMICALLY SUPPORTS AUTO-CALCULATED DURATIONS LIKE 30 MONTHS, 6 MONTHS) */}
+                        {/* Duration (Months / Days) */}
                         <td className="p-2">
                           {isRx ? (
                             <select
@@ -949,7 +1003,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                           )}
                         </td>
 
-                        {/* 🌟 STRIPS INPUT: TYPING 18 STRIPS AUTO-UPDATES PRESCRIBED FOR */}
+                        {/* Strips Input */}
                         <td className="p-2 text-center">
                           {isRx ? (
                             <input
@@ -964,14 +1018,27 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                           )}
                         </td>
 
+                        {/* 🌟 2 ACTIONS: EDIT (✏️) AND DELETE (🗑️) */}
                         <td className="p-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePatient(p.id)}
-                            className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditPatientModal(p)}
+                              className="p-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-cyan-400 text-cyan-300 rounded-lg transition cursor-pointer"
+                              title="Edit Patient Details"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePatient(p.id)}
+                              className="p-1.5 bg-slate-950 hover:bg-rose-950 border border-slate-700 hover:border-rose-500 text-rose-400 rounded-lg transition cursor-pointer"
+                              title="Delete Patient"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -980,7 +1047,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
               </table>
             </div>
 
-            {/* 🌟 STEP 3: OPTIONAL POB BOOKING (WITH GOT POB YES / NO TOGGLE) */}
+            {/* STEP 3: OPTIONAL PRODUCT-WISE POB (BOXES & STRIPS) */}
             <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3 text-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -990,7 +1057,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   </span>
                 </div>
 
-                {/* 🌟 1-CLICK GOT POB YES / NO TOGGLE */}
+                {/* 1-Click Got POB YES / NO */}
                 <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
                   <button
                     type="button"
@@ -1021,7 +1088,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 </div>
               </div>
 
-              {/* POB Box only visible when gotPob is true */}
               {gotPob ? (
                 <div className="space-y-2 pt-1 border-t border-slate-900">
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 bg-slate-900 rounded-xl border border-slate-700">
@@ -1091,7 +1157,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* STEP 4: FINAL CAMP CLOSURE REPORT */}
+          {/* STEP 4: FINAL CLOSURE REPORT */}
           <div className="p-5 bg-slate-900 rounded-3xl border-2 border-emerald-500/60 shadow-2xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -1194,7 +1260,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* FAST SCREENING MODAL */}
+      {/* 🌟 PATIENT MODAL: SUPPORTS BOTH NEW ENTRY AND LIVE EDITING */}
       {showPatientModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
           <div className="bg-slate-900 border-2 border-emerald-500/70 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col text-slate-100">
@@ -1204,7 +1270,9 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   <Users size={22} />
                 </span>
                 <div>
-                  <h3 className="text-base font-bold text-white">Fast Patient Screening Entry</h3>
+                  <h3 className="text-base font-bold text-white">
+                    {editingPatientId ? 'Edit Patient Details' : 'Fast Patient Screening Entry'}
+                  </h3>
                   <p className="text-xs text-slate-400">Camp: <b className="text-cyan-300">{activeCampType.split(' ')[0]}</b> &bull; Dr. {selectedDoctor?.doctorName || 'Doctor'}</p>
                 </div>
               </div>
@@ -1336,11 +1404,11 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
 
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400 font-mono">Prescriptions &amp; Strips are managed in Table</span>
+              <span className="text-[11px] text-slate-400 font-mono">Prescriptions &amp; Strips managed in table</span>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => setShowPatientModal(false)} className="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer">Cancel</button>
                 <button type="button" onClick={handleSavePatientFromModal} className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-xs rounded-2xl shadow-lg cursor-pointer flex items-center gap-1.5 active:scale-95">
-                  <Check size={16} /> Add to Roster
+                  <Check size={16} /> {editingPatientId ? 'Update Patient' : 'Add to Roster'}
                 </button>
               </div>
             </div>
@@ -1348,7 +1416,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* TOUCH CLOCK MODAL */}
+      {/* Touch Clock Modal */}
       {showClockModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
           <div className="bg-white text-slate-900 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl flex flex-col p-6 space-y-4">
