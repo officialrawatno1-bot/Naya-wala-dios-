@@ -4,10 +4,11 @@ import {
   Sparkles, Calendar, Clock, MapPin, Building2, 
   Stethoscope, MessageCircle, FileText, Download, 
   CheckCircle2, AlertTriangle, Users, DollarSign, Activity,
-  Layers, Package, Share2, Printer, Copy, Edit3, ShoppingBag
+  Layers, Package, Share2, Printer, Copy, Edit3, ShoppingBag,
+  Zap, ChevronRight
 } from 'lucide-react';
 import { CBO_MASTER_130_DOCTORS, CboDoctorMaster } from '../data/cboMasterDoctors';
-import { MASTER_PRODUCTS } from '../data/masterProducts';
+import { MASTER_PRODUCTS, MasterProduct } from '../data/masterProducts';
 import { campStore, CampRecord, CampPatientEntry, CampPobItem, CAMP_TYPES_PRESETS } from '../data/campStore';
 import { CloudSyncBar } from './CloudSyncBar';
 
@@ -16,11 +17,72 @@ interface Props {
 }
 
 const DURATION_PRESETS = [
-  { label: '15 Days (1 Strip)', text: '15 Days', strips: 1 },
-  { label: '1 Month (2 Strips)', text: '1 Month', strips: 2 },
-  { label: '2 Months (4 Strips)', text: '2 Months', strips: 4 },
-  { label: '3 Months (6 Strips)', text: '3 Months', strips: 6 },
+  '15 Days',
+  '1 Month',
+  '2 Months',
+  '3 Months'
 ];
+
+// Helper to determine exact pack size of a product (10s, 15s, 14s, 4s)
+const getPackQuantity = (brandName: string): number => {
+  const mp = MASTER_PRODUCTS.find(p => p.name.toUpperCase().trim() === brandName.toUpperCase().trim());
+  if (!mp) return 10;
+  const pack = (mp.pack || '').toUpperCase();
+  if (pack.includes('15') || pack.includes('1X15') || pack.includes('15S') || pack.includes('15 TAB')) return 15;
+  if (pack.includes('14') || pack.includes('1X14') || pack.includes('14S')) return 14;
+  if (pack.includes('4') || pack.includes('1X4') || pack.includes('4S')) return 4;
+  return 10;
+};
+
+// 🌟 AUTOMATIC PACK-AWARE STRIPS CALCULATOR
+const calculateStripsFromDuration = (brandName: string, duration: string): number => {
+  const packSize = getPackQuantity(brandName);
+  const isWeekly = packSize === 4; // e.g. Calgym 60K once weekly
+
+  if (isWeekly) {
+    if (duration === '15 Days') return 1;
+    if (duration === '1 Month') return 1;
+    if (duration === '2 Months') return 2;
+    if (duration === '3 Months') return 3;
+    return 1;
+  }
+
+  if (duration === '15 Days') {
+    return packSize === 15 ? 1 : 2;
+  }
+  if (duration === '1 Month') {
+    return packSize === 15 ? 2 : (packSize === 14 ? 2 : 3);
+  }
+  if (duration === '2 Months') {
+    return packSize === 15 ? 4 : (packSize === 14 ? 4 : 6);
+  }
+  if (duration === '3 Months') {
+    return packSize === 15 ? 6 : (packSize === 14 ? 6 : 9);
+  }
+  return 2;
+};
+
+// 🌟 SMART CLINICAL TEST PRESETS PER CAMP TYPE
+const getCampTestPresets = (campType: string): string[] => {
+  const ct = (campType || '').toUpperCase();
+  if (ct.includes('NEURO') || ct.includes('BIOTHESIO')) {
+    return ['VPT: 26V (High Risk)', 'VPT: 32V (Severe Neuropathy)', 'VPT: 18V (Moderate)', 'Tuning Fork: Diminished', 'Burning Sensation (DN)'];
+  }
+  if (ct.includes('HBA1C') || ct.includes('PROGRESSION')) {
+    return ['HbA1c: 8.4%', 'HbA1c: 9.2%', 'HbA1c: 7.8%', 'HbA1c: 10.5%', 'HbA1c: 8.9%'];
+  }
+  if (ct.includes('BMD') || ct.includes('BONE') || ct.includes('DENSITY')) {
+    return ['T-Score: -2.8 (Osteoporosis)', 'T-Score: -1.9 (Osteopenia)', 'T-Score: -3.2 (Severe)', 'Z-Score: -2.2'];
+  }
+  if (ct.includes('CARDIO') || ct.includes('LIPID')) {
+    return ['BP: 160/100 mmHg', 'Cholesterol: 240 mg/dL', 'Triglycerides: 280 mg/dL', 'LDL: 165 mg/dL'];
+  }
+  if (ct.includes('HYPER') || ct.includes('VASCULAR')) {
+    return ['BP: 160/100 mmHg', 'BP: 150/95 mmHg', 'BP: 170/105 mmHg', 'Stage 2 HTN'];
+  }
+  // Default: DDC (Diabetes Detection / Blood Sugar)
+  return ['RBS: 240 mg/dL', 'RBS: 280 mg/dL', 'FBS: 155 mg/dL', 'PPBS: 230 mg/dL', 'RBS: 195 mg/dL'];
+};
 
 export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<'NEW_CAMP' | 'CAMP_HISTORY'>('NEW_CAMP');
@@ -35,7 +97,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
   const [isCustomCampType, setIsCustomCampType] = useState(false);
   const [customCampTypeText, setCustomCampTypeText] = useState('');
 
-  // 🌟 BRAND RANGE BUNDLES STATE
+  // Major Focus Brands
   const [selectedFocusBrands, setSelectedFocusBrands] = useState<string[]>(['LINAGET-D TAB', 'PREMYLIN MSR TAB']);
   const [productSearchText, setProductSearchText] = useState('');
 
@@ -46,7 +108,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return `${dd}/${mm}/2026`;
   });
 
-  // ⏰ TIME & ANALOG CLOCK MODAL STATE
+  // Time & Touch Clock
   const [campTime, setCampTime] = useState<string>('10:00 AM');
   const [showClockModal, setShowClockModal] = useState(false);
   const [clockMode, setClockMode] = useState<'HOUR' | 'MINUTE'>('HOUR');
@@ -56,18 +118,18 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
   const clockDialRef = useRef<SVGSVGElement | null>(null);
   const [isDraggingClock, setIsDraggingClock] = useState(false);
 
-  // 🏥 VENUE / CLINIC MANUAL EDIT STATE
+  // Venue / Clinic
   const [clinicVenue, setClinicVenue] = useState<string>('Dungarpur Clinic');
 
-  // 📝 PATIENTS ROSTER (WITH DURATION & STRIPS)
+  // 📝 SMART PATIENT ROSTER
   const [patients, setPatients] = useState<CampPatientEntry[]>([
-    { id: 'p1', patientName: 'Ramesh Lal Sharma', ageGender: '54/M', testResult: 'HbA1c: 8.4%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 2 },
-    { id: 'p2', patientName: 'Mohan Lal Meena', ageGender: '48/M', testResult: 'VPT: High (Neuropathy)', brandPrescribed: 'PREMYLIN MSR TAB', prescribedDuration: '1 Month', stripsCount: 2 },
-    { id: 'p3', patientName: 'Geeta Devi', ageGender: '60/F', testResult: 'RBS: 260 mg/dL', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 2 },
-    { id: 'p4', patientName: 'Kanti Lal Soni', ageGender: '52/M', testResult: 'HbA1c: 7.9%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '15 Days', stripsCount: 1 }
+    { id: 'p1', patientName: 'Ramesh Lal Sharma', ageGender: '54/M', testResult: 'HbA1c: 8.4%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 3 },
+    { id: 'p2', patientName: 'Mohan Lal Meena', ageGender: '48/M', testResult: 'VPT: 26V (High Risk)', brandPrescribed: 'PREMYLIN MSR TAB', prescribedDuration: '1 Month', stripsCount: 3 },
+    { id: 'p3', patientName: 'Geeta Devi', ageGender: '60/F', testResult: 'RBS: 260 mg/dL', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 3 },
+    { id: 'p4', patientName: 'Kanti Lal Soni', ageGender: '52/M', testResult: 'HbA1c: 7.8%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '15 Days', stripsCount: 2 }
   ]);
 
-  // 🛒 PRODUCT-WISE POB BOOKING (BOXES & STRIPS)
+  // Product-wise POB
   const [pobItems, setPobItems] = useState<CampPobItem[]>([
     { id: 'pob1', productName: 'LINAGET-D TAB', boxes: 2, strips: 20 },
     { id: 'pob2', productName: 'PREMYLIN MSR TAB', boxes: 1, strips: 10 }
@@ -77,7 +139,9 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
   const [newPobBoxes, setNewPobBoxes] = useState<number>(1);
   const [newPobStrips, setNewPobStrips] = useState<number>(10);
 
-  // Filtered Doctors
+  const activeCampType = isCustomCampType ? (customCampTypeText || 'Custom Clinical Camp') : campTypeChoice;
+  const currentTestPresets = useMemo(() => getCampTestPresets(activeCampType), [activeCampType]);
+
   const filteredDoctors = useMemo(() => {
     if (!doctorSearchText.trim()) return CBO_MASTER_130_DOCTORS.slice(0, 10);
     const q = doctorSearchText.toLowerCase();
@@ -86,22 +150,17 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     ).slice(0, 8);
   }, [doctorSearchText]);
 
-  // Filtered Master Products for Search
   const filteredMasterProducts = useMemo(() => {
     if (!productSearchText.trim()) return [];
     const q = productSearchText.toLowerCase();
     return MASTER_PRODUCTS.filter(p => p.name.toLowerCase().includes(q) || String(p.sn).includes(q)).slice(0, 8);
   }, [productSearchText]);
 
-  const activeCampType = isCustomCampType ? (customCampTypeText || 'Custom Clinical Camp') : campTypeChoice;
-
-  // 🌟 BRAND RANGE BUNDLE SELECTORS
+  // 1-Click Range Bundles
   const handleSelectBrandRange = (familyPrefix: string) => {
     const matching = MASTER_PRODUCTS
       .filter(p => p.name.toUpperCase().includes(familyPrefix.toUpperCase()))
       .map(p => p.name);
-
-    // Merge without duplicates
     const combined = Array.from(new Set([...selectedFocusBrands, ...matching]));
     setSelectedFocusBrands(combined);
     setStatusMsg(`🎉 ${familyPrefix} Range ke saare SKUs focus brands me add ho gaye!`);
@@ -118,25 +177,53 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  // Add Patient Row
-  const handleAddPatientRow = () => {
+  // 🌟 1-CLICK SUPER SMART ADD PATIENT ROW (AUTO-POPULATES TEST, FOCUS BRAND & PACK-CALCULATED STRIPS)
+  const handleAddSmartPatientRow = () => {
     const defaultBrand = selectedFocusBrands[0] || 'LINAGET-D TAB';
+    const defaultDuration = '1 Month';
+    const autoStrips = calculateStripsFromDuration(defaultBrand, defaultDuration);
+    const autoTest = currentTestPresets[patients.length % currentTestPresets.length] || 'RBS: 220 mg/dL';
+
     setPatients(prev => [
       ...prev,
       {
         id: 'p_' + Date.now(),
         patientName: '',
-        ageGender: '',
-        testResult: '',
+        ageGender: '50/M',
+        testResult: autoTest,
         brandPrescribed: defaultBrand,
-        prescribedDuration: '1 Month',
-        stripsCount: 2
+        prescribedDuration: defaultDuration,
+        stripsCount: autoStrips
       }
     ]);
   };
 
-  const handleUpdatePatient = (id: string, field: keyof CampPatientEntry, val: any) => {
-    setPatients(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p));
+  // Smart Gender Toggle Handler
+  const handleToggleGender = (id: string, currentAgeGender: string = '', newGender: 'M' | 'F') => {
+    const parts = currentAgeGender.split('/');
+    const age = parts[0] ? parts[0].trim() : '50';
+    const combined = `${age}/${newGender}`;
+    setPatients(prev => prev.map(p => p.id === id ? { ...p, ageGender: combined } : p));
+  };
+
+  // Smart Age Change Handler
+  const handleAgeChange = (id: string, currentAgeGender: string = '', newAge: string) => {
+    const parts = currentAgeGender.split('/');
+    const gender = parts[1] ? parts[1].trim() : 'M';
+    const combined = `${newAge}/${gender}`;
+    setPatients(prev => prev.map(p => p.id === id ? { ...p, ageGender: combined } : p));
+  };
+
+  // Smart Brand Change with Auto-Strips Recalculation
+  const handleBrandChange = (id: string, newBrand: string, currentDuration: string) => {
+    const newStrips = calculateStripsFromDuration(newBrand, currentDuration);
+    setPatients(prev => prev.map(p => p.id === id ? { ...p, brandPrescribed: newBrand, stripsCount: newStrips } : p));
+  };
+
+  // Smart Duration Change with Auto-Strips Recalculation
+  const handleDurationChange = (id: string, newDuration: string, currentBrand: string) => {
+    const newStrips = calculateStripsFromDuration(currentBrand, newDuration);
+    setPatients(prev => prev.map(p => p.id === id ? { ...p, prescribedDuration: newDuration, stripsCount: newStrips } : p));
   };
 
   const handleDeletePatient = (id: string) => {
@@ -159,7 +246,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setPobItems(prev => prev.filter(it => it.id !== id));
   };
 
-  // Clock Hand Angles
+  // Touch Clock Calculations
   const hourAngle = ((clockHour % 12) + clockMinute / 60) * 30;
   const minuteAngle = clockMinute * 6;
   const activeAngle = clockMode === 'HOUR' ? (clockHour % 12) * 30 : minuteAngle;
@@ -211,7 +298,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return map;
   }, [patients, selectedFocusBrands]);
 
-  // 🌟 1. STARTING WHATSAPP MESSAGE FORMAT
+  // Starting WhatsApp Message
   const startingMessageText = useMemo(() => {
     const docName = selectedDoctor ? `Dr. ${selectedDoctor.doctorName} (${selectedDoctor.speciality})` : 'Doctor';
     const venue = clinicVenue || selectedDoctor?.clinicAddress || selectedDoctor?.station || 'Clinic';
@@ -220,7 +307,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return `🚩 *CAMP INITIATION UPDATE* 🚩\n\n👨‍⚕️ *Doctor:* ${docName}\n🏥 *Hospital/Clinic:* ${venue}\n🔬 *Camp Type:* ${activeCampType}\n🎯 *Focus Brands:* ${brands}\n📅 *Date & Time:* ${campDate} | ${campTime}`;
   }, [selectedDoctor, clinicVenue, activeCampType, selectedFocusBrands, campDate, campTime]);
 
-  // 🌟 2. FINAL CLOSURE & ROI WHATSAPP REPORT (WITH ITEM-WISE POB & DURATION)
+  // Final Closure WhatsApp Report
   const finalClosureReportText = useMemo(() => {
     const docName = selectedDoctor ? `Dr. ${selectedDoctor.doctorName}` : 'Doctor';
     const venue = clinicVenue || selectedDoctor?.clinicAddress || selectedDoctor?.station || 'Clinic';
@@ -234,7 +321,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     lines.push(`📊 *CAMP DAY RESULTS:*`);
     lines.push(`• Total Patients Screened: ${totalScreened} Patients`);
 
-    // Focus Brand Breakdown
     const entries = Object.entries(brandRxSummary);
     if (entries.length > 0) {
       const major = entries[0];
@@ -250,7 +336,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     lines.push(`• Total Prescriptions Generated on Camp Day: ${totalRx} Rx`);
     lines.push(`• Total Strips Prescribed / Billed: ${totalStrips} Strips`);
 
-    // 🌟 POB ITEM-WISE BREAKDOWN (ONLY APPEARS IF POB ITEMS EXIST)
     if (pobItems.length > 0) {
       const pobLines = pobItems.map(it => `${it.productName} (${it.boxes} Box / ${it.strips} Strips)`).join(', ');
       const chemistStr = pobChemist.trim() ? ` (From ${pobChemist.trim()})` : '';
@@ -308,7 +393,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 max-w-7xl mx-auto space-y-5">
       
-      {/* 1. TOP NAVBAR */}
+      {/* TOP NAVBAR */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <button
           onClick={onBack}
@@ -343,7 +428,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* 2. HEADER */}
+      {/* TITLE */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-3">
@@ -353,7 +438,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
             Doctor Camp &amp; Clinical Activities Hub
           </h1>
           <p className="text-slate-400 text-xs md:text-sm mt-1">
-            Manual Venue &bull; Touch Clock Timing &bull; Brand Range Bundles &bull; Patient Duration &bull; Product-Wise POB
+            Super Smart Patient Entry &bull; 1-Click M/F Pointers &bull; Pack-Aware Auto-Strips &bull; Camp Test Presets
           </p>
         </div>
       </div>
@@ -387,7 +472,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
       {activeTab === 'NEW_CAMP' && (
         <div className="space-y-5">
           
-          {/* STEP 1: SETUP & INITIATION */}
+          {/* STEP 1: SETUP */}
           <div className="p-5 bg-slate-900 rounded-3xl border-2 border-amber-500/50 shadow-xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -398,14 +483,14 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   <h2 className="text-sm font-bold text-white uppercase tracking-wider">
                     Step 1: Camp Setup &amp; Doctor Timing
                   </h2>
-                  <p className="text-xs text-slate-400">Doctor Search &bull; Manual Venue &bull; Interactive Touch Clock &bull; Focus Brand Bundles</p>
+                  <p className="text-xs text-slate-400">130 MSL Doctors &bull; Touch Clock &bull; Focus Brand Range Bundles</p>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
               
-              {/* Doctor Search */}
+              {/* Doctor Picker */}
               <div className="space-y-2 p-3.5 bg-slate-950 rounded-2xl border border-slate-800">
                 <label className="text-slate-300 font-bold flex items-center justify-between">
                   <span>1. Pick Doctor from 130 MSL List:</span>
@@ -453,7 +538,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 </div>
               </div>
 
-              {/* Camp Type & Venue / Analog Touch Clock */}
+              {/* Camp Type & Venue / Time */}
               <div className="space-y-3 p-3.5 bg-slate-950 rounded-2xl border border-slate-800">
                 <div className="space-y-1">
                   <label className="text-slate-300 font-bold block">2. Camp Category / Type:</label>
@@ -491,21 +576,18 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                     />
                   </div>
 
-                  {/* ⏰ TOUCH CLOCK DIALOG TRIGGER BUTTON */}
                   <div>
                     <label className="text-[11px] text-purple-300 font-bold mb-1 block">⏰ Time (Ghadi):</label>
                     <button
                       type="button"
                       onClick={() => setShowClockModal(true)}
-                      className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-950 to-indigo-950 hover:from-purple-900 border border-purple-500/60 text-purple-300 hover:text-white font-mono font-bold rounded-xl px-2 py-1.5 text-xs transition cursor-pointer shadow-sm"
-                      title="Tap to open analog clock with Ghanta & Minute Kanta"
+                      className="w-full flex items-center justify-center gap-1 bg-gradient-to-r from-purple-950 to-indigo-950 hover:from-purple-900 border border-purple-500/60 text-purple-300 hover:text-white font-mono font-bold rounded-xl px-2 py-1.5 text-xs transition cursor-pointer shadow-sm"
                     >
                       <Clock size={13} className="text-purple-400" />
                       <span>{campTime}</span>
                     </button>
                   </div>
 
-                  {/* 🏥 MANUAL EDITABLE VENUE / CLINIC */}
                   <div>
                     <label className="text-[11px] text-amber-300 font-bold mb-1 block flex items-center gap-1">
                       <Edit3 size={11} /> Venue / Clinic:
@@ -522,14 +604,13 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
 
-            {/* 🌟 3. MAJOR FOCUS BRANDS WITH 1-CLICK RANGE BUNDLES */}
+            {/* Major Focus Brands Range Bundles */}
             <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="text-slate-300 font-bold">
                   3. Major Focus Brands:
                 </label>
                 <div className="flex flex-wrap items-center gap-1 font-mono text-[11px]">
-                  <span className="text-slate-500 mr-1">Bundles:</span>
                   <button type="button" onClick={() => handleSelectBrandRange('VINTEL')} className="px-2 py-0.5 bg-blue-950 hover:bg-blue-900 text-blue-300 border border-blue-500/40 rounded-md font-bold">⚡ VINTEL (All Range)</button>
                   <button type="button" onClick={() => handleSelectBrandRange('VALROS')} className="px-2 py-0.5 bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-500/40 rounded-md font-bold">⚡ VALROS (All Range)</button>
                   <button type="button" onClick={() => handleSelectBrandRange('LINAGET')} className="px-2 py-0.5 bg-teal-950 hover:bg-teal-900 text-teal-300 border border-teal-500/40 rounded-md font-bold">⚡ LINAGET (All Range)</button>
@@ -538,7 +619,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 </div>
               </div>
 
-              {/* Active Selected Brand Chips */}
               <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-slate-900/60 rounded-xl border border-slate-800">
                 {selectedFocusBrands.map(b => (
                   <span key={b} className="inline-flex items-center gap-1.5 bg-cyan-950 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded-lg text-xs font-bold font-mono">
@@ -548,7 +628,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 ))}
               </div>
 
-              {/* Search any product from 73 SKUs */}
               <div className="relative pt-1">
                 <input
                   type="text"
@@ -610,7 +689,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* STEP 2: ADVANCED PATIENT DETAILS & PRESCRIPTION DURATION */}
+          {/* 🌟 STEP 2: SUPER SMART PATIENT ENTRY (1-CLICK M/F TOGGLE, PACK-AWARE STRIPS & PRESET CLINICAL TESTS) */}
           <div className="p-5 bg-slate-900 rounded-3xl border border-slate-800 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -619,121 +698,175 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 </span>
                 <div>
                   <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                    Step 2: Patient Screening &amp; Doctor Prescription Duration
+                    Step 2: Smart Patient Screening &amp; Pack-Aware Duration Engine
                   </h2>
-                  <p className="text-xs text-slate-400">Clinical test &bull; Default Focus Brand (Editable) &bull; Doctor Prescribed For (Days / Month)</p>
+                  <p className="text-xs text-slate-400">1-Click M/F &bull; Camp Test Presets &bull; Pack-Size Auto-Strips (10s: 3 Strips/Mo, 15s: 2 Strips/Mo, 4s: 1 Strip/Mo)</p>
                 </div>
               </div>
 
               <button
                 type="button"
-                onClick={handleAddPatientRow}
-                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-xl text-xs shadow transition cursor-pointer"
+                onClick={handleAddSmartPatientRow}
+                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-emerald-950 transition cursor-pointer"
               >
-                <Plus size={14} /> + Add Patient Row
+                <Zap size={14} className="text-yellow-300" /> + Smart Add Patient
               </button>
             </div>
 
-            <div className="overflow-x-auto max-h-[380px] border border-slate-800 rounded-2xl">
+            <div className="overflow-x-auto max-h-[420px] border border-slate-800 rounded-2xl shadow-inner">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-10">
                   <tr>
                     <th className="p-2.5 text-center w-10">#</th>
                     <th className="p-2.5 min-w-[170px]">Patient Name</th>
-                    <th className="p-2.5 w-24 text-center">Age / Gender</th>
-                    <th className="p-2.5 min-w-[160px] text-cyan-400">Clinical Test Value</th>
+                    <th className="p-2.5 min-w-[140px] text-center">Age / 1-Click Gender</th>
+                    <th className="p-2.5 min-w-[200px] text-cyan-400">Clinical Test Value ({activeCampType.split(' ')[0]})</th>
                     <th className="p-2.5 min-w-[180px] text-amber-400">Brand Prescribed</th>
-                    <th className="p-2.5 min-w-[160px] text-purple-300">Doctor Prescribed For</th>
-                    <th className="p-2.5 text-center w-24 text-emerald-400">Strips</th>
+                    <th className="p-2.5 min-w-[150px] text-purple-300">Doctor Prescribed For</th>
+                    <th className="p-2.5 text-center w-24 text-emerald-400">Auto Strips</th>
                     <th className="p-2.5 text-center w-12">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-mono text-xs bg-slate-900">
-                  {patients.map((p, idx) => (
-                    <tr key={p.id} className="hover:bg-slate-800/40">
-                      <td className="p-2 text-center text-slate-500">{idx + 1}</td>
-                      <td className="p-1">
-                        <input
-                          type="text"
-                          value={p.patientName}
-                          onChange={e => handleUpdatePatient(p.id, 'patientName', e.target.value)}
-                          placeholder="Patient Name"
-                          className="w-full py-1.5 px-2 bg-slate-950 border border-slate-800 text-white font-sans font-bold rounded-lg focus:border-emerald-500 focus:outline-none"
-                        />
-                      </td>
-                      <td className="p-1">
-                        <input
-                          type="text"
-                          value={p.ageGender || ''}
-                          onChange={e => handleUpdatePatient(p.id, 'ageGender', e.target.value)}
-                          placeholder="52/M"
-                          className="w-full py-1.5 px-1 bg-slate-950 border border-slate-800 text-slate-300 text-center rounded-lg focus:outline-none"
-                        />
-                      </td>
-                      <td className="p-1">
-                        <input
-                          type="text"
-                          value={p.testResult}
-                          onChange={e => handleUpdatePatient(p.id, 'testResult', e.target.value)}
-                          placeholder="HbA1c: 8.4%, VPT High"
-                          className="w-full py-1.5 px-2 bg-slate-950 border border-slate-800 text-cyan-300 font-bold rounded-lg focus:outline-none"
-                        />
-                      </td>
+                  {patients.map((p, idx) => {
+                    const currentParts = (p.ageGender || '50/M').split('/');
+                    const ageNum = currentParts[0] || '50';
+                    const genderVal = (currentParts[1] || 'M').toUpperCase();
+                    const packSize = getPackQuantity(p.brandPrescribed);
 
-                      {/* BRAND PRESCRIBED: DEFAULTS TO MAIN FOCUS BRAND, EDITABLE */}
-                      <td className="p-1">
-                        <select
-                          value={p.brandPrescribed}
-                          onChange={e => handleUpdatePatient(p.id, 'brandPrescribed', e.target.value)}
-                          className="w-full py-1.5 px-2 bg-slate-950 border border-slate-800 text-amber-300 font-bold rounded-lg focus:outline-none cursor-pointer"
-                        >
-                          {selectedFocusBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                          {MASTER_PRODUCTS.map(mp => <option key={mp.sn} value={mp.name}>{mp.name}</option>)}
-                        </select>
-                      </td>
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-800/40">
+                        <td className="p-2 text-center text-slate-500">{idx + 1}</td>
+                        
+                        {/* Patient Name */}
+                        <td className="p-1.5">
+                          <input
+                            type="text"
+                            value={p.patientName}
+                            onChange={e => setPatients(prev => prev.map(item => item.id === p.id ? { ...item, patientName: e.target.value } : item))}
+                            placeholder="Patient Name..."
+                            className="w-full py-1.5 px-2 bg-slate-950 border border-slate-800 text-white font-sans font-bold rounded-lg focus:border-emerald-500 focus:outline-none"
+                          />
+                        </td>
 
-                      {/* DOCTOR PRESCRIBED FOR: (DURATION SELECTION) */}
-                      <td className="p-1">
-                        <select
-                          value={p.prescribedDuration}
-                          onChange={e => {
-                            const dObj = DURATION_PRESETS.find(dp => dp.text === e.target.value);
-                            handleUpdatePatient(p.id, 'prescribedDuration', e.target.value);
-                            if (dObj) handleUpdatePatient(p.id, 'stripsCount', dObj.strips);
-                          }}
-                          className="w-full py-1.5 px-2 bg-slate-950 border border-purple-500/40 text-purple-300 font-bold rounded-lg focus:outline-none cursor-pointer"
-                        >
-                          {DURATION_PRESETS.map(dp => <option key={dp.text} value={dp.text}>{dp.label}</option>)}
-                          <option value="Custom">Custom Days...</option>
-                        </select>
-                      </td>
+                        {/* 🌟 1-CLICK AGE & GENDER TOGGLE */}
+                        <td className="p-1.5 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              type="number"
+                              value={ageNum}
+                              onChange={e => handleAgeChange(p.id, p.ageGender, e.target.value)}
+                              placeholder="Age"
+                              className="w-11 py-1 px-1 bg-slate-950 border border-slate-800 text-slate-200 text-center font-bold rounded-lg focus:outline-none"
+                            />
+                            <div className="flex items-center bg-slate-950 rounded-lg p-0.5 border border-slate-800">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleGender(p.id, p.ageGender, 'M')}
+                                className={`px-2 py-0.5 rounded text-[10px] font-black transition cursor-pointer ${
+                                  genderVal === 'M' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                                }`}
+                              >
+                                M
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleGender(p.id, p.ageGender, 'F')}
+                                className={`px-2 py-0.5 rounded text-[10px] font-black transition cursor-pointer ${
+                                  genderVal === 'F' ? 'bg-pink-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                                }`}
+                              >
+                                F
+                              </button>
+                            </div>
+                          </div>
+                        </td>
 
-                      <td className="p-1 text-center">
-                        <input
-                          type="number"
-                          value={p.stripsCount}
-                          onChange={e => handleUpdatePatient(p.id, 'stripsCount', parseFloat(e.target.value) || 0)}
-                          placeholder="2"
-                          className="w-14 py-1.5 px-1 bg-slate-950 border border-slate-800 text-emerald-400 font-bold text-center rounded-lg focus:outline-none mx-auto"
-                        />
-                      </td>
+                        {/* 🌟 SMART CLINICAL TEST VALUE PRESET DROPDOWN + MANUAL INPUT */}
+                        <td className="p-1.5">
+                          <div className="space-y-1">
+                            <select
+                              value={currentTestPresets.includes(p.testResult) ? p.testResult : 'CUSTOM'}
+                              onChange={e => {
+                                if (e.target.value !== 'CUSTOM') {
+                                  setPatients(prev => prev.map(item => item.id === p.id ? { ...item, testResult: e.target.value } : item));
+                                }
+                              }}
+                              className="w-full py-1 px-2 bg-slate-950 border border-cyan-500/40 text-cyan-300 font-bold rounded-lg text-xs focus:outline-none cursor-pointer"
+                            >
+                              {currentTestPresets.map(preset => (
+                                <option key={preset} value={preset}>{preset}</option>
+                              ))}
+                              <option value="CUSTOM">&bull; Custom Reading &bull;</option>
+                            </select>
 
-                      <td className="p-1 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePatient(p.id)}
-                          className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                            {/* Free text custom value */}
+                            <input
+                              type="text"
+                              value={p.testResult}
+                              onChange={e => setPatients(prev => prev.map(item => item.id === p.id ? { ...item, testResult: e.target.value } : item))}
+                              placeholder="Type custom test value..."
+                              className="w-full py-0.5 px-2 bg-slate-950/60 border border-slate-800 text-slate-300 text-[11px] rounded focus:border-cyan-400 focus:outline-none"
+                            />
+                          </div>
+                        </td>
+
+                        {/* BRAND PRESCRIBED: DEFAULTS TO MAIN FOCUS BRAND & RECALCULATES STRIPS */}
+                        <td className="p-1.5">
+                          <select
+                            value={p.brandPrescribed}
+                            onChange={e => handleBrandChange(p.id, e.target.value, p.prescribedDuration)}
+                            className="w-full py-1.5 px-2 bg-slate-950 border border-slate-800 text-amber-300 font-bold rounded-lg focus:outline-none cursor-pointer"
+                          >
+                            <optgroup label="Camp Major Focus Brands">
+                              {selectedFocusBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                            </optgroup>
+                            <optgroup label="All Master Products">
+                              {MASTER_PRODUCTS.map(mp => <option key={mp.sn} value={mp.name}>{mp.name}</option>)}
+                            </optgroup>
+                          </select>
+                          <span className="text-[10px] text-slate-500 font-mono block pl-1 mt-0.5">Pack: {packSize} Tabs/Caps</span>
+                        </td>
+
+                        {/* 🌟 DOCTOR PRESCRIBED FOR: AUTO-RECALCULATES STRIPS */}
+                        <td className="p-1.5">
+                          <select
+                            value={p.prescribedDuration}
+                            onChange={e => handleDurationChange(p.id, e.target.value, p.brandPrescribed)}
+                            className="w-full py-1.5 px-2 bg-slate-950 border border-purple-500/50 text-purple-300 font-bold rounded-lg focus:outline-none cursor-pointer"
+                          >
+                            {DURATION_PRESETS.map(dur => <option key={dur} value={dur}>{dur}</option>)}
+                          </select>
+                        </td>
+
+                        {/* AUTO STRIPS (READ-ONLY / EDITABLE) */}
+                        <td className="p-1.5 text-center">
+                          <input
+                            type="number"
+                            value={p.stripsCount}
+                            onChange={e => setPatients(prev => prev.map(item => item.id === p.id ? { ...item, stripsCount: parseFloat(e.target.value) || 0 } : item))}
+                            placeholder="2"
+                            className="w-16 py-1.5 px-1 bg-slate-950 border border-emerald-500/50 text-emerald-400 font-black text-center rounded-lg focus:outline-none mx-auto text-xs"
+                          />
+                        </td>
+
+                        <td className="p-1.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePatient(p.id)}
+                            className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
-            {/* 🌟 STEP 3: OPTIONAL PRODUCT-WISE POB BOOKING (BOXES & STRIPS) */}
+            {/* STEP 3: OPTIONAL PRODUCT-WISE POB (BOXES & STRIPS) */}
             <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-amber-300 font-bold uppercase tracking-wider flex items-center gap-1.5">
@@ -743,7 +876,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 <span className="text-slate-500 font-mono text-[10px]">Auto-Hides from WhatsApp report if empty</span>
               </div>
 
-              {/* Add POB Item Row */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 bg-slate-900 rounded-xl border border-slate-700">
                 <select
                   value={selectedPobProduct}
@@ -776,7 +908,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
 
                 <input
                   type="text"
-                  placeholder="Chemist Name (e.g. Vardhman / Local)..."
+                  placeholder="Chemist Name..."
                   value={pobChemist}
                   onChange={e => setPobChemist(e.target.value)}
                   className="w-48 bg-slate-950 border border-slate-700 text-white rounded-lg px-2 py-1 text-xs focus:outline-none"
@@ -791,7 +923,6 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 </button>
               </div>
 
-              {/* Active POB Chips List */}
               {pobItems.length > 0 && (
                 <div className="flex flex-wrap gap-2 pt-1">
                   {pobItems.map(it => (
@@ -806,7 +937,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* STEP 4: FINAL CAMP CLOSURE REPORT */}
+          {/* STEP 4: FINAL CLOSURE REPORT */}
           <div className="p-5 bg-slate-900 rounded-3xl border-2 border-emerald-500/60 shadow-2xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -815,7 +946,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 </span>
                 <div>
                   <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                    Step 4: Final Camp Closure &amp; ROI WhatsApp Report
+                    Step 3: Final Camp Closure &amp; ROI WhatsApp Report
                   </h2>
                   <p className="text-xs text-slate-400">1-Click WhatsApp send &bull; Itemized POB auto-hides if empty &bull; Direct Save to Vault</p>
                 </div>
@@ -909,7 +1040,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* ⏰ TOUCH CLOCK MODAL FOR CAMP TIMING */}
+      {/* TOUCH CLOCK MODAL */}
       {showClockModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
           <div className="bg-white text-slate-900 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl flex flex-col p-6 space-y-4">
@@ -941,7 +1072,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                   clockMode === 'MINUTE' ? 'bg-[#EC4899] text-white border-[#EC4899] shadow' : 'bg-slate-100 text-slate-600 border-slate-200'
                 }`}
               >
-                ⏱️ Minute Hand (Chhota Kanta: {clockMinute}m)
+                ⏱️ Minute Hand ({clockMinute}m)
               </button>
             </div>
 
