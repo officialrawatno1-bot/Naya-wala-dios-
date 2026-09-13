@@ -5,7 +5,7 @@ import {
   Stethoscope, MessageCircle, FileText, Download, 
   CheckCircle2, AlertTriangle, Users, DollarSign, Activity,
   Layers, Package, Share2, Printer, Copy, Edit3, ShoppingBag,
-  Zap, ChevronRight
+  Zap, Phone, UserCheck, Baby, ChevronRight
 } from 'lucide-react';
 import { CBO_MASTER_130_DOCTORS, CboDoctorMaster } from '../data/cboMasterDoctors';
 import { MASTER_PRODUCTS, MasterProduct } from '../data/masterProducts';
@@ -23,7 +23,6 @@ const DURATION_PRESETS = [
   '3 Months'
 ];
 
-// Determine pack size (10s, 15s, 14s, 4s)
 const getPackQuantity = (brandName: string): number => {
   const mp = MASTER_PRODUCTS.find(p => p.name.toUpperCase().trim() === brandName.toUpperCase().trim());
   if (!mp) return 10;
@@ -34,10 +33,9 @@ const getPackQuantity = (brandName: string): number => {
   return 10;
 };
 
-// 🌟 AUTOMATIC PACK-AWARE STRIPS CALCULATOR
 const calculateStripsFromDuration = (brandName: string, duration: string): number => {
   const packSize = getPackQuantity(brandName);
-  const isWeekly = packSize === 4; // e.g. Calgym 60K once weekly
+  const isWeekly = packSize === 4;
 
   if (isWeekly) {
     if (duration === '15 Days') return 1;
@@ -47,22 +45,13 @@ const calculateStripsFromDuration = (brandName: string, duration: string): numbe
     return 1;
   }
 
-  if (duration === '15 Days') {
-    return packSize === 15 ? 1 : 2;
-  }
-  if (duration === '1 Month') {
-    return packSize === 15 ? 2 : (packSize === 14 ? 2 : 3);
-  }
-  if (duration === '2 Months') {
-    return packSize === 15 ? 4 : (packSize === 14 ? 4 : 6);
-  }
-  if (duration === '3 Months') {
-    return packSize === 15 ? 6 : (packSize === 14 ? 6 : 9);
-  }
+  if (duration === '15 Days') return packSize === 15 ? 1 : 2;
+  if (duration === '1 Month') return packSize === 15 ? 2 : (packSize === 14 ? 2 : 3);
+  if (duration === '2 Months') return packSize === 15 ? 4 : (packSize === 14 ? 4 : 6);
+  if (duration === '3 Months') return packSize === 15 ? 6 : (packSize === 14 ? 6 : 9);
   return 2;
 };
 
-// 🌟 SMART CLINICAL TEST PRESETS PER CAMP TYPE
 const getCampTestPresets = (campType: string): string[] => {
   const ct = (campType || '').toUpperCase();
   if (ct.includes('NEURO') || ct.includes('BIOTHESIO')) {
@@ -106,6 +95,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     return `${dd}/${mm}/2026`;
   });
 
+  // Time & Touch Clock
   const [campTime, setCampTime] = useState<string>('10:00 AM');
   const [showClockModal, setShowClockModal] = useState(false);
   const [clockMode, setClockMode] = useState<'HOUR' | 'MINUTE'>('HOUR');
@@ -117,14 +107,38 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
 
   const [clinicVenue, setClinicVenue] = useState<string>('Dungarpur Clinic');
 
-  // 📝 SUPER SMART PATIENT ROSTER
+  // 📝 PATIENTS ROSTER
   const [patients, setPatients] = useState<CampPatientEntry[]>([
-    { id: 'p1', patientName: 'Ramesh Lal Sharma', ageGender: '54/M', testResult: 'HbA1c: 8.4%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 3 },
-    { id: 'p2', patientName: 'Mohan Lal Meena', ageGender: '48/M', testResult: 'VPT: 26V (High Risk)', brandPrescribed: 'PREMYLIN MSR TAB', prescribedDuration: '1 Month', stripsCount: 3 },
-    { id: 'p3', patientName: 'Geeta Devi', ageGender: '60/F', testResult: 'RBS: 260 mg/dL', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 3 },
-    { id: 'p4', patientName: 'Kanti Lal Soni', ageGender: '52/M', testResult: 'HbA1c: 7.8%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '15 Days', stripsCount: 2 }
+    { id: 'p1', patientName: 'Ramesh Lal Sharma', mobileNumber: '9829012345', age: 54, gender: 'M', ageGender: '54/M', testResult: 'HbA1c: 8.4%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 3 },
+    { id: 'p2', patientName: 'Mohan Lal Meena', mobileNumber: '9414056789', age: 48, gender: 'M', ageGender: '48/M', testResult: 'VPT: 26V (High Risk)', brandPrescribed: 'PREMYLIN MSR TAB', prescribedDuration: '1 Month', stripsCount: 3 },
+    { id: 'p3', patientName: 'Geeta Devi', mobileNumber: '', age: 60, gender: 'F', ageGender: '60/F', testResult: 'RBS: 260 mg/dL', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '1 Month', stripsCount: 3 },
+    { id: 'p4', patientName: 'Kanti Lal Soni', mobileNumber: '7014694989', age: 52, gender: 'M', ageGender: '52/M', testResult: 'HbA1c: 7.8%', brandPrescribed: 'LINAGET-D TAB', prescribedDuration: '15 Days', stripsCount: 2 }
   ]);
 
+  // 🌟 NEW SCREEN / MODAL STATE FOR DEDICATED PATIENT ENTRY
+  const [showPatientModal, setShowPatientModal] = useState(false);
+  const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
+  const [patientForm, setPatientForm] = useState<{
+    patientName: string;
+    mobileNumber: string;
+    age: number | string;
+    gender: 'M' | 'F' | 'O';
+    testResult: string;
+    brandPrescribed: string;
+    prescribedDuration: string;
+    stripsCount: number;
+  }>({
+    patientName: '',
+    mobileNumber: '',
+    age: 50,
+    gender: 'M',
+    testResult: 'HbA1c: 8.4%',
+    brandPrescribed: 'LINAGET-D TAB',
+    prescribedDuration: '1 Month',
+    stripsCount: 3
+  });
+
+  // POB
   const [pobItems, setPobItems] = useState<CampPobItem[]>([
     { id: 'pob1', productName: 'LINAGET-D TAB', boxes: 2, strips: 20 },
     { id: 'pob2', productName: 'PREMYLIN MSR TAB', boxes: 1, strips: 10 }
@@ -171,50 +185,89 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  // 🌟 1-CLICK SUPER SMART ADD PATIENT
-  const handleAddSmartPatientRow = () => {
+  // 🌟 OPEN DEDICATED NEW PATIENT MODAL / SCREEN
+  const handleOpenNewPatientModal = () => {
+    setEditingPatientId(null);
     const defaultBrand = selectedFocusBrands[0] || 'LINAGET-D TAB';
     const defaultDuration = '1 Month';
     const autoStrips = calculateStripsFromDuration(defaultBrand, defaultDuration);
-    const autoTest = currentTestPresets[patients.length % currentTestPresets.length] || 'RBS: 220 mg/dL';
+    const autoTest = currentTestPresets[patients.length % currentTestPresets.length] || 'HbA1c: 8.4%';
 
-    setPatients(prev => [
-      ...prev,
-      {
+    setPatientForm({
+      patientName: '',
+      mobileNumber: '',
+      age: 50,
+      gender: 'M',
+      testResult: autoTest,
+      brandPrescribed: defaultBrand,
+      prescribedDuration: defaultDuration,
+      stripsCount: autoStrips
+    });
+    setShowPatientModal(true);
+  };
+
+  // 🌟 OPEN EDIT PATIENT MODAL
+  const handleOpenEditPatientModal = (p: CampPatientEntry) => {
+    setEditingPatientId(p.id);
+    setPatientForm({
+      patientName: p.patientName,
+      mobileNumber: p.mobileNumber || '',
+      age: p.age || 50,
+      gender: p.gender || 'M',
+      testResult: p.testResult,
+      brandPrescribed: p.brandPrescribed,
+      prescribedDuration: p.prescribedDuration,
+      stripsCount: p.stripsCount
+    });
+    setShowPatientModal(true);
+  };
+
+  // 🌟 SAVE PATIENT FROM MODAL
+  const handleSavePatientModal = () => {
+    if (!patientForm.patientName.trim()) {
+      alert("Kripya Patient ka Naam zaroor likhein!");
+      return;
+    }
+
+    const ageNum = patientForm.age || 50;
+    const genderVal = patientForm.gender || 'M';
+    const ageGenderStr = `${ageNum}/${genderVal}`;
+
+    if (editingPatientId) {
+      // Update existing
+      setPatients(prev => prev.map(item => item.id === editingPatientId ? {
+        ...item,
+        patientName: patientForm.patientName.trim(),
+        mobileNumber: patientForm.mobileNumber.trim(),
+        age: ageNum,
+        gender: genderVal,
+        ageGender: ageGenderStr,
+        testResult: patientForm.testResult.trim(),
+        brandPrescribed: patientForm.brandPrescribed,
+        prescribedDuration: patientForm.prescribedDuration,
+        stripsCount: patientForm.stripsCount
+      } : item));
+      setStatusMsg(`🎉 Patient ${patientForm.patientName} successfully updated!`);
+    } else {
+      // Create new
+      const newEntry: CampPatientEntry = {
         id: 'p_' + Date.now(),
-        patientName: '',
-        ageGender: '50/M',
-        testResult: autoTest,
-        brandPrescribed: defaultBrand,
-        prescribedDuration: defaultDuration,
-        stripsCount: autoStrips
-      }
-    ]);
-  };
+        patientName: patientForm.patientName.trim(),
+        mobileNumber: patientForm.mobileNumber.trim(),
+        age: ageNum,
+        gender: genderVal,
+        ageGender: ageGenderStr,
+        testResult: patientForm.testResult.trim(),
+        brandPrescribed: patientForm.brandPrescribed,
+        prescribedDuration: patientForm.prescribedDuration,
+        stripsCount: patientForm.stripsCount
+      };
+      setPatients(prev => [...prev, newEntry]);
+      setStatusMsg(`🎉 Patient ${newEntry.patientName} (${newEntry.brandPrescribed}) added to roster!`);
+    }
 
-  // 🌟 1-CLICK GENDER M/F TOGGLE
-  const handleToggleGender = (id: string, currentAgeGender: string = '', newGender: 'M' | 'F') => {
-    const parts = currentAgeGender.split('/');
-    const age = parts[0] ? parts[0].trim() : '50';
-    const combined = `${age}/${newGender}`;
-    setPatients(prev => prev.map(p => p.id === id ? { ...p, ageGender: combined } : p));
-  };
-
-  const handleAgeChange = (id: string, currentAgeGender: string = '', newAge: string) => {
-    const parts = currentAgeGender.split('/');
-    const gender = parts[1] ? parts[1].trim() : 'M';
-    const combined = `${newAge}/${gender}`;
-    setPatients(prev => prev.map(p => p.id === id ? { ...p, ageGender: combined } : p));
-  };
-
-  const handleBrandChange = (id: string, newBrand: string, currentDuration: string) => {
-    const newStrips = calculateStripsFromDuration(newBrand, currentDuration);
-    setPatients(prev => prev.map(p => p.id === id ? { ...p, brandPrescribed: newBrand, stripsCount: newStrips } : p));
-  };
-
-  const handleDurationChange = (id: string, newDuration: string, currentBrand: string) => {
-    const newStrips = calculateStripsFromDuration(currentBrand, newDuration);
-    setPatients(prev => prev.map(p => p.id === id ? { ...p, prescribedDuration: newDuration, stripsCount: newStrips } : p));
+    setShowPatientModal(false);
+    setTimeout(() => setStatusMsg(null), 3000);
   };
 
   const handleDeletePatient = (id: string) => {
@@ -237,7 +290,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
     setPobItems(prev => prev.filter(it => it.id !== id));
   };
 
-  // Clock calculations
+  // Touch Clock Calculations
   const hourAngle = ((clockHour % 12) + clockMinute / 60) * 30;
   const minuteAngle = clockMinute * 6;
   const activeAngle = clockMode === 'HOUR' ? (clockHour % 12) * 30 : minuteAngle;
@@ -426,7 +479,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
             Doctor Camp &amp; Clinical Activities Hub
           </h1>
           <p className="text-slate-400 text-xs md:text-sm mt-1">
-            Super Smart Patient Entry &bull; 1-Click M/F Pointers &bull; Pack-Aware Auto-Strips &bull; Camp Test Presets
+            Dedicated Patient Entry Modal Screen &bull; Mobile No. &bull; 1-Click M/F Toggle &bull; Auto Pack Strips
           </p>
         </div>
       </div>
@@ -478,7 +531,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
               
-              {/* Doctor Picker */}
+              {/* Doctor Search */}
               <div className="space-y-2 p-3.5 bg-slate-950 rounded-2xl border border-slate-800">
                 <label className="text-slate-300 font-bold flex items-center justify-between">
                   <span>1. Pick Doctor from 130 MSL List:</span>
@@ -677,7 +730,7 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* 🌟 STEP 2: SUPER SMART PATIENT ENTRY (1-CLICK M/F TOGGLE, PACK-AWARE STRIPS & PRESET CLINICAL TESTS) */}
+          {/* 🌟 STEP 2: PATIENT ROSTER TABLE (OPEN DEDICATED SCREEN ON "+ Add New Patient") */}
           <div className="p-5 bg-slate-900 rounded-3xl border border-slate-800 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -686,169 +739,87 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
                 </span>
                 <div>
                   <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                    Step 2: Smart Patient Screening &amp; Pack-Aware Duration Engine
+                    Step 2: Patient Screening Roster &bull; ({patients.length} Patients Logged)
                   </h2>
-                  <p className="text-xs text-slate-400">1-Click M/F &bull; Camp Test Presets &bull; Pack-Size Auto-Strips (10s: 3 Strips/Mo, 15s: 2 Strips/Mo, 4s: 1 Strip/Mo)</p>
+                  <p className="text-xs text-slate-400">Tap below to open dedicated Patient Entry Screen with Phone No., M/F Toggle &amp; Pack-Strips</p>
                 </div>
               </div>
 
+              {/* 🌟 DEDICATED MODAL TRIGGER */}
               <button
                 type="button"
-                onClick={handleAddSmartPatientRow}
-                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-emerald-950 transition cursor-pointer"
+                onClick={handleOpenNewPatientModal}
+                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 text-white font-black rounded-2xl text-xs shadow-lg shadow-emerald-950 transition cursor-pointer"
               >
-                <Zap size={14} className="text-yellow-300" /> + Smart Add Patient
+                <Plus size={16} /> + Add New Patient (Open Screen)
               </button>
             </div>
 
+            {/* Clean Patient Roster Table */}
             <div className="overflow-x-auto max-h-[420px] border border-slate-800 rounded-2xl shadow-inner">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-10">
                   <tr>
-                    <th className="p-2.5 text-center w-10">#</th>
-                    <th className="p-2.5 min-w-[170px]">Patient Name</th>
-                    <th className="p-2.5 min-w-[140px] text-center">Age / 1-Click Gender</th>
-                    <th className="p-2.5 min-w-[200px] text-cyan-400">Clinical Test Value ({activeCampType.split(' ')[0]})</th>
-                    <th className="p-2.5 min-w-[180px] text-amber-400">Brand Prescribed</th>
-                    <th className="p-2.5 min-w-[150px] text-purple-300">Doctor Prescribed For</th>
-                    <th className="p-2.5 text-center w-24 text-emerald-400">Auto Strips</th>
-                    <th className="p-2.5 text-center w-12">Action</th>
+                    <th className="p-3 text-center w-10">#</th>
+                    <th className="p-3 min-w-[180px]">Patient Name</th>
+                    <th className="p-3 min-w-[120px] text-slate-400">Mobile No.</th>
+                    <th className="p-3 text-center w-24">Age / Gender</th>
+                    <th className="p-3 min-w-[170px] text-cyan-400">Clinical Test Value</th>
+                    <th className="p-3 min-w-[180px] text-amber-400">Brand Prescribed</th>
+                    <th className="p-3 min-w-[140px] text-purple-300">Prescribed For</th>
+                    <th className="p-3 text-center w-24 text-emerald-400">Strips</th>
+                    <th className="p-3 text-center w-24">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-mono text-xs bg-slate-900">
-                  {patients.map((p, idx) => {
-                    const currentParts = (p.ageGender || '50/M').split('/');
-                    const ageNum = currentParts[0] || '50';
-                    const genderVal = (currentParts[1] || 'M').toUpperCase();
-                    const packSize = getPackQuantity(p.brandPrescribed);
-
-                    return (
-                      <tr key={p.id} className="hover:bg-slate-800/40">
-                        <td className="p-2 text-center text-slate-500">{idx + 1}</td>
-                        
-                        {/* Patient Name */}
-                        <td className="p-1.5">
-                          <input
-                            type="text"
-                            value={p.patientName}
-                            onChange={e => setPatients(prev => prev.map(item => item.id === p.id ? { ...item, patientName: e.target.value } : item))}
-                            placeholder="Patient Name..."
-                            className="w-full py-1.5 px-2 bg-slate-950 border border-slate-800 text-white font-sans font-bold rounded-lg focus:border-emerald-500 focus:outline-none"
-                          />
+                  {patients.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="p-8 text-center text-slate-500 font-sans">
+                        No patients enrolled yet. Click <b>"+ Add New Patient (Open Screen)"</b> above to add!
+                      </td>
+                    </tr>
+                  ) : (
+                    patients.map((p, idx) => (
+                      <tr key={p.id} className="hover:bg-slate-800/40 transition">
+                        <td className="p-3 text-center text-slate-500">{idx + 1}</td>
+                        <td className="p-3 font-sans font-bold text-white">{p.patientName}</td>
+                        <td className="p-3 text-slate-300 font-mono">
+                          {p.mobileNumber ? `📞 ${p.mobileNumber}` : <span className="text-slate-600">-</span>}
                         </td>
-
-                        {/* 🌟 1-CLICK AGE & GENDER TOGGLE */}
-                        <td className="p-1.5 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <input
-                              type="number"
-                              value={ageNum}
-                              onChange={e => handleAgeChange(p.id, p.ageGender, e.target.value)}
-                              placeholder="Age"
-                              className="w-11 py-1 px-1 bg-slate-950 border border-slate-800 text-slate-200 text-center font-bold rounded-lg focus:outline-none"
-                            />
-                            <div className="flex items-center bg-slate-950 rounded-lg p-0.5 border border-slate-800">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleGender(p.id, p.ageGender, 'M')}
-                                className={`px-2 py-0.5 rounded text-[10px] font-black transition cursor-pointer ${
-                                  genderVal === 'M' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
-                                }`}
-                              >
-                                M
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleGender(p.id, p.ageGender, 'F')}
-                                className={`px-2 py-0.5 rounded text-[10px] font-black transition cursor-pointer ${
-                                  genderVal === 'F' ? 'bg-pink-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
-                                }`}
-                              >
-                                F
-                              </button>
-                            </div>
-                          </div>
+                        <td className="p-3 text-center">
+                          <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                            (p.gender || 'M') === 'F' ? 'bg-pink-950 text-pink-300 border border-pink-500/40' : 'bg-cyan-950 text-cyan-300 border border-cyan-500/40'
+                          }`}>
+                            {p.ageGender || `${p.age}/${p.gender || 'M'}`}
+                          </span>
                         </td>
-
-                        {/* 🌟 SMART CLINICAL TEST VALUE PRESET DROPDOWN + MANUAL INPUT */}
-                        <td className="p-1.5">
-                          <div className="space-y-1">
-                            <select
-                              value={currentTestPresets.includes(p.testResult) ? p.testResult : 'CUSTOM'}
-                              onChange={e => {
-                                if (e.target.value !== 'CUSTOM') {
-                                  setPatients(prev => prev.map(item => item.id === p.id ? { ...item, testResult: e.target.value } : item));
-                                }
-                              }}
-                              className="w-full py-1 px-2 bg-slate-950 border border-cyan-500/40 text-cyan-300 font-bold rounded-lg text-xs focus:outline-none cursor-pointer"
+                        <td className="p-3 text-cyan-300 font-semibold">{p.testResult}</td>
+                        <td className="p-3 text-amber-300 font-bold">{p.brandPrescribed}</td>
+                        <td className="p-3 text-purple-300 font-semibold">{p.prescribedDuration}</td>
+                        <td className="p-3 text-center font-black text-emerald-400 bg-emerald-950/20">{p.stripsCount}</td>
+                        <td className="p-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditPatientModal(p)}
+                              className="p-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-cyan-300 rounded-lg transition"
+                              title="Edit Patient"
                             >
-                              {currentTestPresets.map(preset => (
-                                <option key={preset} value={preset}>{preset}</option>
-                              ))}
-                              <option value="CUSTOM">&bull; Custom Reading &bull;</option>
-                            </select>
-
-                            <input
-                              type="text"
-                              value={p.testResult}
-                              onChange={e => setPatients(prev => prev.map(item => item.id === p.id ? { ...item, testResult: e.target.value } : item))}
-                              placeholder="Type custom test value..."
-                              className="w-full py-0.5 px-2 bg-slate-950/60 border border-slate-800 text-slate-300 text-[11px] rounded focus:border-cyan-400 focus:outline-none"
-                            />
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePatient(p.id)}
+                              className="p-1.5 bg-slate-950 hover:bg-rose-950 border border-slate-700 text-rose-400 rounded-lg transition"
+                              title="Delete Patient"
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           </div>
-                        </td>
-
-                        {/* BRAND PRESCRIBED: DEFAULTS TO MAIN FOCUS BRAND & RECALCULATES STRIPS */}
-                        <td className="p-1.5">
-                          <select
-                            value={p.brandPrescribed}
-                            onChange={e => handleBrandChange(p.id, e.target.value, p.prescribedDuration)}
-                            className="w-full py-1.5 px-2 bg-slate-950 border border-slate-800 text-amber-300 font-bold rounded-lg focus:outline-none cursor-pointer"
-                          >
-                            <optgroup label="Camp Major Focus Brands">
-                              {selectedFocusBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                            </optgroup>
-                            <optgroup label="All Master Products">
-                              {MASTER_PRODUCTS.map(mp => <option key={mp.sn} value={mp.name}>{mp.name}</option>)}
-                            </optgroup>
-                          </select>
-                          <span className="text-[10px] text-slate-500 font-mono block pl-1 mt-0.5">Pack: {packSize} Tabs/Caps</span>
-                        </td>
-
-                        {/* 🌟 DOCTOR PRESCRIBED FOR: AUTO-RECALCULATES STRIPS */}
-                        <td className="p-1.5">
-                          <select
-                            value={p.prescribedDuration}
-                            onChange={e => handleDurationChange(p.id, e.target.value, p.brandPrescribed)}
-                            className="w-full py-1.5 px-2 bg-slate-950 border border-purple-500/50 text-purple-300 font-bold rounded-lg focus:outline-none cursor-pointer"
-                          >
-                            {DURATION_PRESETS.map(dur => <option key={dur} value={dur}>{dur}</option>)}
-                          </select>
-                        </td>
-
-                        {/* AUTO STRIPS (READ-ONLY / EDITABLE) */}
-                        <td className="p-1.5 text-center">
-                          <input
-                            type="number"
-                            value={p.stripsCount}
-                            onChange={e => setPatients(prev => prev.map(item => item.id === p.id ? { ...item, stripsCount: parseFloat(e.target.value) || 0 } : item))}
-                            placeholder="2"
-                            className="w-16 py-1.5 px-1 bg-slate-950 border border-emerald-500/50 text-emerald-400 font-black text-center rounded-lg focus:outline-none mx-auto text-xs"
-                          />
-                        </td>
-
-                        <td className="p-1.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePatient(p.id)}
-                            className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
-                          >
-                            <Trash2 size={13} />
-                          </button>
                         </td>
                       </tr>
-                    );
-                  })}
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1027,11 +998,237 @@ export const DoctorCampWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* TOUCH CLOCK MODAL */}
+      {/* 🌟 6. DEDICATED NEW / EDIT PATIENT ENTRY SCREEN MODAL */}
+      {showPatientModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border-2 border-emerald-500/70 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col text-slate-100">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/30">
+                  <Users size={22} />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {editingPatientId ? 'Edit Patient Details' : 'Add New Patient Screening Entry'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Camp: <b className="text-cyan-300">{activeCampType.split(' ')[0]}</b> &bull; Doctor: Dr. {selectedDoctor?.doctorName || 'Doctor'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowPatientModal(false)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Form Body */}
+            <div className="overflow-y-auto space-y-3.5 pr-1 text-xs">
+              
+              {/* Field 1: Patient Name & Mobile Number */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Patient Full Name *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Ramesh Lal Sharma"
+                    value={patientForm.patientName}
+                    onChange={e => setPatientForm({ ...patientForm, patientName: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 text-white font-bold rounded-xl px-3 py-2 text-xs focus:border-emerald-400 focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1 flex items-center gap-1">
+                    <Phone size={12} className="text-cyan-400" /> Patient Mobile Number:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 9829012345"
+                    value={patientForm.mobileNumber}
+                    onChange={e => setPatientForm({ ...patientForm, mobileNumber: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 text-cyan-300 font-mono font-bold rounded-xl px-3 py-2 text-xs focus:border-emerald-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Field 2: Age & 1-Click Gender Toggle */}
+              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                <label className="block text-slate-300 font-bold">Age &amp; 1-Click Gender Selection:</label>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 font-bold">Age:</span>
+                    <input
+                      type="number"
+                      value={patientForm.age}
+                      onChange={e => setPatientForm({ ...patientForm, age: parseFloat(e.target.value) || 50 })}
+                      className="w-16 bg-slate-900 border border-slate-700 text-white font-bold rounded-xl px-2.5 py-1.5 text-center text-xs"
+                    />
+                    <span className="text-slate-500">Yrs</span>
+                  </div>
+
+                  {/* Gender Buttons */}
+                  <div className="flex items-center gap-2 flex-1 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setPatientForm({ ...patientForm, gender: 'M' })}
+                      className={`px-4 py-1.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-1 border ${
+                        patientForm.gender === 'M'
+                          ? 'bg-cyan-600 text-white border-cyan-400 shadow-md'
+                          : 'bg-slate-900 text-slate-400 border-slate-700'
+                      }`}
+                    >
+                      👦 Male (M)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPatientForm({ ...patientForm, gender: 'F' })}
+                      className={`px-4 py-1.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-1 border ${
+                        patientForm.gender === 'F'
+                          ? 'bg-pink-600 text-white border-pink-400 shadow-md'
+                          : 'bg-slate-900 text-slate-400 border-slate-700'
+                      }`}
+                    >
+                      👧 Female (F)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Field 3: Clinical Test Value */}
+              <div className="p-3 bg-slate-950 rounded-2xl border border-cyan-500/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-cyan-300 font-bold">
+                    Clinical Test Reading ({activeCampType.split(' ')[0]}):
+                  </label>
+                  <span className="text-[10px] text-slate-400">Select preset or type custom</span>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {currentTestPresets.map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setPatientForm({ ...patientForm, testResult: preset })}
+                      className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold font-mono transition cursor-pointer ${
+                        patientForm.testResult === preset
+                          ? 'bg-cyan-600 text-white border-cyan-400 shadow'
+                          : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-cyan-500/50'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Or type custom test result (e.g. RBS: 235 mg/dL, HbA1c 8.8%)..."
+                  value={patientForm.testResult}
+                  onChange={e => setPatientForm({ ...patientForm, testResult: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 text-cyan-300 font-bold rounded-xl px-3 py-1.5 text-xs focus:border-cyan-400 focus:outline-none"
+                />
+              </div>
+
+              {/* Field 4: Brand Prescribed & Pack Size */}
+              <div>
+                <label className="block text-amber-300 font-bold mb-1">Brand Prescribed by Doctor:</label>
+                <select
+                  value={patientForm.brandPrescribed}
+                  onChange={e => {
+                    const newBrand = e.target.value;
+                    const newStrips = calculateStripsFromDuration(newBrand, patientForm.prescribedDuration);
+                    setPatientForm({ ...patientForm, brandPrescribed: newBrand, stripsCount: newStrips });
+                  }}
+                  className="w-full bg-slate-950 border border-amber-500/50 text-amber-300 font-bold rounded-xl px-3 py-2 text-xs focus:outline-none cursor-pointer"
+                >
+                  <optgroup label="Camp Major Focus Brands">
+                    {selectedFocusBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                  </optgroup>
+                  <optgroup label="All 73 Master Products">
+                    {MASTER_PRODUCTS.map(mp => <option key={mp.sn} value={mp.name}>{mp.name}</option>)}
+                  </optgroup>
+                </select>
+                <span className="text-[10px] text-slate-400 font-mono block mt-0.5 pl-1">
+                  Pack Size: <b className="text-white">{getPackQuantity(patientForm.brandPrescribed)} Tabs/Caps</b>
+                </span>
+              </div>
+
+              {/* Field 5: Prescribed Duration & Automatic Strips */}
+              <div className="p-3 bg-slate-950 rounded-2xl border border-purple-500/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-purple-300 font-bold">Doctor Prescribed For (Duration):</label>
+                  <span className="text-emerald-400 font-mono font-bold">
+                    Auto-Calculated: {patientForm.stripsCount} Strips
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  {DURATION_PRESETS.map(dur => (
+                    <button
+                      key={dur}
+                      type="button"
+                      onClick={() => {
+                        const newStrips = calculateStripsFromDuration(patientForm.brandPrescribed, dur);
+                        setPatientForm({ ...patientForm, prescribedDuration: dur, stripsCount: newStrips });
+                      }}
+                      className={`py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                        patientForm.prescribedDuration === dur
+                          ? 'bg-purple-600 text-white border-purple-400 shadow-md'
+                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                      }`}
+                    >
+                      {dur}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between pt-1 text-xs">
+                  <span className="text-slate-400">Total Strips to Bill / Dispense:</span>
+                  <input
+                    type="number"
+                    value={patientForm.stripsCount}
+                    onChange={e => setPatientForm({ ...patientForm, stripsCount: parseFloat(e.target.value) || 0 })}
+                    className="w-20 bg-slate-900 border border-emerald-500/60 text-emerald-400 font-black font-mono text-center rounded-xl py-1 text-sm focus:outline-none"
+                  />
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+              <span className="text-[11px] text-slate-400 font-mono">Will save permanently to camp roster</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPatientModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSavePatientModal}
+                  className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 text-white font-black text-xs rounded-2xl shadow-lg shadow-emerald-950 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check size={16} /> Save Patient to Roster
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ⏰ TOUCH CLOCK MODAL */}
       {showClockModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
           <div className="bg-white text-slate-900 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl flex flex-col p-6 space-y-4">
-            
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div className="flex items-center gap-2">
                 <Clock size={18} className="text-purple-600" />

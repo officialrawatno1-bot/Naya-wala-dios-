@@ -1,10 +1,13 @@
 export interface CampPatientEntry {
   id: string;
   patientName: string;
-  ageGender?: string;
+  mobileNumber?: string;
+  age: number | string;
+  gender: 'M' | 'F' | 'O';
+  ageGender: string;
   testResult: string;
   brandPrescribed: string;
-  prescribedDuration: string; // e.g. "1 Month", "15 Days", "2 Months", "3 Months"
+  prescribedDuration: string;
   stripsCount: number;
 }
 
@@ -34,7 +37,7 @@ export interface CampRecord {
   savedAt: string;
 }
 
-const CAMPS_STORAGE_KEY = 'dios_doctor_camps_vault_v2';
+const CAMPS_STORAGE_KEY = 'dios_doctor_camps_vault_v3';
 
 export const CAMP_TYPES_PRESETS = [
   'DDC (Diabetes Detection Camp)',
