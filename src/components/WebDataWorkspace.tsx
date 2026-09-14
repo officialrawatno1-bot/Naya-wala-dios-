@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   ArrowLeft, Globe, FileText, FileSpreadsheet, Download, 
   CheckCircle2, Sparkles, Loader2, Award, Coins, Wallet, DollarSign, Gift, Layers,
-  Cake, Heart
+  Cake, Heart, Mail
 } from 'lucide-react';
 import { generateMasterReviewWorkbook } from '../exporters/masterReviewWorkbook';
 import { StockwiseStatementVault } from './StockwiseStatementVault';
@@ -71,6 +71,8 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
             ? 'Back to Web Data' 
             : currentView === 'celebrations'
             ? 'Back to Web Data'
+            : currentView === 'mail-dispatcher'
+            ? 'Back to Web Data'
             : 'Back to Hub'}
         </button>
 
@@ -81,7 +83,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* 1️⃣ LEVEL 1: WEB DATA HOME (4 MAIN CARDS) */}
+      {/* 1️⃣ LEVEL 1: WEB DATA HOME (5 MAIN MODULE CARDS) */}
       {currentView === 'web-data' && (
         <div className="space-y-6">
           <div>
@@ -92,14 +94,14 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
               Web Data &amp; Statements Hub
             </h1>
             <p className="text-slate-400 text-xs md:text-sm mt-1">
-              Archived Stockist Statements, Birthday &amp; Anniversary Hub, Free Goods Vault &amp; Master Review.
+              Statements Vault &bull; Celebrations &bull; Earnings &bull; Direct Mail to Sir &bull; Master Review
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 pt-2">
             
             {/* MODULE 1: STATEMENT */}
-            <div className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-2xl p-6 transition shadow-xl space-y-4 flex flex-col justify-between">
+            <div className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-2xl p-5 transition shadow-xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
@@ -109,9 +111,9 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
                     Statements Vault
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-white">Statement</h3>
+                <h3 className="text-base font-bold text-white">Statement</h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Access stockist statements, Free Goods Repository and Partywise Retailer Analysis.
+                  Stockwise statements, Free Goods Repository and Partywise Retailer Analysis.
                 </p>
               </div>
               <button
@@ -122,20 +124,20 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
               </button>
             </div>
 
-            {/* 🌟 MODULE 2: BIRTHDAY & ANNIVERSARY HUB (NEW) */}
-            <div className="bg-slate-900 border-2 border-pink-500/60 hover:border-pink-400 rounded-2xl p-6 transition shadow-2xl space-y-4 flex flex-col justify-between">
+            {/* MODULE 2: CELEBRATIONS */}
+            <div className="bg-slate-900 border-2 border-pink-500/60 hover:border-pink-400 rounded-2xl p-5 transition shadow-2xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="p-2.5 bg-pink-500/20 text-pink-400 rounded-xl">
                     <Cake size={22} />
                   </span>
                   <span className="text-[10px] text-pink-300 font-black bg-pink-950 px-2.5 py-0.5 rounded-full border border-pink-500/40 font-mono">
-                    NEW &bull; CELEBRATIONS
+                    CELEBRATIONS
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-white">Birthday &amp; Anniversary</h3>
+                <h3 className="text-base font-bold text-white">Birthday &amp; Anniversary</h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  MSL Doctors DOB/DOA, 5 Stations (HQ &amp; Ex-HQ), Family Celebrations (Sons, Daughters, Father) &amp; Two-way MSL Sync.
+                  130 Doctors DOB/DOA, family dates &amp; two-way MSL sync.
                 </p>
               </div>
               <button
@@ -147,7 +149,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
 
             {/* MODULE 3: EARN */}
-            <div className="bg-slate-900 border-2 border-emerald-500/50 hover:border-emerald-400 rounded-2xl p-6 transition shadow-2xl space-y-4 flex flex-col justify-between">
+            <div className="bg-slate-900 border-2 border-emerald-500/50 hover:border-emerald-400 rounded-2xl p-5 transition shadow-2xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
@@ -157,9 +159,9 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
                     EARNINGS
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-white">Earn</h3>
+                <h3 className="text-base font-bold text-white">Earn</h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Quarterly &amp; Monthly Incentive calculations (Q1 to Q4) and Expense management.
+                  Quarterly &amp; Monthly Incentive calculations (Q1-Q4) and Expense claims.
                 </p>
               </div>
               <button
@@ -170,45 +172,46 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
               </button>
             </div>
 
-            
-            {/* 🌟 MODULE 5: DIRECT MAIL DISPATCHER */}
-            <div className="bg-slate-900 border-2 border-cyan-500/60 hover:border-cyan-400 rounded-2xl p-6 transition shadow-2xl space-y-4 flex flex-col justify-between">
+            {/* 🌟 MODULE 4: DIRECT MAIL DISPATCHER (NEW!) */}
+            <div className="bg-slate-900 border-2 border-cyan-500/80 hover:border-cyan-400 rounded-2xl p-5 transition shadow-2xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl">
                     <Mail size={22} />
                   </span>
                   <span className="text-[10px] text-cyan-300 font-black bg-cyan-950 px-2.5 py-0.5 rounded-full border border-cyan-500/40 font-mono">
-                    NEW &bull; DIRECT MAIL
+                    1-CLICK SMTP
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-white">Direct Mail to Sir</h3>
+                <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+                  Direct Mail to Sir
+                </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  1-Click email dispatch to Sir &amp; HO with 16-digit Google key, 5 pre-fed recipients, and auto-attached Excel/PDF sheets.
+                  Google 16-digit key, 5 pre-fed recipients, and auto-attached MSL/Conversion/Expense sheets.
                 </p>
               </div>
               <button
                 onClick={() => setCurrentView('mail-dispatcher')}
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-950 transition cursor-pointer"
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 text-white font-black text-xs rounded-xl shadow-lg shadow-cyan-950 transition cursor-pointer"
               >
                 📧 Open Mail Dispatcher &rarr;
               </button>
             </div>
 
-            {/* MODULE 4: MASTER EXCEL */}
-            <div className="bg-slate-900 border border-slate-800 hover:border-cyan-500/60 rounded-2xl p-6 transition shadow-xl space-y-4 flex flex-col justify-between">
+            {/* MODULE 5: MASTER EXCEL */}
+            <div className="bg-slate-900 border border-slate-800 hover:border-cyan-500/60 rounded-2xl p-5 transition shadow-xl space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl">
                     <Award size={22} />
                   </span>
                   <span className="text-[10px] text-cyan-300 font-bold bg-cyan-950 px-2 py-0.5 rounded border border-cyan-500/30">
-                    16 Sheets Complete
+                    17 Sheets
                   </span>
                 </div>
 
-                <h3 className="text-lg font-bold text-white">
-                  14-in-1 Master Review
+                <h3 className="text-base font-bold text-white">
+                  Master Review Excel
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
                   Consolidated single Excel workbook with official DIOS theme colors &amp; styling.
@@ -327,7 +330,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* VIEWS RENDER */}
+      {/* 🌟 VIEWS RENDER */}
       {currentView === 'stockwise-statement' && (
         <StockwiseStatementVault onBack={() => setCurrentView('statement')} />
       )}
@@ -348,12 +351,12 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
         <ExpenseWorkspace onBack={() => setCurrentView('earn')} />
       )}
 
-            {currentView === 'mail-dispatcher' && (
-        <MailDispatcherWorkspace onBack={() => setCurrentView('web-data')} />
-      )}
-
       {currentView === 'celebrations' && (
         <BirthdayAnniversaryWorkspace onBack={() => setCurrentView('web-data')} />
+      )}
+
+      {currentView === 'mail-dispatcher' && (
+        <MailDispatcherWorkspace onBack={() => setCurrentView('web-data')} />
       )}
 
     </div>
