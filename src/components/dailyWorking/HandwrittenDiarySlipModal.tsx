@@ -1,9 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   StickyNote, X, Printer, MessageCircle, Calendar, Palette, Check, Eye, EyeOff,
   Share2, Download, Image as ImageIcon, Loader2
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
 import { PlannedCallItem } from '../../data/dailyWorkingStore';
 import { DayReminderItem } from '../DailyWorkingWorkspace';
 
@@ -41,7 +40,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
   const [inkColor, setInkColor] = useState<'blue' | 'black'>('blue');
   const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
 
-  // Dual Reader: Never miss reminders
+  // Dual Reader for Reminders
   const activeReminders = useMemo(() => {
     if (reminders && reminders.length > 0) return reminders;
     try {
@@ -55,29 +54,140 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
 
   const inkHex = inkColor === 'blue' ? '#1E3A8A' : '#111827';
 
-  // 🌟 1. SEND REAL HANDWRITTEN SLIP AS PHOTO TO WHATSAPP (Via iOS Share Sheet)
-  const handleShareSlipAsImage = async () => {
-    const slipElement = document.getElementById('printable-handwritten-slip');
-    if (!slipElement) return;
+  // 🌟 NATIVE HIGH-RES 2D CANVAS GENERATOR (100% IMMUNE TO OKLCH ERROR!)
+  const generateSlipCanvas = (): HTMLCanvasElement => {
+    const width = 850;
+    const lineHeight = 38;
 
+    let lineCount = 4;
+    lineCount += Math.max(1, plannedCalls.length);
+    if (activeReminders.length > 0) lineCount += activeReminders.length + 2;
+    if (dayRemarks && dayRemarks.trim().length > 0) lineCount += 3;
+    lineCount += 4;
+
+    const height = Math.max(920, lineCount * lineHeight + 120);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width * 2;
+    canvas.height = height * 2;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return canvas;
+
+    ctx.scale(2, 2);
+
+    // 1. Cream Paper
+    ctx.fillStyle = '#FFFDF9';
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Ruled Faint Blue Lines
+    ctx.strokeStyle = '#CBD5E1';
+    ctx.lineWidth = 1;
+    for (let y = 145; y < height - 50; y += lineHeight) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+
+    // 3. Left Red Margin Line
+    ctx.strokeStyle = '#EF4444';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(55, 0);
+    ctx.lineTo(55, height);
+    ctx.stroke();
+
+    // 4. Shloka Invocation (Kalam font)
+    ctx.fillStyle = inkHex;
+    ctx.font = 'bold 26px "Kalam", cursive, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ॐ नमो भगवते वासुदेवाय नमः', width / 2, 60);
+
+    ctx.strokeStyle = inkHex;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(width / 2 - 140, 72);
+    ctx.lineTo(width / 2 + 140, 72);
+    ctx.stroke();
+
+    // 5. Date Only (No area!)
+    if (showDate) {
+      ctx.font = 'bold 22px "Caveat", cursive, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Date: ${dateStr} (${dayOfWeekName})`, width / 2, 108);
+    }
+
+    // 6. Planned Doctors (All of them, no limit)
+    let currentY = 145;
+    ctx.font = 'bold 22px "Caveat", cursive, sans-serif';
+
+    plannedCalls.forEach((call, i) => {
+      currentY += lineHeight;
+      const numSymbol = CIRCLE_NUMBERS[i] || `(${i + 1})`;
+      const actStr = call.activityType && call.activityType !== 'REGULAR' ? ` - ${call.activityType}` : '';
+      const timeStr = call.approxTime ? ` (${call.approxTime})` : '';
+
+      ctx.textAlign = 'left';
+      ctx.fillText(`${numSymbol}  Dr. ${call.doctorName}${actStr}`, 70, currentY - 8);
+
+      if (timeStr) {
+        ctx.textAlign = 'right';
+        ctx.fillText(timeStr, width - 40, currentY - 8);
+      }
+    });
+
+    // 7. Reminders
+    if (activeReminders.length > 0) {
+      currentY += lineHeight;
+      ctx.fillStyle = '#DC2626';
+      ctx.font = 'bold 21px "Caveat", cursive, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('📌 Reminders / Special Notes:', 70, currentY - 8);
+
+      ctx.fillStyle = inkHex;
+      activeReminders.forEach((r) => {
+        currentY += lineHeight;
+        ctx.fillText(`• Dr. ${r.doctorName}: ${r.note}`, 85, currentY - 8);
+      });
+    }
+
+    // 8. Day Remarks
+    if (dayRemarks && dayRemarks.trim().length > 0) {
+      currentY += lineHeight;
+      ctx.fillStyle = '#2563EB';
+      ctx.font = 'bold 21px "Caveat", cursive, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('📝 Day Remarks:', 70, currentY - 8);
+
+      ctx.fillStyle = inkHex;
+      currentY += lineHeight;
+      ctx.fillText(dayRemarks.trim(), 85, currentY - 8);
+    }
+
+    // 9. Footer
+    currentY += lineHeight + 15;
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 20px "Caveat", cursive, sans-serif';
+    ctx.fillStyle = inkHex;
+    ctx.fillText(`BE: ${beName}`, width - 40, currentY - 8);
+
+    return canvas;
+  };
+
+  // Share High-Res Photo via Native iPad iOS Share Sheet (WhatsApp)
+  const handleShareSlipAsImage = async () => {
     setIsGeneratingImage(true);
     try {
-      const canvas = await html2canvas(slipElement, {
-        scale: 2.5, // Retina High Resolution
-        useCORS: true,
-        backgroundColor: '#FFFDF9',
-        logging: false
-      });
-
+      const canvas = generateSlipCanvas();
       canvas.toBlob(async (blob) => {
         if (!blob) {
           setIsGeneratingImage(false);
           return;
         }
+
         const fileName = `Diary_Slip_${dateStr.replace(/\//g, '-')}.png`;
         const file = new File([blob], fileName, { type: 'image/png' });
 
-        // Native iPad/iPhone Share Sheet: User directly picks WhatsApp!
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           try {
             await navigator.share({
@@ -87,20 +197,20 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
             });
           } catch (e) {}
         } else {
-          // Fallback: Download high-res photo to iPad
+          // Direct Download fallback
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
           a.download = fileName;
           a.click();
           URL.revokeObjectURL(url);
-          alert("🎉 Slip ki Photo iPad par save ho gayi hai! Aap ise WhatsApp me send kar sakte hain.");
+          alert("🎉 Slip ki HD Photo save ho gayi! Aap ise WhatsApp me share kar sakte hain.");
         }
         setIsGeneratingImage(false);
       }, 'image/png');
     } catch (err: any) {
       setIsGeneratingImage(false);
-      alert("Slip image generation error: " + err.message);
+      alert("Error: " + err.message);
     }
   };
 
@@ -111,7 +221,6 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
       
-      {/* GOOGLE FONTS INJECTION & CLEAN MULTI-PAGE PRINT STYLING */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@700&display=swap');
         
@@ -157,9 +266,9 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
         }
       `}</style>
 
-      <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[96vh]">
         
-        {/* MODAL CONTROL HEADER */}
+        {/* HEADER CONTROLS */}
         <div className="flex flex-wrap items-center justify-between p-3.5 bg-slate-950 border-b border-slate-800 gap-2 shrink-0">
           <div className="flex items-center gap-2">
             <span className="p-1.5 bg-amber-500/20 text-amber-400 rounded-xl">
@@ -186,7 +295,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               <span>Date Print: <b className={showDate ? 'text-emerald-300' : 'text-slate-400'}>{showDate ? 'ON' : 'OFF'}</b></span>
             </button>
 
-            {/* 🌟 2. INK COLOR SWITCH (Blue / Black) */}
+            {/* 🌟 2. INK COLOR SWITCH */}
             <button
               type="button"
               onClick={() => setInkColor(inkColor === 'blue' ? 'black' : 'blue')}
@@ -200,19 +309,19 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               <span>{inkColor === 'blue' ? '✒️ Royal Blue' : '🖋️ Pilot Black'}</span>
             </button>
 
-            {/* 🌟 3. SEND SLIP AS PHOTO TO WHATSAPP */}
+            {/* 🌟 3. SEND REAL PHOTO TO WHATSAPP */}
             <button
               type="button"
               onClick={handleShareSlipAsImage}
               disabled={isGeneratingImage}
-              className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-md shadow-emerald-950"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-md shadow-emerald-950"
               title="Send authentic Handwritten Slip Photo directly to WhatsApp"
             >
               {isGeneratingImage ? <Loader2 size={13} className="animate-spin" /> : <Share2 size={13} />}
               <span>{isGeneratingImage ? "Generating Photo..." : "💬 Send Photo (WhatsApp)"}</span>
             </button>
 
-            {/* PRINT BUTTON */}
+            {/* PRINT */}
             <button
               type="button"
               onClick={handlePrint}
@@ -221,7 +330,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               <Printer size={13} /> Print
             </button>
 
-            {/* CLOSE BUTTON */}
+            {/* CLOSE */}
             <button
               type="button"
               onClick={onClose}
@@ -232,7 +341,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
           </div>
         </div>
 
-        {/* 📜 AUTHENTIC RULED NOTEBOOK PAPER VIEW (100% ENCLOSED WHITE SHEET - ZERO OVERFLOW) */}
+        {/* 📜 EXPANSIVE NOTEBOOK PAPER VIEW (100% ENCLOSING ALL DOCTORS, REMINDERS & REMARKS) */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-950/80 flex justify-center">
           <div
             id="printable-handwritten-slip"
@@ -242,10 +351,12 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               backgroundImage: 'repeating-linear-gradient(#FFFDF9, #FFFDF9 31px, #CBD5E1 32px)',
               borderLeft: '6px solid #EF4444',
               color: inkHex,
-              lineHeight: '32px'
+              lineHeight: '32px',
+              minHeight: '880px',
+              height: 'auto'
             }}
           >
-            {/* TOP SHLOKA INVOCATION (AUTHENTIC HINDI HANDWRITING) */}
+            {/* INVOCATION */}
             <div className="text-center pb-1">
               <div 
                 className="handwritten-hindi text-xl md:text-2xl font-bold tracking-wider inline-block border-b-2 pb-0.5"
@@ -254,7 +365,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
                 ॐ नमो भगवते वासुदेवाय नमः
               </div>
 
-              {/* 🌟 DATE ONLY (NO AREA! TOGGLE CONTROLLED) */}
+              {/* DATE ONLY */}
               {showDate && (
                 <div className="handwritten-english text-base md:text-lg font-bold mt-1 opacity-90">
                   Date: {dateStr} ({dayOfWeekName})
@@ -262,7 +373,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               )}
             </div>
 
-            {/* 🌟 ALL PLANNED DOCTORS LISTED (NO 12-ROW LIMIT, NO CUTOFF!) */}
+            {/* ALL DOCTORS LISTED COMPLETELY */}
             <div className="space-y-1 handwritten-english text-lg md:text-xl font-bold">
               {(!plannedCalls || plannedCalls.length === 0) ? (
                 <div className="text-center py-6 italic opacity-60">
@@ -289,7 +400,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               )}
             </div>
 
-            {/* 🌟 REMINDERS / SPECIAL NOTES (ALWAYS INSIDE WHITE SHEET) */}
+            {/* REMINDERS (INSIDE PAPER) */}
             {activeReminders.length > 0 && (
               <div className="pt-3 mt-3 border-t-2 border-dashed border-slate-400 space-y-1">
                 <div className="handwritten-english text-base md:text-lg font-bold uppercase tracking-wider text-rose-600">
@@ -303,7 +414,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               </div>
             )}
 
-            {/* 🌟 NEW: DAY REMARKS / ADDITIONAL NOTES (PRINTS BELOW REMINDERS) */}
+            {/* 🌟 DAY REMARKS (INSIDE PAPER UNDER REMINDERS) */}
             {dayRemarks && dayRemarks.trim().length > 0 && (
               <div className="pt-3 mt-3 border-t-2 border-dashed border-slate-400 space-y-1">
                 <div className="handwritten-english text-base md:text-lg font-bold uppercase tracking-wider text-blue-700">
@@ -315,8 +426,8 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               </div>
             )}
 
-            {/* FOOTER (INSIDE WHITE SHEET) */}
-            <div className="pt-3 text-right handwritten-english text-base md:text-lg font-bold opacity-80 border-t border-slate-300">
+            {/* FOOTER (INSIDE PAPER) */}
+            <div className="pt-4 text-right handwritten-english text-base md:text-lg font-bold opacity-80 border-t border-slate-300">
               BE: {beName}
             </div>
 
