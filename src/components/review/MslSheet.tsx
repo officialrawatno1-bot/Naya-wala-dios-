@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { memoryStore, MslDoctor } from '../../data/memoryStore';
 import { CloudSyncBar } from '../CloudSyncBar';
+import { FileSpreadsheet } from 'lucide-react';
+import { exportSingleMslExcel } from '../../exporters/mslSingleExcelExporter';
 
 const MSL_STORAGE_KEY = 'dios_msl_schedule_permanent_v5';
 const MSL_ALIASES_KEY = 'dios_msl_aliases_mapping_v5';
@@ -892,6 +894,14 @@ export const MslSheet: React.FC = () => {
           </button>
 
           {/* 100% UNTOUCHED Export CSV */}
+          <button
+            onClick={() => exportSingleMslExcel(filtered, customPriorityRules, sortMode)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md shadow-blue-600/30"
+            title="Download Master Styled Excel (Navy Blue Headers & Yellow Highlights)"
+          >
+            <FileSpreadsheet size={14} /> Export Excel
+          </button>
+
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition cursor-pointer"

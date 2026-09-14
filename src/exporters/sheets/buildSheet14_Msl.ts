@@ -36,6 +36,10 @@ export function buildSheet14_Msl(data?: any) {
   let priorityRules: CustomPriorityRule[] = [];
   let sortMode = 'CUSTOM_RANK';
 
+  if (data?.doctors && Array.isArray(data.doctors) && data.doctors.length > 0) {
+    doctorsList = data.doctors;
+  }
+
   if (typeof window !== 'undefined') {
     // 1. Doctors List (iPad LocalStorage ➔ Data Hub Live)
     try {
