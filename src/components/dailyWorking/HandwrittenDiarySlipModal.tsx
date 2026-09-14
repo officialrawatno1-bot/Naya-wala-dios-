@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  StickyNote, X, Printer, MessageCircle, Calendar, Palette, Check, Eye, EyeOff 
+  StickyNote, X, Printer, MessageCircle, Calendar, Palette, Check, Eye, EyeOff,
+  Share2, Download, Image as ImageIcon, Loader2
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
 import { PlannedCallItem } from '../../data/dailyWorkingStore';
 import { DayReminderItem } from '../DailyWorkingWorkspace';
 
@@ -13,10 +15,10 @@ interface HandwrittenDiarySlipModalProps {
   selectedAreas?: string[];
   plannedCalls: PlannedCallItem[];
   reminders: DayReminderItem[];
+  dayRemarks?: string;
   beName?: string;
 }
 
-// 🌟 CIRCLE NUMBERS 1 TO 50 (NO 12-DOCTOR CUTOFF!)
 const CIRCLE_NUMBERS = [
   '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', 
   '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳',
@@ -32,15 +34,14 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
   dayOfWeekName,
   plannedCalls,
   reminders,
+  dayRemarks = '',
   beName = 'BANWARI LAL MEENA (Udaipur HQ)'
 }) => {
-  // 🌟 Toggle: Date Print karni hai ya nahi (User Control)
   const [showDate, setShowDate] = useState<boolean>(true);
-  
-  // 🌟 Toggle: Royal Blue Fountain Pen vs Deep Black Gel Pen
   const [inkColor, setInkColor] = useState<'blue' | 'black'>('blue');
+  const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
 
-  // 🌟 DUAL READER FOR REMINDERS: Ensures reminders never get missed
+  // Dual Reader: Never miss reminders
   const activeReminders = useMemo(() => {
     if (reminders && reminders.length > 0) return reminders;
     try {
@@ -54,35 +55,53 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
 
   const inkHex = inkColor === 'blue' ? '#1E3A8A' : '#111827';
 
-  // WhatsApp Share Message
-  const handleShareToWhatsApp = () => {
-    const lines: string[] = [];
-    lines.push(`🕉️ *ॐ नमो भगवते वासुदेवाय नमः* 🕉️`);
-    if (showDate) {
-      lines.push(`📅 *DATE: ${dateStr} (${dayOfWeekName})*`);
-    }
-    lines.push(``);
+  // 🌟 1. SEND REAL HANDWRITTEN SLIP AS PHOTO TO WHATSAPP (Via iOS Share Sheet)
+  const handleShareSlipAsImage = async () => {
+    const slipElement = document.getElementById('printable-handwritten-slip');
+    if (!slipElement) return;
 
-    plannedCalls.forEach((call, i) => {
-      const numSymbol = CIRCLE_NUMBERS[i] || `(${i + 1})`;
-      const actStr = call.activityType && call.activityType !== 'REGULAR' ? ` - ${call.activityType}` : '';
-      const timeStr = call.approxTime ? ` (${call.approxTime})` : '';
-      lines.push(`${numSymbol} *Dr. ${call.doctorName}*${actStr}${timeStr}`);
-    });
-
-    if (activeReminders.length > 0) {
-      lines.push(``);
-      lines.push(`📌 *REMINDERS / SPECIAL NOTES:*`);
-      activeReminders.forEach((r) => {
-        lines.push(`• *Dr. ${r.doctorName}:* ${r.note}`);
+    setIsGeneratingImage(true);
+    try {
+      const canvas = await html2canvas(slipElement, {
+        scale: 2.5, // Retina High Resolution
+        useCORS: true,
+        backgroundColor: '#FFFDF9',
+        logging: false
       });
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          setIsGeneratingImage(false);
+          return;
+        }
+        const fileName = `Diary_Slip_${dateStr.replace(/\//g, '-')}.png`;
+        const file = new File([blob], fileName, { type: 'image/png' });
+
+        // Native iPad/iPhone Share Sheet: User directly picks WhatsApp!
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: `Diary Slip - ${dateStr}`,
+              text: `🕉️ ॐ नमो भगवते वासुदेवाय नमः • Day Working Plan (${dateStr})`
+            });
+          } catch (e) {}
+        } else {
+          // Fallback: Download high-res photo to iPad
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          a.click();
+          URL.revokeObjectURL(url);
+          alert("🎉 Slip ki Photo iPad par save ho gayi hai! Aap ise WhatsApp me send kar sakte hain.");
+        }
+        setIsGeneratingImage(false);
+      }, 'image/png');
+    } catch (err: any) {
+      setIsGeneratingImage(false);
+      alert("Slip image generation error: " + err.message);
     }
-
-    lines.push(``);
-    lines.push(`👤 *Executive:* ${beName}`);
-
-    const fullMsg = lines.join('\n');
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(fullMsg)}`, '_blank');
   };
 
   const handlePrint = () => {
@@ -91,7 +110,8 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
-      {/* GOOGLE FONTS INJECTION FOR REAL HANDWRITING & MULTI-PAGE PRINT */}
+      
+      {/* GOOGLE FONTS INJECTION & CLEAN MULTI-PAGE PRINT STYLING */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@700&display=swap');
         
@@ -137,10 +157,10 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
         }
       `}</style>
 
-      <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[94vh]">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
         
         {/* MODAL CONTROL HEADER */}
-        <div className="flex flex-wrap items-center justify-between p-3.5 bg-slate-950 border-b border-slate-800 gap-2">
+        <div className="flex flex-wrap items-center justify-between p-3.5 bg-slate-950 border-b border-slate-800 gap-2 shrink-0">
           <div className="flex items-center gap-2">
             <span className="p-1.5 bg-amber-500/20 text-amber-400 rounded-xl">
               <StickyNote size={16} />
@@ -160,7 +180,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
                   ? 'bg-emerald-950 text-emerald-300 border-emerald-500/50 shadow-sm' 
                   : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
               }`}
-              title="Toggle whether Date prints on top of slip"
+              title="Toggle Date on top of slip"
             >
               {showDate ? <Eye size={13} className="text-emerald-400" /> : <EyeOff size={13} />}
               <span>Date Print: <b className={showDate ? 'text-emerald-300' : 'text-slate-400'}>{showDate ? 'ON' : 'OFF'}</b></span>
@@ -180,14 +200,16 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               <span>{inkColor === 'blue' ? '✒️ Royal Blue' : '🖋️ Pilot Black'}</span>
             </button>
 
-            {/* WHATSAPP SHARE */}
+            {/* 🌟 3. SEND SLIP AS PHOTO TO WHATSAPP */}
             <button
               type="button"
-              onClick={handleShareToWhatsApp}
-              className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition cursor-pointer shadow"
-              title="Share to WhatsApp"
+              onClick={handleShareSlipAsImage}
+              disabled={isGeneratingImage}
+              className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-md shadow-emerald-950"
+              title="Send authentic Handwritten Slip Photo directly to WhatsApp"
             >
-              <MessageCircle size={15} className="fill-white" />
+              {isGeneratingImage ? <Loader2 size={13} className="animate-spin" /> : <Share2 size={13} />}
+              <span>{isGeneratingImage ? "Generating Photo..." : "💬 Send Photo (WhatsApp)"}</span>
             </button>
 
             {/* PRINT BUTTON */}
@@ -210,20 +232,20 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
           </div>
         </div>
 
-        {/* 📜 AUTHENTIC RULED NOTEBOOK PAPER VIEW (WITH REAL FOUNTAIN PEN STROKES) */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-950/60 flex justify-center">
+        {/* 📜 AUTHENTIC RULED NOTEBOOK PAPER VIEW (100% ENCLOSED WHITE SHEET - ZERO OVERFLOW) */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-950/80 flex justify-center">
           <div
             id="printable-handwritten-slip"
-            className="w-full max-w-lg p-6 sm:p-8 rounded-2xl shadow-2xl space-y-4 select-text transition-all duration-300 relative"
+            className="w-full max-w-xl p-6 sm:p-10 rounded-2xl shadow-2xl space-y-4 select-text transition-all duration-300 relative"
             style={{
               backgroundColor: '#FFFDF9',
               backgroundImage: 'repeating-linear-gradient(#FFFDF9, #FFFDF9 31px, #CBD5E1 32px)',
-              borderLeft: '5px solid #EF4444',
+              borderLeft: '6px solid #EF4444',
               color: inkHex,
               lineHeight: '32px'
             }}
           >
-            {/* TOP SHLOKA INVOCATION (AUTHENTIC HANDWRITING) */}
+            {/* TOP SHLOKA INVOCATION (AUTHENTIC HINDI HANDWRITING) */}
             <div className="text-center pb-1">
               <div 
                 className="handwritten-hindi text-xl md:text-2xl font-bold tracking-wider inline-block border-b-2 pb-0.5"
@@ -232,15 +254,15 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
                 ॐ नमो भगवते वासुदेवाय नमः
               </div>
 
-              {/* 🌟 DATE ONLY (NO AREA! CONDITIONAL ON / OFF) */}
+              {/* 🌟 DATE ONLY (NO AREA! TOGGLE CONTROLLED) */}
               {showDate && (
-                <div className="handwritten-english text-lg md:text-xl font-bold mt-1 opacity-90">
+                <div className="handwritten-english text-base md:text-lg font-bold mt-1 opacity-90">
                   Date: {dateStr} ({dayOfWeekName})
                 </div>
               )}
             </div>
 
-            {/* 🌟 ALL PLANNED DOCTORS LISTED (NO 12-ROW LIMIT!) */}
+            {/* 🌟 ALL PLANNED DOCTORS LISTED (NO 12-ROW LIMIT, NO CUTOFF!) */}
             <div className="space-y-1 handwritten-english text-lg md:text-xl font-bold">
               {(!plannedCalls || plannedCalls.length === 0) ? (
                 <div className="text-center py-6 italic opacity-60">
@@ -267,21 +289,33 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               )}
             </div>
 
-            {/* 🌟 REMINDERS / SPECIAL NOTES (ALWAYS LOADED & DISPLAYED) */}
+            {/* 🌟 REMINDERS / SPECIAL NOTES (ALWAYS INSIDE WHITE SHEET) */}
             {activeReminders.length > 0 && (
-              <div className="pt-4 mt-4 border-t-2 border-dashed border-slate-400 space-y-1.5">
-                <div className="handwritten-english text-lg md:text-xl font-bold uppercase tracking-wider text-rose-600">
+              <div className="pt-3 mt-3 border-t-2 border-dashed border-slate-400 space-y-1">
+                <div className="handwritten-english text-base md:text-lg font-bold uppercase tracking-wider text-rose-600">
                   📌 Reminders / Special Notes:
                 </div>
                 {activeReminders.map((r) => (
-                  <div key={r.id} className="diary-row-item handwritten-english text-lg md:text-xl font-bold leading-relaxed">
+                  <div key={r.id} className="diary-row-item handwritten-english text-base md:text-lg font-bold leading-tight">
                     • Dr. {r.doctorName}: {r.note}
                   </div>
                 ))}
               </div>
             )}
 
-            {/* FOOTER */}
+            {/* 🌟 NEW: DAY REMARKS / ADDITIONAL NOTES (PRINTS BELOW REMINDERS) */}
+            {dayRemarks && dayRemarks.trim().length > 0 && (
+              <div className="pt-3 mt-3 border-t-2 border-dashed border-slate-400 space-y-1">
+                <div className="handwritten-english text-base md:text-lg font-bold uppercase tracking-wider text-blue-700">
+                  📝 Day Remarks:
+                </div>
+                <div className="diary-row-item handwritten-english text-base md:text-lg font-bold leading-relaxed whitespace-pre-wrap">
+                  {dayRemarks.trim()}
+                </div>
+              </div>
+            )}
+
+            {/* FOOTER (INSIDE WHITE SHEET) */}
             <div className="pt-3 text-right handwritten-english text-base md:text-lg font-bold opacity-80 border-t border-slate-300">
               BE: {beName}
             </div>

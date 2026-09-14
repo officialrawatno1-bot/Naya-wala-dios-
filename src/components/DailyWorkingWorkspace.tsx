@@ -81,6 +81,14 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const [globalDocSearch, setGlobalDocSearch] = useState('');
 
   // 📝 REMINDERS STATE
+  const [dayRemarks, setDayRemarks] = useState<string>(() => {
+    try {
+      return localStorage.getItem(`dios_day_remarks_${selectedDateStr}`) || '';
+    } catch (e) {
+      return '';
+    }
+  });
+
   const [reminders, setReminders] = useState<DayReminderItem[]>(() => {
     try {
       const saved = localStorage.getItem(`dios_day_reminders_${selectedDateStr}`);
@@ -128,6 +136,9 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     try {
       const saved = localStorage.getItem(`dios_day_reminders_${selectedDateStr}`);
       setReminders(saved ? JSON.parse(saved) : []);
+      try {
+        setDayRemarks(localStorage.getItem(`dios_day_remarks_${selectedDateStr}`) || '');
+      } catch (e) {}
     } catch (e) {
       setReminders([]);
     }
@@ -1012,6 +1023,34 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
             )}
           </div>
 
+          
+          {/* 🌟 4. DAILY WORKING REMARKS & INSTRUCTIONS (PRINTS BELOW REMINDERS) */}
+          <div className="p-4 bg-slate-950 rounded-2xl border-2 border-blue-500/40 shadow-xl space-y-2.5">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <FileText size={16} className="text-blue-400" />
+                <h3 className="text-xs font-bold text-blue-300 uppercase tracking-wider">
+                  Daily Working Remarks for {selectedDateStr} (Prints Below Reminders on Slip)
+                </h3>
+              </div>
+              <span className="text-[10px] text-slate-400 font-mono">Auto-saved to Diary Slip &amp; Print</span>
+            </div>
+
+            <textarea
+              rows={2}
+              placeholder="Type any daily remarks, manager instructions, evening calls status, stock notes..."
+              value={dayRemarks}
+              onChange={e => {
+                const val = e.target.value;
+                setDayRemarks(val);
+                try {
+                  localStorage.setItem(`dios_day_remarks_${selectedDateStr}`, val);
+                } catch (err) {}
+              }}
+              className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-xl p-3 text-xs focus:border-blue-400 focus:outline-none placeholder-slate-500 resize-none font-sans"
+            />
+          </div>
+
           {/* REMAINING DOCTORS BACKLOG IN SELECTED AREAS */}
           <div className="p-4 bg-slate-950 rounded-2xl border-2 border-cyan-500/40 shadow-xl space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
@@ -1207,6 +1246,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         selectedAreas={selectedAreas}
         plannedCalls={currentPlan?.plannedCalls || []}
         reminders={reminders}
+        dayRemarks={dayRemarks}
         beName="BANWARI LAL MEENA (Udaipur HQ)"
       />
 
