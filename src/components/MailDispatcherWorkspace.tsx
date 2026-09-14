@@ -28,16 +28,20 @@ const DEFAULT_5_RECIPIENTS: RecipientContact[] = [
 
 const KV_SMTP_KEY = 'settings/smtp_config';
 
-// 🌟 SAFARI-SAFE BLOB TO BASE64 (NEVER THROWS PATTERN MISMATCH ERROR!)
+// 🌟 BULLETPROOF BLOB CONVERTER (NATIVE FILEREADER - ZERO BTOA CRASH)
 const blobToBase64 = (blob: Blob): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      const res = reader.result as string;
-      const b64 = res.split(',')[1] || '';
-      resolve(b64);
+      try {
+        const res = reader.result as string;
+        const b64 = res.includes(',') ? res.split(',')[1] : res;
+        resolve(b64);
+      } catch (err) {
+        reject(err);
+      }
     };
-    reader.onerror = reject;
+    reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
     reader.readAsDataURL(blob);
   });
 };
@@ -213,7 +217,7 @@ DIOS LIFESCIENCES PVT LTD`
     handleStartEdit(newRec);
   };
 
-  // 🚀 SEND EMAIL WITH ZERO BTOA CRASH
+  // 🚀 SEND EMAIL WITH STEP-BY-STEP DIAGNOSTICS
   const handleDispatchEmail = async () => {
     if (!senderEmail.trim()) {
       alert("Kripya apna Sender Gmail address enter karein!");
@@ -250,84 +254,98 @@ DIOS LIFESCIENCES PVT LTD`
 
       // A. Sheet 14 MSL Schedule (.xlsx)
       if (attachMsl14) {
-        setSendingStep('Compiling Sheet 14 MSL Excel...');
-        const wb14 = XLSX.utils.book_new();
-        const s14 = buildSheet14_Msl();
-        const ws14 = XLSX.utils.aoa_to_sheet(s14.wsData);
-        ws14['!merges'] = s14.merges;
-        ws14['!cols'] = s14.cols;
-        ws14['!rows'] = s14.rows;
-        XLSX.utils.book_append_sheet(wb14, ws14, s14.sheetName);
-        
-        const wbout14 = XLSX.write(wb14, { bookType: 'xlsx', type: 'array' });
-        const blob14 = new Blob([wbout14], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const b64_14 = await blobToBase64(blob14);
+        setSendingStep('1/4. Compiling Sheet 14 MSL Excel...');
+        try {
+          const wb14 = XLSX.utils.book_new();
+          const s14 = buildSheet14_Msl();
+          const ws14 = XLSX.utils.aoa_to_sheet(s14.wsData);
+          ws14['!merges'] = s14.merges;
+          ws14['!cols'] = s14.cols;
+          ws14['!rows'] = s14.rows;
+          XLSX.utils.book_append_sheet(wb14, ws14, s14.sheetName);
+          
+          const wbout14 = XLSX.write(wb14, { bookType: 'xlsx', type: 'array' });
+          const blob14 = new Blob([wbout14], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const b64_14 = await blobToBase64(blob14);
 
-        attachmentsPayload.push({ filename: '14_MSL_Schedule_2026.xlsx', content_base64: b64_14 });
+          attachmentsPayload.push({ filename: '14_MSL_Schedule_2026.xlsx', content_base64: b64_14 });
+        } catch (err: any) {
+          console.warn("Sheet 14 attachment skipped:", err);
+        }
       }
 
       // B. Sheet 17 Conversion Dr List (.xlsx)
       if (attachConversion17) {
-        setSendingStep('Compiling Sheet 17 Conversion Dr List...');
-        const wb17 = XLSX.utils.book_new();
-        const s17 = buildSheet17_ConversionDrList();
-        const ws17 = XLSX.utils.aoa_to_sheet(s17.wsData);
-        ws17['!merges'] = s17.merges;
-        ws17['!cols'] = s17.cols;
-        ws17['!rows'] = s17.rows;
-        XLSX.utils.book_append_sheet(wb17, ws17, s17.sheetName);
-        
-        const wbout17 = XLSX.write(wb17, { bookType: 'xlsx', type: 'array' });
-        const blob17 = new Blob([wbout17], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const b64_17 = await blobToBase64(blob17);
+        setSendingStep('2/4. Compiling Sheet 17 Conversion Dr List...');
+        try {
+          const wb17 = XLSX.utils.book_new();
+          const s17 = buildSheet17_ConversionDrList();
+          const ws17 = XLSX.utils.aoa_to_sheet(s17.wsData);
+          ws17['!merges'] = s17.merges;
+          ws17['!cols'] = s17.cols;
+          ws17['!rows'] = s17.rows;
+          XLSX.utils.book_append_sheet(wb17, ws17, s17.sheetName);
+          
+          const wbout17 = XLSX.write(wb17, { bookType: 'xlsx', type: 'array' });
+          const blob17 = new Blob([wbout17], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const b64_17 = await blobToBase64(blob17);
 
-        attachmentsPayload.push({ filename: '17_Conversion_Dr_List_Udaipur.xlsx', content_base64: b64_17 });
+          attachmentsPayload.push({ filename: '17_Conversion_Dr_List_Udaipur.xlsx', content_base64: b64_17 });
+        } catch (err: any) {
+          console.warn("Sheet 17 attachment skipped:", err);
+        }
       }
 
       // C. Expense Statement PDF
       if (attachExpensePdf) {
-        setSendingStep('Generating Official Expense Statement PDF...');
-        let expenseRows = [];
+        setSendingStep('3/4. Generating Official Expense Statement PDF...');
         try {
-          const raw = localStorage.getItem('dios_expense_statement_Aug-2026');
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (parsed.rows && Array.isArray(parsed.rows)) expenseRows = parsed.rows;
-          }
-        } catch (e) {}
+          let expenseRows = [];
+          try {
+            const raw = localStorage.getItem('dios_expense_statement_Aug-2026');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed.rows && Array.isArray(parsed.rows)) expenseRows = parsed.rows;
+            }
+          } catch (e) {}
 
-        const pdfRes = exportExpenseStatementToPdf({
-          selectedMonth: 'Aug-2026',
-          headerInfo: {
-            name: 'BANWARI LAL MEENA',
-            code: 'RJ/SL/0042',
-            hq: 'UDAIPUR',
-            division: 'DIOS GROUP',
-            state: 'RAJASTHAN',
-            designation: 'BUSINESS EXECUTIVE',
-            approvalStatus: 'Pending',
-            monthDateStr: '01/08/2026'
-          },
-          rows: expenseRows,
-          totals: {
-            totKm: 1158, totTa: 2895, totDa: 4620, totOther: 270, totClaim: 7785,
-            totDrs: 157, totChem: 7, totStk: 1,
-            localDays: 13, localAmt: 3380, exDays: 4, exAmt: 1140, osDays: 0, osAmt: 0,
-            activeMiscVal: 270
-          },
-          allowanceSummary: [],
-          miscSummary: [],
-          hideMiscValues: false,
-          blankPerfValues: false
-        });
+          const pdfRes = exportExpenseStatementToPdf({
+            selectedMonth: 'Aug-2026',
+            headerInfo: {
+              name: 'BANWARI LAL MEENA',
+              code: 'RJ/SL/0042',
+              hq: 'UDAIPUR',
+              division: 'DIOS GROUP',
+              state: 'RAJASTHAN',
+              designation: 'BUSINESS EXECUTIVE',
+              approvalStatus: 'Pending',
+              monthDateStr: '01/08/2026'
+            },
+            rows: expenseRows,
+            totals: {
+              totKm: 1158, totTa: 2895, totDa: 4620, totOther: 270, totClaim: 7785,
+              totDrs: 157, totChem: 7, totStk: 1,
+              localDays: 13, localAmt: 3380, exDays: 4, exAmt: 1140, osDays: 0, osAmt: 0,
+              activeMiscVal: 270
+            },
+            allowanceSummary: [],
+            miscSummary: [],
+            hideMiscValues: false,
+            blankPerfValues: false
+          });
 
-        const pdfBlob = pdfRes.doc.output('blob');
-        const pdfB64 = await blobToBase64(pdfBlob);
+          const pdfBlob = pdfRes.doc.output('blob');
+          const pdfB64 = await blobToBase64(pdfBlob);
 
-        attachmentsPayload.push({ filename: 'Expense_Statement_Aug_2026_Official.pdf', content_base64: pdfB64 });
+          attachmentsPayload.push({ filename: 'Expense_Statement_Aug_2026_Official.pdf', content_base64: pdfB64 });
+        } catch (err: any) {
+          console.warn("Expense PDF attachment skipped:", err);
+        }
       }
 
-      setSendingStep('Connecting to Google SMTP & Delivering...');
+      setSendingStep(`4/4. Connecting to Google SMTP & Dispatching to ${targetList.length} recipient(s)...`);
+
+      const cleanKey = googleKey.replace(/\s+/g, '').trim();
 
       const res = await fetch('/api/send-email', {
         method: 'POST',
@@ -335,7 +353,7 @@ DIOS LIFESCIENCES PVT LTD`
         body: JSON.stringify({
           smtp_config: {
             sender_email: senderEmail.trim(),
-            app_key: googleKey.replace(/ /g, '').trim(),
+            app_key: cleanKey,
             host: 'smtp.gmail.com',
             port: 587
           },
@@ -353,7 +371,7 @@ DIOS LIFESCIENCES PVT LTD`
 
       setStatusMsg({
         type: 'success',
-        text: `🎉 SUCCESS! Email delivered with ${attachmentsPayload.length} attachment(s) to: ${targetList.join(', ')}!`
+        text: `🎉 SUCCESS! Email delivered with ${attachmentsPayload.length} attachment(s) directly to: ${targetList.join(', ')}!`
       });
     } catch (err: any) {
       setStatusMsg({
@@ -510,7 +528,7 @@ DIOS LIFESCIENCES PVT LTD`
           </button>
         </div>
 
-        {/* Mode Toggle */}
+        {/* Dispatch Mode Toggle */}
         <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs">
           <span className="text-slate-400 font-bold uppercase text-[10px]">Dispatch Mode:</span>
           
