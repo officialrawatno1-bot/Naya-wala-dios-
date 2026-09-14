@@ -1,15 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { 
   Mail, Send, Key, ExternalLink, Check, Trash2, Edit3, Plus, 
   FileSpreadsheet, FileText, CheckSquare, Square, Users, 
   User, ShieldCheck, Sparkles, RefreshCw, Loader2, AlertTriangle, 
-  ArrowLeft, CheckCircle2, Lock, Eye, EyeOff, Radio
+  ArrowLeft, CheckCircle2, Lock, Eye, EyeOff
 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { buildSheet14_Msl } from '../exporters/sheets/buildSheet14_Msl';
 import { buildSheet17_ConversionDrList } from '../exporters/sheets/buildSheet17_ConversionDrList';
 import { exportExpenseStatementToPdf } from '../exporters/expensePdfExporter';
-import { REAL_AUGUST_ROWS } from './ExpenseWorkspace';
 
 interface RecipientContact {
   id: string;
@@ -148,7 +147,7 @@ DIOS LIFESCIENCES PVT LTD`
     handleStartEdit(newRec);
   };
 
-  // 🚀 DISPATCH EMAIL WITH REAL IN-MEMORY ATTACHMENTS
+  // 🚀 DISPATCH EMAIL WITH REAL IN-MEMORY ATTACHMENTS (100% SELF-CONTAINED)
   const handleDispatchEmail = async () => {
     if (!senderEmail.trim()) {
       alert("Kripya apna Sender Gmail address enter karein!");
@@ -216,8 +215,17 @@ DIOS LIFESCIENCES PVT LTD`
         });
       }
 
-      // C. Expense Statement Official PDF (.pdf)
+      // C. Expense Statement Official PDF (.pdf) - Standalone without external row imports
       if (attachExpensePdf) {
+        let expenseRows = [];
+        try {
+          const raw = localStorage.getItem('dios_expense_statement_Aug-2026');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed.rows && Array.isArray(parsed.rows)) expenseRows = parsed.rows;
+          }
+        } catch (e) {}
+
         const pdfRes = exportExpenseStatementToPdf({
           selectedMonth: 'Aug-2026',
           headerInfo: {
@@ -230,7 +238,7 @@ DIOS LIFESCIENCES PVT LTD`
             approvalStatus: 'Pending',
             monthDateStr: '01/08/2026'
           },
-          rows: REAL_AUGUST_ROWS,
+          rows: expenseRows,
           totals: {
             totKm: 1158, totTa: 2895, totDa: 4620, totOther: 270, totClaim: 7785,
             totDrs: 157, totChem: 7, totStk: 1,
@@ -401,7 +409,7 @@ DIOS LIFESCIENCES PVT LTD`
         </div>
       </div>
 
-      {/* 🌟 2. 5 PRE-FED RECIPIENT MANAGEMENT (ADD/EDIT/DELETE + SINGLE/GROUP TOGGLE) */}
+      {/* 🌟 2. 5 PRE-FED RECIPIENT MANAGEMENT */}
       <div className="p-5 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2">
@@ -504,7 +512,7 @@ DIOS LIFESCIENCES PVT LTD`
         </div>
       </div>
 
-      {/* 🌟 3. REPORT / ATTACHMENT SELECTOR (WHICH SHEETS TO ATTACH?) */}
+      {/* 🌟 3. REPORT / ATTACHMENT SELECTOR */}
       <div className="p-5 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-slate-800">
           <h3 className="text-xs md:text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -557,7 +565,7 @@ DIOS LIFESCIENCES PVT LTD`
         </div>
       </div>
 
-      {/* 🌟 4. EMAIL COMPOSER (SUBJECT & COVER LETTER BODY) */}
+      {/* 🌟 4. EMAIL COMPOSER */}
       <div className="p-5 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl space-y-3">
         <h3 className="text-xs md:text-sm font-bold text-white uppercase tracking-wider">
           Email Subject &amp; Cover Letter (Editable)
