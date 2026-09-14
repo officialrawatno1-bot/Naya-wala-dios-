@@ -14,6 +14,7 @@ import { buildSheet12_FocusedBrands } from './sheets/buildSheet12_FocusedBrands'
 import { buildSheet13_Roi } from './sheets/buildSheet13_Roi';
 import { buildSheet14_Msl } from './sheets/buildSheet14_Msl';
 import { buildSheet16_ProductIncentive } from './sheets/buildSheet16_ProductIncentive';
+import { buildSheet17_ConversionDrList } from './sheets/buildSheet17_ConversionDrList';
 import { memoryStore } from '../data/memoryStore';
 import { unProgressionStore } from '../data/unProgressionStore';
 
@@ -33,6 +34,7 @@ export async function generateMasterReviewWorkbook() {
   let sheet13Data: any = null;
   let sheet14Data: any = null;
   let sheet16Data: any = null;
+  let sheet17Data: any = null;
 
   // 🌟 STEP 1: PRIORITY #1 - Read directly from iPad LocalStorage & Active Memory first
   if (typeof window !== 'undefined') {
@@ -101,6 +103,9 @@ export async function generateMasterReviewWorkbook() {
           specialList: s16Spec ? JSON.parse(s16Spec) : []
         };
       }
+
+      const s17 = localStorage.getItem('dios_draft_sheet_17_conversion_drs');
+      if (s17) sheet17Data = { rows: JSON.parse(s17) };
     } catch (e) {
       console.warn("LocalStorage read error in exporter:", e);
     }
@@ -241,6 +246,11 @@ export async function generateMasterReviewWorkbook() {
   const ws16 = XLSX.utils.aoa_to_sheet(s16.wsData);
   ws16['!merges'] = s16.merges; ws16['!cols'] = s16.cols; ws16['!rows'] = s16.rows;
   XLSX.utils.book_append_sheet(wb, ws16, s16.sheetName);
+
+  const s17 = buildSheet17_ConversionDrList(sheet17Data);
+  const ws17 = XLSX.utils.aoa_to_sheet(s17.wsData);
+  ws17['!merges'] = s17.merges; ws17['!cols'] = s17.cols; ws17['!rows'] = s17.rows;
+  XLSX.utils.book_append_sheet(wb, ws17, s17.sheetName);
 
   const filename = `DIOS_Performance_Review_Master_2026.xlsx`;
   XLSX.writeFile(wb, filename);

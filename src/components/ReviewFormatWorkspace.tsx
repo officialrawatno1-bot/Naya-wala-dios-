@@ -21,7 +21,8 @@ import {
   RoiSheet,
   MslSheet,
   DayWiseCallStatusSheet,
-  ProductIncentiveSheet
+  ProductIncentiveSheet,
+  ConversionDrListSheet
 } from './review';
 
 interface Props {
@@ -45,6 +46,7 @@ const REVIEW_NAV = [
   { id: '14', title: '14. MSL', short: 'MSL Schedule', icon: Calendar },
   { id: '15', title: '15. Day Wise Calls', short: 'Call Status', icon: UserCheck },
   { id: '16', title: '16. Product Incentive', short: 'Product Inc. 🎯', icon: Award },
+  { id: '17', title: '17. Conversion Dr List', short: 'Conversion Drs 👥', icon: UserCheck },
 ];
 
 export const ReviewFormatWorkspace: React.FC<Props> = ({ onBack }) => {
@@ -68,6 +70,7 @@ export const ReviewFormatWorkspace: React.FC<Props> = ({ onBack }) => {
       case '14': return <MslSheet />;
       case '15': return <DayWiseCallStatusSheet />;
       case '16': return <ProductIncentiveSheet />;
+      case '17': return <ConversionDrListSheet />;
       default: return <EffortLevelSheet />;
     }
   };
@@ -84,7 +87,7 @@ export const ReviewFormatWorkspace: React.FC<Props> = ({ onBack }) => {
 
         <div className="flex items-center gap-3">
           <span className="text-[11px] bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-full font-mono font-bold flex items-center gap-1.5 shadow-lg shadow-emerald-950/50">
-            <Sparkles size={13} className="text-emerald-400 animate-pulse" /> DIOS REVIEW HUB (16 SHEETS)
+            <Sparkles size={13} className="text-emerald-400 animate-pulse" /> DIOS REVIEW HUB (17 SHEETS)
           </span>
         </div>
       </div>
@@ -97,7 +100,7 @@ export const ReviewFormatWorkspace: React.FC<Props> = ({ onBack }) => {
           Monthly Performance Review Format
         </h1>
         <p className="text-slate-400 text-xs md:text-sm mt-1">
-          16 Modular Review Sheets with Live CBO DCR, Calls Status, Sales Integration &amp; Product Incentives.
+          17 Modular Review Sheets with Live CBO DCR, Calls Status, Sales Integration &amp; Product Incentives.
         </p>
       </div>
 
