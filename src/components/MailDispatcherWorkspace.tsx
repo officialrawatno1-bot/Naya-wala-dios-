@@ -28,8 +28,21 @@ const DEFAULT_5_RECIPIENTS: RecipientContact[] = [
 
 const KV_SMTP_KEY = 'settings/smtp_config';
 
+// 🌟 SAFARI-SAFE BLOB TO BASE64 (NEVER THROWS PATTERN MISMATCH ERROR!)
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const res = reader.result as string;
+      const b64 = res.split(',')[1] || '';
+      resolve(b64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
 export const MailDispatcherWorkspace: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  // 1. Credentials (No prefill, starts blank or loads from storage/cloud)
   const [senderEmail, setSenderEmail] = useState(() => {
     return localStorage.getItem('dios_smtp_sender_email') || '';
   });
@@ -41,7 +54,6 @@ export const MailDispatcherWorkspace: React.FC<{ onBack: () => void }> = ({ onBa
   const [showKey, setShowKey] = useState(false);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
 
-  // 2. Recipients
   const [recipients, setRecipients] = useState<RecipientContact[]>(() => {
     try {
       const saved = localStorage.getItem('dios_mail_recipients_v2');
@@ -53,12 +65,10 @@ export const MailDispatcherWorkspace: React.FC<{ onBack: () => void }> = ({ onBa
   const [sendMode, setSendMode] = useState<'ALL_ENABLED' | 'SINGLE'>('ALL_ENABLED');
   const [singleTargetEmail, setSingleTargetEmail] = useState<string>('');
 
-  // 3. Selected Attachments
   const [attachMsl14, setAttachMsl14] = useState(true);
   const [attachConversion17, setAttachConversion17] = useState(true);
   const [attachExpensePdf, setAttachExpensePdf] = useState(true);
 
-  // 4. Email Subject & Body
   const [subject, setSubject] = useState('DIOS Reports & Review Formats - Udaipur HQ (BE: Banwari Lal Meena)');
   const [bodyText, setBodyText] = useState(
 `Respected Sir,
@@ -78,18 +88,17 @@ Business Executive (Udaipur HQ)
 DIOS LIFESCIENCES PVT LTD`
   );
 
-  // Status & Progress
   const [isSending, setIsSending] = useState(false);
+  const [sendingStep, setSendingStep] = useState('');
   const [isSavingCloud, setIsSavingCloud] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Edit Recipient Modal
   const [editingRec, setEditingRec] = useState<RecipientContact | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editRole, setEditRole] = useState('');
 
-  // 🌟 LOAD FROM CLOUDFLARE KV ON MOUNT (IMMUNE TO BROWSER RELOAD / CACHE CLEAR)
+  // Load from Cloudflare KV on mount
   useEffect(() => {
     const loadFromCloud = async () => {
       try {
@@ -119,7 +128,6 @@ DIOS LIFESCIENCES PVT LTD`
     loadFromCloud();
   }, []);
 
-  // 🌟 PERMANENT SAVE TO CLOUDFLARE KV & LOCALSTORAGE
   const saveAllToCloudflare = async (emailVal = senderEmail, keyVal = googleKey, recList = recipients) => {
     setIsSavingCloud(true);
     try {
@@ -145,7 +153,7 @@ DIOS LIFESCIENCES PVT LTD`
       });
 
       setIsCloudSynced(true);
-      setStatusMsg({ type: 'success', text: '☁️ Cloudflare KV par permanently save ho gaya! Cache clear hone par bhi gayab nahi hoga.' });
+      setStatusMsg({ type: 'success', text: '☁️ Cloudflare KV par permanently save ho gaya!' });
     } catch (e: any) {
       setStatusMsg({ type: 'error', text: 'Save Error: ' + e.message });
     } finally {
@@ -205,7 +213,7 @@ DIOS LIFESCIENCES PVT LTD`
     handleStartEdit(newRec);
   };
 
-  // 🚀 SEND EMAIL
+  // 🚀 SEND EMAIL WITH ZERO BTOA CRASH
   const handleDispatchEmail = async () => {
     if (!senderEmail.trim()) {
       alert("Kripya apna Sender Gmail address enter karein!");
@@ -242,6 +250,7 @@ DIOS LIFESCIENCES PVT LTD`
 
       // A. Sheet 14 MSL Schedule (.xlsx)
       if (attachMsl14) {
+        setSendingStep('Compiling Sheet 14 MSL Excel...');
         const wb14 = XLSX.utils.book_new();
         const s14 = buildSheet14_Msl();
         const ws14 = XLSX.utils.aoa_to_sheet(s14.wsData);
@@ -249,12 +258,17 @@ DIOS LIFESCIENCES PVT LTD`
         ws14['!cols'] = s14.cols;
         ws14['!rows'] = s14.rows;
         XLSX.utils.book_append_sheet(wb14, ws14, s14.sheetName);
-        const b64 = XLSX.write(wb14, { bookType: 'xlsx', type: 'base64' });
-        attachmentsPayload.push({ filename: '14_MSL_Schedule_2026.xlsx', content_base64: b64 });
+        
+        const wbout14 = XLSX.write(wb14, { bookType: 'xlsx', type: 'array' });
+        const blob14 = new Blob([wbout14], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const b64_14 = await blobToBase64(blob14);
+
+        attachmentsPayload.push({ filename: '14_MSL_Schedule_2026.xlsx', content_base64: b64_14 });
       }
 
       // B. Sheet 17 Conversion Dr List (.xlsx)
       if (attachConversion17) {
+        setSendingStep('Compiling Sheet 17 Conversion Dr List...');
         const wb17 = XLSX.utils.book_new();
         const s17 = buildSheet17_ConversionDrList();
         const ws17 = XLSX.utils.aoa_to_sheet(s17.wsData);
@@ -262,12 +276,17 @@ DIOS LIFESCIENCES PVT LTD`
         ws17['!cols'] = s17.cols;
         ws17['!rows'] = s17.rows;
         XLSX.utils.book_append_sheet(wb17, ws17, s17.sheetName);
-        const b64 = XLSX.write(wb17, { bookType: 'xlsx', type: 'base64' });
-        attachmentsPayload.push({ filename: '17_Conversion_Dr_List_Udaipur.xlsx', content_base64: b64 });
+        
+        const wbout17 = XLSX.write(wb17, { bookType: 'xlsx', type: 'array' });
+        const blob17 = new Blob([wbout17], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const b64_17 = await blobToBase64(blob17);
+
+        attachmentsPayload.push({ filename: '17_Conversion_Dr_List_Udaipur.xlsx', content_base64: b64_17 });
       }
 
       // C. Expense Statement PDF
       if (attachExpensePdf) {
+        setSendingStep('Generating Official Expense Statement PDF...');
         let expenseRows = [];
         try {
           const raw = localStorage.getItem('dios_expense_statement_Aug-2026');
@@ -301,10 +320,14 @@ DIOS LIFESCIENCES PVT LTD`
           hideMiscValues: false,
           blankPerfValues: false
         });
-        const pdfUri = pdfRes.doc.output('datauristring');
-        const pdfB64 = pdfUri.split(',')[1] || '';
+
+        const pdfBlob = pdfRes.doc.output('blob');
+        const pdfB64 = await blobToBase64(pdfBlob);
+
         attachmentsPayload.push({ filename: 'Expense_Statement_Aug_2026_Official.pdf', content_base64: pdfB64 });
       }
+
+      setSendingStep('Connecting to Google SMTP & Delivering...');
 
       const res = await fetch('/api/send-email', {
         method: 'POST',
@@ -339,6 +362,7 @@ DIOS LIFESCIENCES PVT LTD`
       });
     } finally {
       setIsSending(false);
+      setSendingStep('');
     }
   };
 
@@ -384,7 +408,7 @@ DIOS LIFESCIENCES PVT LTD`
         </div>
       )}
 
-      {/* 🌟 1. SENDER EMAIL & GOOGLE 16-DIGIT KEY (NO PREFILL, PERMANENT CLOUDFLARE SAVE) */}
+      {/* 🌟 1. SENDER EMAIL & GOOGLE 16-DIGIT KEY */}
       <div className="p-5 bg-slate-900 rounded-2xl border-2 border-cyan-500/50 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2">
@@ -467,7 +491,7 @@ DIOS LIFESCIENCES PVT LTD`
         </div>
       </div>
 
-      {/* 🌟 2. 5 PRE-FED RECIPIENT MANAGEMENT */}
+      {/* 🌟 2. RECIPIENT DIRECTORY */}
       <div className="p-5 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2">
@@ -477,18 +501,16 @@ DIOS LIFESCIENCES PVT LTD`
             </h3>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAddNewRecipient}
-              className="flex items-center gap-1 px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-cyan-300 rounded-xl text-xs font-bold transition cursor-pointer"
-            >
-              <Plus size={13} /> + Add Recipient
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleAddNewRecipient}
+            className="flex items-center gap-1 px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-cyan-300 rounded-xl text-xs font-bold transition cursor-pointer"
+          >
+            <Plus size={13} /> + Add Recipient
+          </button>
         </div>
 
-        {/* Dispatch Mode Toggle */}
+        {/* Mode Toggle */}
         <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs">
           <span className="text-slate-400 font-bold uppercase text-[10px]">Dispatch Mode:</span>
           
@@ -585,7 +607,6 @@ DIOS LIFESCIENCES PVT LTD`
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          
           <label className={`p-3 rounded-2xl border transition cursor-pointer flex items-center gap-3 ${
             attachMsl14 ? 'bg-slate-950 border-cyan-500/60 shadow-md' : 'bg-slate-950/60 border-slate-800'
           }`}>
@@ -621,7 +642,6 @@ DIOS LIFESCIENCES PVT LTD`
               <div className="text-[10px] text-slate-400 font-mono">Expense_Statement_Aug_2026.pdf</div>
             </div>
           </label>
-
         </div>
       </div>
 
@@ -665,7 +685,7 @@ DIOS LIFESCIENCES PVT LTD`
           className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 text-white font-black text-sm rounded-2xl shadow-xl shadow-emerald-950 transition cursor-pointer flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
         >
           {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-          <span>{isSending ? 'Sending Email to Sir...' : '🚀 SEND EMAIL TO SIR NOW'}</span>
+          <span>{isSending ? (sendingStep || 'Sending Email to Sir...') : '🚀 SEND EMAIL TO SIR NOW'}</span>
         </button>
       </div>
 
@@ -681,15 +701,15 @@ DIOS LIFESCIENCES PVT LTD`
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block text-slate-400 mb-1">Name / Title:</label>
-                <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs" />
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2" />
               </div>
               <div>
                 <label className="block text-slate-400 mb-1">Email Address *:</label>
-                <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="e.g. manager@dioslifesciences.com" className="w-full bg-slate-950 border border-slate-700 text-cyan-300 font-mono rounded-xl px-3 py-2 text-xs" />
+                <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="e.g. manager@dioslifesciences.com" className="w-full bg-slate-950 border border-slate-700 text-cyan-300 font-mono rounded-xl px-3 py-2" />
               </div>
               <div>
                 <label className="block text-slate-400 mb-1">Role / Designation:</label>
-                <input type="text" value={editRole} onChange={e => setEditRole(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs" />
+                <input type="text" value={editRole} onChange={e => setEditRole(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2" />
               </div>
             </div>
 
