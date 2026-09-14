@@ -11,6 +11,7 @@ import { PartywiseAggregatorVault } from './PartywiseAggregatorVault';
 import { IncentiveWorkspace } from './IncentiveWorkspace';
 import { ExpenseWorkspace } from './ExpenseWorkspace';
 import { BirthdayAnniversaryWorkspace } from './BirthdayAnniversaryWorkspace';
+import { MailDispatcherWorkspace } from './MailDispatcherWorkspace';
 
 interface Props {
   onBack: () => void;
@@ -25,7 +26,8 @@ type ViewState =
   | 'earn' 
   | 'incentive' 
   | 'expense'
-  | 'celebrations';
+  | 'celebrations'
+  | 'mail-dispatcher';
 
 export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
   const [currentView, setCurrentView] = useState<ViewState>('web-data');
@@ -53,7 +55,7 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
             else if (currentView === 'statement') setCurrentView('web-data');
             else if (currentView === 'incentive') setCurrentView('earn');
             else if (currentView === 'earn') setCurrentView('web-data');
-            else if (currentView === 'celebrations') setCurrentView('web-data');
+            else if (currentView === 'celebrations' || currentView === 'mail-dispatcher') setCurrentView('web-data');
             else onBack();
           }}
           className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 transition cursor-pointer text-xs font-semibold"
@@ -165,6 +167,31 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
                 className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 transition cursor-pointer"
               >
                 Open Earn &rarr;
+              </button>
+            </div>
+
+            
+            {/* 🌟 MODULE 5: DIRECT MAIL DISPATCHER */}
+            <div className="bg-slate-900 border-2 border-cyan-500/60 hover:border-cyan-400 rounded-2xl p-6 transition shadow-2xl space-y-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl">
+                    <Mail size={22} />
+                  </span>
+                  <span className="text-[10px] text-cyan-300 font-black bg-cyan-950 px-2.5 py-0.5 rounded-full border border-cyan-500/40 font-mono">
+                    NEW &bull; DIRECT MAIL
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-white">Direct Mail to Sir</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  1-Click email dispatch to Sir &amp; HO with 16-digit Google key, 5 pre-fed recipients, and auto-attached Excel/PDF sheets.
+                </p>
+              </div>
+              <button
+                onClick={() => setCurrentView('mail-dispatcher')}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-950 transition cursor-pointer"
+              >
+                📧 Open Mail Dispatcher &rarr;
               </button>
             </div>
 
@@ -319,6 +346,10 @@ export const WebDataWorkspace: React.FC<Props> = ({ onBack }) => {
 
       {currentView === 'expense' && (
         <ExpenseWorkspace onBack={() => setCurrentView('earn')} />
+      )}
+
+            {currentView === 'mail-dispatcher' && (
+        <MailDispatcherWorkspace onBack={() => setCurrentView('web-data')} />
       )}
 
       {currentView === 'celebrations' && (

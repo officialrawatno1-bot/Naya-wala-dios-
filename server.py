@@ -191,3 +191,9 @@ if __name__ == "__main__":
 @app.post("/api/fetch-expense")
 def api_fetch_expense(req: MonthRequest):
     return fetch_cbo_expense(req.from_month)
+
+from email_engine import send_dios_email
+
+@app.post("/api/send-email")
+def api_send_email(req: dict):
+    return send_dios_email(req)
