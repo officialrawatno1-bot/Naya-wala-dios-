@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Mail, Send, Key, ExternalLink, Check, Trash2, Edit3, Plus, 
   FileSpreadsheet, FileText, CheckSquare, Square, Users, 
   User, ShieldCheck, Sparkles, RefreshCw, Loader2, AlertTriangle, 
-  ArrowLeft, CheckCircle2, Lock, Eye, EyeOff, X, Cloud, CloudUpload
+  ArrowLeft, CheckCircle2, Lock, Eye, EyeOff, X, Cloud, CloudUpload,
+  Calendar, Layers, RotateCcw
 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { buildSheet14_Msl } from '../exporters/sheets/buildSheet14_Msl';
 import { buildSheet17_ConversionDrList } from '../exporters/sheets/buildSheet17_ConversionDrList';
 import { exportExpenseStatementToPdf } from '../exporters/expensePdfExporter';
+import { buildMasterReviewWorkbookObject, buildStatementAggregatorWorkbookObject } from '../exporters/mailMasterReviewBuilder';
 
 interface RecipientContact {
   id: string;
@@ -28,7 +30,6 @@ const DEFAULT_5_RECIPIENTS: RecipientContact[] = [
 
 const KV_SMTP_KEY = 'settings/smtp_config';
 
-// 🌟 BULLETPROOF BLOB CONVERTER (NATIVE FILEREADER - ZERO BTOA CRASH)
 const blobToBase64 = (blob: Blob): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -46,6 +47,54 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
   });
 };
 
+// 🌟 SMART COVER LETTER GENERATOR (ONLY LISTS CHECKED ATTACHMENTS)
+const generateSmartCoverLetter = (opts: {
+  masterReview: boolean;
+  aggregator: boolean;
+  msl14: boolean;
+  conversion17: boolean;
+  expensePdf: boolean;
+  monthStr: string;
+}) => {
+  const lines = [
+    `Respected Sir,`,
+    ``,
+    `Please find attached the official monthly field performance review formats and statements for Udaipur HQ (BE: Banwari Lal Meena) for ${opts.monthStr} 2026.`,
+    ``,
+    `Attached Reports:`
+  ];
+
+  if (opts.masterReview) {
+    lines.push(`• DIOS Master Performance Review (Complete 17 Sheets Consolidated) .xlsx`);
+  }
+  if (opts.aggregator) {
+    lines.push(`• DIOS Statement Aggregator (Unit Sales Progression & Distributor Breakdown) .xlsx`);
+  }
+  if (opts.msl14) {
+    lines.push(`• Sheet 14: MSL Schedule (Master Specialty List & Visit Dates) .xlsx`);
+  }
+  if (opts.conversion17) {
+    lines.push(`• Sheet 17: Conversion Doctor List (July-Nov Calls & Reminders) .xlsx`);
+  }
+  if (opts.expensePdf) {
+    lines.push(`• Official Monthly Expense Statement Claim .pdf`);
+  }
+
+  if (!opts.masterReview && !opts.aggregator && !opts.msl14 && !opts.conversion17 && !opts.expensePdf) {
+    lines.push(`• (No attachments selected)`);
+  }
+
+  lines.push(``);
+  lines.push(`Kindly acknowledge the receipt.`);
+  lines.push(``);
+  lines.push(`Regards,`);
+  lines.push(`Banwari Lal Meena`);
+  lines.push(`Business Executive (Udaipur HQ)`);
+  lines.push(`DIOS LIFESCIENCES PVT LTD`);
+
+  return lines.join('\n');
+};
+
 export const MailDispatcherWorkspace: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [senderEmail, setSenderEmail] = useState(() => {
     return localStorage.getItem('dios_smtp_sender_email') || '';
@@ -58,6 +107,10 @@ export const MailDispatcherWorkspace: React.FC<{ onBack: () => void }> = ({ onBa
   const [showKey, setShowKey] = useState(false);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
 
+  // Active Month
+  const [targetMonth, setTargetMonth] = useState('August');
+
+  // Recipients
   const [recipients, setRecipients] = useState<RecipientContact[]>(() => {
     try {
       const saved = localStorage.getItem('dios_mail_recipients_v2');
@@ -69,28 +122,35 @@ export const MailDispatcherWorkspace: React.FC<{ onBack: () => void }> = ({ onBa
   const [sendMode, setSendMode] = useState<'ALL_ENABLED' | 'SINGLE'>('ALL_ENABLED');
   const [singleTargetEmail, setSingleTargetEmail] = useState<string>('');
 
+  // 🌟 5 ATTACHMENT CHECKBOXES (INCLUDING MASTER REVIEW & STATEMENT AGGREGATOR)
+  const [attachMasterReview, setAttachMasterReview] = useState(false);
+  const [attachAggregator, setAttachAggregator] = useState(false);
   const [attachMsl14, setAttachMsl14] = useState(true);
-  const [attachConversion17, setAttachConversion17] = useState(true);
-  const [attachExpensePdf, setAttachExpensePdf] = useState(true);
+  const [attachConversion17, setAttachConversion17] = useState(false);
+  const [attachExpensePdf, setAttachExpensePdf] = useState(false);
 
+  const [isManualBodyEdit, setIsManualBodyEdit] = useState(false);
   const [subject, setSubject] = useState('DIOS Reports & Review Formats - Udaipur HQ (BE: Banwari Lal Meena)');
-  const [bodyText, setBodyText] = useState(
-`Respected Sir,
+  
+  // 🌟 DYNAMIC COVER LETTER: Auto-syncs whenever any checkbox is clicked!
+  const dynamicBody = useMemo(() => {
+    return generateSmartCoverLetter({
+      masterReview: attachMasterReview,
+      aggregator: attachAggregator,
+      msl14: attachMsl14,
+      conversion17: attachConversion17,
+      expensePdf: attachExpensePdf,
+      monthStr: targetMonth
+    });
+  }, [attachMasterReview, attachAggregator, attachMsl14, attachConversion17, attachExpensePdf, targetMonth]);
 
-Please find attached the official monthly performance review formats and statements for Udaipur HQ (BE: Banwari Lal Meena).
+  const [bodyText, setBodyText] = useState(dynamicBody);
 
-Attached Reports:
-• 14. MSL Schedule (Master Specialty List & Visit Dates) .xlsx
-• 17. Conversion Doctor List (July-Nov Calls & Reminders) .xlsx
-• Official Expense Statement .pdf
-
-Kindly acknowledge the receipt.
-
-Regards,
-Banwari Lal Meena
-Business Executive (Udaipur HQ)
-DIOS LIFESCIENCES PVT LTD`
-  );
+  useEffect(() => {
+    if (!isManualBodyEdit) {
+      setBodyText(dynamicBody);
+    }
+  }, [dynamicBody, isManualBodyEdit]);
 
   const [isSending, setIsSending] = useState(false);
   const [sendingStep, setSendingStep] = useState('');
@@ -102,7 +162,7 @@ DIOS LIFESCIENCES PVT LTD`
   const [editEmail, setEditEmail] = useState('');
   const [editRole, setEditRole] = useState('');
 
-  // Load from Cloudflare KV on mount
+  // Load from Cloudflare KV
   useEffect(() => {
     const loadFromCloud = async () => {
       try {
@@ -217,7 +277,7 @@ DIOS LIFESCIENCES PVT LTD`
     handleStartEdit(newRec);
   };
 
-  // 🚀 SEND EMAIL WITH STEP-BY-STEP DIAGNOSTICS
+  // 🚀 SEND EMAIL WITH ALL 5 ATTACHMENTS
   const handleDispatchEmail = async () => {
     if (!senderEmail.trim()) {
       alert("Kripya apna Sender Gmail address enter karein!");
@@ -246,15 +306,50 @@ DIOS LIFESCIENCES PVT LTD`
       return;
     }
 
+    const totalSelectedAttachments = [attachMasterReview, attachAggregator, attachMsl14, attachConversion17, attachExpensePdf].filter(Boolean).length;
+    if (totalSelectedAttachments === 0) {
+      if (!window.confirm("Aapne koi bhi sheet/attachment select nahi ki hai. Kya aap bina attachment ke sirf email body bhejna chahte hain?")) {
+        return;
+      }
+    }
+
     setIsSending(true);
     setStatusMsg(null);
 
     try {
       const attachmentsPayload: Array<{ filename: string; content_base64: string }> = [];
 
-      // A. Sheet 14 MSL Schedule (.xlsx)
+      // 1. MASTER REVIEW EXCEL (17-in-1 Consolidated)
+      if (attachMasterReview) {
+        setSendingStep('Compiling Master Performance Review (17 Sheets) Excel...');
+        try {
+          const wbMaster = buildMasterReviewWorkbookObject();
+          const wbout = XLSX.write(wbMaster, { bookType: 'xlsx', type: 'array' });
+          const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const b64 = await blobToBase64(blob);
+          attachmentsPayload.push({ filename: 'DIOS_Performance_Review_Master_2026.xlsx', content_base64: b64 });
+        } catch (err: any) {
+          console.warn("Master Review attachment skipped:", err);
+        }
+      }
+
+      // 2. DIOS STATEMENT AGGREGATOR EXCEL
+      if (attachAggregator) {
+        setSendingStep('Compiling DIOS Statement Aggregator Excel...');
+        try {
+          const wbAgg = buildStatementAggregatorWorkbookObject('AUG');
+          const wbout = XLSX.write(wbAgg, { bookType: 'xlsx', type: 'array' });
+          const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const b64 = await blobToBase64(blob);
+          attachmentsPayload.push({ filename: 'DIOS_Statement_Aggregator_Master_2026.xlsx', content_base64: b64 });
+        } catch (err: any) {
+          console.warn("Aggregator attachment skipped:", err);
+        }
+      }
+
+      // 3. Sheet 14 MSL Schedule (.xlsx)
       if (attachMsl14) {
-        setSendingStep('1/4. Compiling Sheet 14 MSL Excel...');
+        setSendingStep('Compiling Sheet 14 MSL Excel...');
         try {
           const wb14 = XLSX.utils.book_new();
           const s14 = buildSheet14_Msl();
@@ -263,20 +358,18 @@ DIOS LIFESCIENCES PVT LTD`
           ws14['!cols'] = s14.cols;
           ws14['!rows'] = s14.rows;
           XLSX.utils.book_append_sheet(wb14, ws14, s14.sheetName);
-          
           const wbout14 = XLSX.write(wb14, { bookType: 'xlsx', type: 'array' });
           const blob14 = new Blob([wbout14], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
           const b64_14 = await blobToBase64(blob14);
-
           attachmentsPayload.push({ filename: '14_MSL_Schedule_2026.xlsx', content_base64: b64_14 });
         } catch (err: any) {
           console.warn("Sheet 14 attachment skipped:", err);
         }
       }
 
-      // B. Sheet 17 Conversion Dr List (.xlsx)
+      // 4. Sheet 17 Conversion Dr List (.xlsx)
       if (attachConversion17) {
-        setSendingStep('2/4. Compiling Sheet 17 Conversion Dr List...');
+        setSendingStep('Compiling Sheet 17 Conversion Dr List...');
         try {
           const wb17 = XLSX.utils.book_new();
           const s17 = buildSheet17_ConversionDrList();
@@ -285,20 +378,18 @@ DIOS LIFESCIENCES PVT LTD`
           ws17['!cols'] = s17.cols;
           ws17['!rows'] = s17.rows;
           XLSX.utils.book_append_sheet(wb17, ws17, s17.sheetName);
-          
           const wbout17 = XLSX.write(wb17, { bookType: 'xlsx', type: 'array' });
           const blob17 = new Blob([wbout17], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
           const b64_17 = await blobToBase64(blob17);
-
           attachmentsPayload.push({ filename: '17_Conversion_Dr_List_Udaipur.xlsx', content_base64: b64_17 });
         } catch (err: any) {
           console.warn("Sheet 17 attachment skipped:", err);
         }
       }
 
-      // C. Expense Statement PDF
+      // 5. Expense Statement PDF
       if (attachExpensePdf) {
-        setSendingStep('3/4. Generating Official Expense Statement PDF...');
+        setSendingStep('Generating Official Expense Statement PDF...');
         try {
           let expenseRows = [];
           try {
@@ -336,14 +427,13 @@ DIOS LIFESCIENCES PVT LTD`
 
           const pdfBlob = pdfRes.doc.output('blob');
           const pdfB64 = await blobToBase64(pdfBlob);
-
           attachmentsPayload.push({ filename: 'Expense_Statement_Aug_2026_Official.pdf', content_base64: pdfB64 });
         } catch (err: any) {
           console.warn("Expense PDF attachment skipped:", err);
         }
       }
 
-      setSendingStep(`4/4. Connecting to Google SMTP & Dispatching to ${targetList.length} recipient(s)...`);
+      setSendingStep(`Connecting to Google SMTP & Dispatching to ${targetList.length} recipient(s)...`);
 
       const cleanKey = googleKey.replace(/\s+/g, '').trim();
 
@@ -402,7 +492,7 @@ DIOS LIFESCIENCES PVT LTD`
                 </span>
               )}
             </h2>
-            <p className="text-xs text-slate-400">Permanently Saved on Cloudflare &bull; Google 16-Digit Key &bull; Live Excel/PDF</p>
+            <p className="text-xs text-slate-400">Dynamic Smart Cover Letter &bull; 5 Sheet Attachments &bull; Google 16-Digit Key</p>
           </div>
         </div>
 
@@ -496,7 +586,7 @@ DIOS LIFESCIENCES PVT LTD`
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-          <span>💡 Yeh details Cloudflare KV par save ho jayengi, reload karne par kabhi gayab nahi hongi.</span>
+          <span>💡 Details Cloudflare KV par encrypted store rahenge, reload ya cache clear karne par bhi gayab nahi honge.</span>
           <button
             type="button"
             onClick={() => saveAllToCloudflare()}
@@ -509,7 +599,7 @@ DIOS LIFESCIENCES PVT LTD`
         </div>
       </div>
 
-      {/* 🌟 2. RECIPIENT DIRECTORY */}
+      {/* 🌟 2. RECIPIENTS DIRECTORY (5 SLOTS) */}
       <div className="p-5 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2">
@@ -528,7 +618,7 @@ DIOS LIFESCIENCES PVT LTD`
           </button>
         </div>
 
-        {/* Dispatch Mode Toggle */}
+        {/* Mode Toggle */}
         <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs">
           <span className="text-slate-400 font-bold uppercase text-[10px]">Dispatch Mode:</span>
           
@@ -612,7 +702,7 @@ DIOS LIFESCIENCES PVT LTD`
         </div>
       </div>
 
-      {/* 🌟 3. REPORT / ATTACHMENT SELECTOR */}
+      {/* 🌟 3. 5 EXPANDED REPORT ATTACHMENTS SELECTOR */}
       <div className="p-5 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-slate-800">
           <h3 className="text-xs md:text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -620,15 +710,43 @@ DIOS LIFESCIENCES PVT LTD`
             Select Reports to Attach in Email:
           </h3>
           <span className="text-xs font-mono text-emerald-400 font-bold">
-            {[attachMsl14, attachConversion17, attachExpensePdf].filter(Boolean).length} Files Selected
+            {[attachMasterReview, attachAggregator, attachMsl14, attachConversion17, attachExpensePdf].filter(Boolean).length} Files Selected
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+          
+          {/* 1. MASTER REVIEW WORKBOOK */}
           <label className={`p-3 rounded-2xl border transition cursor-pointer flex items-center gap-3 ${
-            attachMsl14 ? 'bg-slate-950 border-cyan-500/60 shadow-md' : 'bg-slate-950/60 border-slate-800'
+            attachMasterReview ? 'bg-slate-950 border-emerald-500/80 shadow-md' : 'bg-slate-950/60 border-slate-800'
           }`}>
-            <input type="checkbox" checked={attachMsl14} onChange={e => setAttachMsl14(e.target.checked)} className="h-4 w-4 rounded text-cyan-500 cursor-pointer" />
+            <input type="checkbox" checked={attachMasterReview} onChange={e => { setAttachMasterReview(e.target.checked); setIsManualBodyEdit(false); }} className="h-4 w-4 rounded text-emerald-500 cursor-pointer" />
+            <div>
+              <div className="font-bold text-white flex items-center gap-1.5">
+                <FileSpreadsheet size={14} className="text-emerald-400" /> Master Review (17-in-1 Excel)
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono">DIOS_Performance_Review_Master_2026.xlsx</div>
+            </div>
+          </label>
+
+          {/* 2. DIOS STATEMENT AGGREGATOR */}
+          <label className={`p-3 rounded-2xl border transition cursor-pointer flex items-center gap-3 ${
+            attachAggregator ? 'bg-slate-950 border-blue-500/80 shadow-md' : 'bg-slate-950/60 border-slate-800'
+          }`}>
+            <input type="checkbox" checked={attachAggregator} onChange={e => { setAttachAggregator(e.target.checked); setIsManualBodyEdit(false); }} className="h-4 w-4 rounded text-blue-500 cursor-pointer" />
+            <div>
+              <div className="font-bold text-white flex items-center gap-1.5">
+                <FileSpreadsheet size={14} className="text-blue-400" /> Statement Aggregator Excel
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono">DIOS_Statement_Aggregator_Master_2026.xlsx</div>
+            </div>
+          </label>
+
+          {/* 3. SHEET 14 MSL */}
+          <label className={`p-3 rounded-2xl border transition cursor-pointer flex items-center gap-3 ${
+            attachMsl14 ? 'bg-slate-950 border-cyan-500/80 shadow-md' : 'bg-slate-950/60 border-slate-800'
+          }`}>
+            <input type="checkbox" checked={attachMsl14} onChange={e => { setAttachMsl14(e.target.checked); setIsManualBodyEdit(false); }} className="h-4 w-4 rounded text-cyan-500 cursor-pointer" />
             <div>
               <div className="font-bold text-white flex items-center gap-1.5">
                 <FileSpreadsheet size={14} className="text-cyan-400" /> Sheet 14: MSL Schedule
@@ -637,10 +755,11 @@ DIOS LIFESCIENCES PVT LTD`
             </div>
           </label>
 
+          {/* 4. SHEET 17 CONVERSION DR LIST */}
           <label className={`p-3 rounded-2xl border transition cursor-pointer flex items-center gap-3 ${
-            attachConversion17 ? 'bg-slate-950 border-amber-500/60 shadow-md' : 'bg-slate-950/60 border-slate-800'
+            attachConversion17 ? 'bg-slate-950 border-amber-500/80 shadow-md' : 'bg-slate-950/60 border-slate-800'
           }`}>
-            <input type="checkbox" checked={attachConversion17} onChange={e => setAttachConversion17(e.target.checked)} className="h-4 w-4 rounded text-amber-500 cursor-pointer" />
+            <input type="checkbox" checked={attachConversion17} onChange={e => { setAttachConversion17(e.target.checked); setIsManualBodyEdit(false); }} className="h-4 w-4 rounded text-amber-500 cursor-pointer" />
             <div>
               <div className="font-bold text-white flex items-center gap-1.5">
                 <FileSpreadsheet size={14} className="text-amber-400" /> Sheet 17: Conversion Dr List
@@ -649,25 +768,44 @@ DIOS LIFESCIENCES PVT LTD`
             </div>
           </label>
 
+          {/* 5. EXPENSE STATEMENT PDF */}
           <label className={`p-3 rounded-2xl border transition cursor-pointer flex items-center gap-3 ${
-            attachExpensePdf ? 'bg-slate-950 border-purple-500/60 shadow-md' : 'bg-slate-950/60 border-slate-800'
+            attachExpensePdf ? 'bg-slate-950 border-purple-500/80 shadow-md' : 'bg-slate-950/60 border-slate-800'
           }`}>
-            <input type="checkbox" checked={attachExpensePdf} onChange={e => setAttachExpensePdf(e.target.checked)} className="h-4 w-4 rounded text-purple-500 cursor-pointer" />
+            <input type="checkbox" checked={attachExpensePdf} onChange={e => { setAttachExpensePdf(e.target.checked); setIsManualBodyEdit(false); }} className="h-4 w-4 rounded text-purple-500 cursor-pointer" />
             <div>
               <div className="font-bold text-white flex items-center gap-1.5">
-                <FileText size={14} className="text-purple-400" /> Expense Statement (Official)
+                <FileText size={14} className="text-purple-400" /> Expense Statement (Official PDF)
               </div>
               <div className="text-[10px] text-slate-400 font-mono">Expense_Statement_Aug_2026.pdf</div>
             </div>
           </label>
+
         </div>
       </div>
 
-      {/* 🌟 4. EMAIL COMPOSER */}
+      {/* 🌟 4. DYNAMIC SMART COVER LETTER (AUTO-SYNCED) */}
       <div className="p-5 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl space-y-3">
-        <h3 className="text-xs md:text-sm font-bold text-white uppercase tracking-wider">
-          Email Subject &amp; Cover Letter (Editable)
-        </h3>
+        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} className="text-yellow-300" />
+            <h3 className="text-xs md:text-sm font-bold text-white uppercase tracking-wider">
+              Smart Dynamic Cover Letter (Auto-Syncs with Selected Attachments)
+            </h3>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsManualBodyEdit(false);
+              setBodyText(dynamicBody);
+            }}
+            className="flex items-center gap-1 text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-slate-950 px-2.5 py-1 rounded-xl border border-cyan-500/30 cursor-pointer"
+            title="Reset to dynamic template based on checked attachments"
+          >
+            <RotateCcw size={12} /> Auto-Sync Message
+          </button>
+        </div>
 
         <div>
           <label className="block text-slate-400 text-xs font-semibold mb-1">Subject Line:</label>
@@ -682,9 +820,12 @@ DIOS LIFESCIENCES PVT LTD`
         <div>
           <label className="block text-slate-400 text-xs font-semibold mb-1">Cover Letter Body:</label>
           <textarea
-            rows={6}
+            rows={7}
             value={bodyText}
-            onChange={e => setBodyText(e.target.value)}
+            onChange={e => {
+              setBodyText(e.target.value);
+              setIsManualBodyEdit(true);
+            }}
             className="w-full bg-slate-950 border border-slate-700 text-slate-200 font-sans rounded-xl p-3 text-xs focus:border-cyan-400 focus:outline-none leading-relaxed resize-none"
           />
         </div>
@@ -693,7 +834,7 @@ DIOS LIFESCIENCES PVT LTD`
       {/* 🚀 5. FINAL SEND TRIGGER BUTTON */}
       <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="text-xs text-slate-400 font-mono">
-          Ready to dispatch: <b className="text-white">{sendMode === 'SINGLE' ? singleTargetEmail : `${recipients.filter(r => r.enabled && r.email).length} Recipients`}</b> &bull; Attachments: <b className="text-cyan-300">{[attachMsl14, attachConversion17, attachExpensePdf].filter(Boolean).length} Files</b>
+          Ready to dispatch: <b className="text-white">{sendMode === 'SINGLE' ? singleTargetEmail : `${recipients.filter(r => r.enabled && r.email).length} Recipients`}</b> &bull; Attachments: <b className="text-cyan-300">{[attachMasterReview, attachAggregator, attachMsl14, attachConversion17, attachExpensePdf].filter(Boolean).length} Files Selected</b>
         </div>
 
         <button
