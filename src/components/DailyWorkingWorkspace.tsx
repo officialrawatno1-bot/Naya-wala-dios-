@@ -141,13 +141,14 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   };
 
   const handleAddReminder = () => {
-    if (!selectedReminderDocName && !newReminderNote.trim()) {
+    const docName = selectedReminderDocName.trim() || reminderSearchDoc.trim() || 'General';
+    if (!docName && !newReminderNote.trim()) {
       alert("Kripya Doctor Name ya Reminder Note dalein!");
       return;
     }
     const item: DayReminderItem = {
       id: 'rem_' + Date.now(),
-      doctorName: selectedReminderDocName.trim() || 'General Note',
+      doctorName: docName,
       note: newReminderNote.trim()
     };
     const updated = [...reminders, item];
@@ -304,7 +305,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         return bAct - aAct;
       });
 
-      matchedDoctors = matchedDoctors.slice(0, 15);
+      // All doctors kept without limit
     }
 
     const plannedItems: PlannedCallItem[] = matchedDoctors.map(doc => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   StickyNote, X, Printer, MessageCircle, Calendar, Palette, Check, Eye, EyeOff 
 } from 'lucide-react';
@@ -10,20 +10,26 @@ interface HandwrittenDiarySlipModalProps {
   onClose: () => void;
   dateStr: string;
   dayOfWeekName: string;
-  selectedAreas: string[];
+  selectedAreas?: string[];
   plannedCalls: PlannedCallItem[];
   reminders: DayReminderItem[];
   beName?: string;
 }
 
-const CIRCLE_NUMBERS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'];
+// 🌟 CIRCLE NUMBERS 1 TO 50 (NO 12-DOCTOR CUTOFF!)
+const CIRCLE_NUMBERS = [
+  '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', 
+  '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳',
+  '㉑', '㉒', '㉓', '㉔', '㉕', '㉖', '㉗', '㉘', '㉙', '㉚',
+  '㉛', '㉜', '㉝', '㉞', '㉟', '㊱', '㊲', '㊳', '㊴', '㊵',
+  '㊶', '㊷', '㊸', '㊹', '㊺', '㊻', '㊼', '㊽', '㊾', '㊿'
+];
 
 export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps> = ({
   isOpen,
   onClose,
   dateStr,
   dayOfWeekName,
-  selectedAreas,
   plannedCalls,
   reminders,
   beName = 'BANWARI LAL MEENA (Udaipur HQ)'
@@ -34,6 +40,16 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
   // 🌟 Toggle: Royal Blue Fountain Pen vs Deep Black Gel Pen
   const [inkColor, setInkColor] = useState<'blue' | 'black'>('blue');
 
+  // 🌟 DUAL READER FOR REMINDERS: Ensures reminders never get missed
+  const activeReminders = useMemo(() => {
+    if (reminders && reminders.length > 0) return reminders;
+    try {
+      const saved = localStorage.getItem(`dios_day_reminders_${dateStr}`);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  }, [reminders, dateStr]);
+
   if (!isOpen) return null;
 
   const inkHex = inkColor === 'blue' ? '#1E3A8A' : '#111827';
@@ -43,9 +59,8 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
     const lines: string[] = [];
     lines.push(`🕉️ *ॐ नमो भगवते वासुदेवाय नमः* 🕉️`);
     if (showDate) {
-      lines.push(`📅 *DAY WORKING PLAN - ${dateStr} (${dayOfWeekName})*`);
+      lines.push(`📅 *DATE: ${dateStr} (${dayOfWeekName})*`);
     }
-    lines.push(`📍 *Route / Areas:* ${selectedAreas.join(', ')}`);
     lines.push(``);
 
     plannedCalls.forEach((call, i) => {
@@ -55,10 +70,10 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
       lines.push(`${numSymbol} *Dr. ${call.doctorName}*${actStr}${timeStr}`);
     });
 
-    if (reminders.length > 0) {
+    if (activeReminders.length > 0) {
       lines.push(``);
       lines.push(`📌 *REMINDERS / SPECIAL NOTES:*`);
-      reminders.forEach((r) => {
+      activeReminders.forEach((r) => {
         lines.push(`• *Dr. ${r.doctorName}:* ${r.note}`);
       });
     }
@@ -76,7 +91,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
-      {/* GOOGLE FONTS INJECTION FOR REAL HANDWRITING */}
+      {/* GOOGLE FONTS INJECTION FOR REAL HANDWRITING & MULTI-PAGE PRINT */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@700&display=swap');
         
@@ -91,6 +106,11 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
         }
 
         @media print {
+          html, body {
+            height: auto !important;
+            overflow: visible !important;
+            background: #FFFDF9 !important;
+          }
           body * {
             visibility: hidden;
           }
@@ -98,18 +118,21 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
             visibility: visible;
           }
           #printable-handwritten-slip {
-            position: fixed;
-            left: 0;
-            top: 0;
+            position: static !important;
             width: 100% !important;
-            height: 100% !important;
+            height: auto !important;
+            min-height: 100% !important;
             margin: 0 !important;
-            padding: 15mm 20mm !important;
+            padding: 10mm 15mm !important;
             background: #FFFDF9 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             box-shadow: none !important;
             border-radius: 0 !important;
+            overflow: visible !important;
+          }
+          .diary-row-item {
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -123,7 +146,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               <StickyNote size={16} />
             </span>
             <span className="text-xs font-bold text-white uppercase tracking-wider">
-              Handwritten Diary Slip &bull; Fountain Pen
+              Handwritten Diary Slip ({plannedCalls.length} Doctors)
             </span>
           </div>
 
@@ -209,15 +232,15 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
                 ॐ नमो भगवते वासुदेवाय नमः
               </div>
 
-              {/* 🌟 DATE & AREA (CONDITIONAL ON / OFF) */}
+              {/* 🌟 DATE ONLY (NO AREA! CONDITIONAL ON / OFF) */}
               {showDate && (
-                <div className="handwritten-english text-base md:text-lg font-bold mt-1 opacity-90">
-                  Date: {dateStr} ({dayOfWeekName}) &bull; {selectedAreas.join(', ')}
+                <div className="handwritten-english text-lg md:text-xl font-bold mt-1 opacity-90">
+                  Date: {dateStr} ({dayOfWeekName})
                 </div>
               )}
             </div>
 
-            {/* DOCTORS LIST IN REAL FOUNTAIN PEN CURSIVE */}
+            {/* 🌟 ALL PLANNED DOCTORS LISTED (NO 12-ROW LIMIT!) */}
             <div className="space-y-1 handwritten-english text-lg md:text-xl font-bold">
               {(!plannedCalls || plannedCalls.length === 0) ? (
                 <div className="text-center py-6 italic opacity-60">
@@ -230,7 +253,7 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
                   const time = c.approxTime ? ` (${c.approxTime})` : '';
 
                   return (
-                    <div key={c.srNo} className="flex items-baseline justify-between gap-2 border-b border-slate-300/40 pb-0.5">
+                    <div key={c.srNo} className="diary-row-item flex items-baseline justify-between gap-2 border-b border-slate-300/40 pb-0.5">
                       <span className="truncate">
                         <span className="mr-2 opacity-80 text-base">{circleNum}</span>
                         Dr. {c.doctorName}{actName}
@@ -244,14 +267,14 @@ export const HandwrittenDiarySlipModal: React.FC<HandwrittenDiarySlipModalProps>
               )}
             </div>
 
-            {/* REMINDERS / SPECIAL NOTES */}
-            {reminders && reminders.length > 0 && (
-              <div className="pt-3 border-t-2 border-dashed border-slate-400 space-y-1">
-                <div className="handwritten-english text-base md:text-lg font-bold uppercase tracking-wider text-rose-600">
+            {/* 🌟 REMINDERS / SPECIAL NOTES (ALWAYS LOADED & DISPLAYED) */}
+            {activeReminders.length > 0 && (
+              <div className="pt-4 mt-4 border-t-2 border-dashed border-slate-400 space-y-1.5">
+                <div className="handwritten-english text-lg md:text-xl font-bold uppercase tracking-wider text-rose-600">
                   📌 Reminders / Special Notes:
                 </div>
-                {reminders.map((r) => (
-                  <div key={r.id} className="handwritten-english text-base md:text-lg font-bold leading-tight">
+                {activeReminders.map((r) => (
+                  <div key={r.id} className="diary-row-item handwritten-english text-lg md:text-xl font-bold leading-relaxed">
                     • Dr. {r.doctorName}: {r.note}
                   </div>
                 ))}
