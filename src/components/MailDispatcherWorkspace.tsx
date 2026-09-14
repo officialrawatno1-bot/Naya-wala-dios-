@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Mail, Send, Key, ExternalLink, Check, Trash2, Edit3, Plus, 
   FileSpreadsheet, FileText, CheckSquare, Square, Users, 
   User, ShieldCheck, Sparkles, RefreshCw, Loader2, AlertTriangle, 
-  ArrowLeft, CheckCircle2, Lock, Eye, EyeOff
+  ArrowLeft, CheckCircle2, Lock, Eye, EyeOff, X, Cloud, CloudUpload
 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { buildSheet14_Msl } from '../exporters/sheets/buildSheet14_Msl';
@@ -19,17 +19,19 @@ interface RecipientContact {
 }
 
 const DEFAULT_5_RECIPIENTS: RecipientContact[] = [
-  { id: 'rec_1', name: 'Reporting Manager (ABM / ZSM)', email: 'manager.dios@gmail.com', role: 'Reporting Manager', enabled: true },
-  { id: 'rec_2', name: 'Head Office (HO Review Desk)', email: 'reports.diosho@gmail.com', role: 'Review Desk', enabled: true },
-  { id: 'rec_3', name: 'Regional Sales Manager (RSM)', email: 'rsm.rajasthan@gmail.com', role: 'Zonal Head', enabled: false },
-  { id: 'rec_4', name: 'Dispatch & Sales Operations', email: 'dispatch.dios@gmail.com', role: 'Operations', enabled: false },
-  { id: 'rec_5', name: 'Banwari Lal Meena (Self Backup)', email: 'banwarimeena.dios@gmail.com', role: 'Personal Copy', enabled: true }
+  { id: 'rec_1', name: 'Reporting Manager (ABM / ZSM)', email: '', role: 'Reporting Manager', enabled: true },
+  { id: 'rec_2', name: 'Head Office (HO Review Desk)', email: '', role: 'Review Desk', enabled: true },
+  { id: 'rec_3', name: 'Regional Sales Manager (RSM)', email: '', role: 'Zonal Head', enabled: false },
+  { id: 'rec_4', name: 'Dispatch & Sales Operations', email: '', role: 'Operations', enabled: false },
+  { id: 'rec_5', name: 'Self Backup Copy', email: '', role: 'Personal Copy', enabled: true }
 ];
 
+const KV_SMTP_KEY = 'settings/smtp_config';
+
 export const MailDispatcherWorkspace: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  // 1. SMTP Credentials & Google 16-Digit Key
+  // 1. Credentials (No prefill, starts blank or loads from storage/cloud)
   const [senderEmail, setSenderEmail] = useState(() => {
-    return localStorage.getItem('dios_smtp_sender_email') || 'banwarimeena.dios@gmail.com';
+    return localStorage.getItem('dios_smtp_sender_email') || '';
   });
 
   const [googleKey, setGoogleKey] = useState(() => {
@@ -37,25 +39,26 @@ export const MailDispatcherWorkspace: React.FC<{ onBack: () => void }> = ({ onBa
   });
 
   const [showKey, setShowKey] = useState(false);
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
 
-  // 2. Recipients State (5 slots default)
+  // 2. Recipients
   const [recipients, setRecipients] = useState<RecipientContact[]>(() => {
     try {
-      const saved = localStorage.getItem('dios_mail_recipients_v1');
+      const saved = localStorage.getItem('dios_mail_recipients_v2');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return DEFAULT_5_RECIPIENTS;
   });
 
   const [sendMode, setSendMode] = useState<'ALL_ENABLED' | 'SINGLE'>('ALL_ENABLED');
-  const [singleTargetEmail, setSingleTargetEmail] = useState<string>(DEFAULT_5_RECIPIENTS[0].email);
+  const [singleTargetEmail, setSingleTargetEmail] = useState<string>('');
 
-  // 3. Selected Attachments Checklist
+  // 3. Selected Attachments
   const [attachMsl14, setAttachMsl14] = useState(true);
   const [attachConversion17, setAttachConversion17] = useState(true);
   const [attachExpensePdf, setAttachExpensePdf] = useState(true);
 
-  // 4. Email Subject & Body Text
+  // 4. Email Subject & Body
   const [subject, setSubject] = useState('DIOS Reports & Review Formats - Udaipur HQ (BE: Banwari Lal Meena)');
   const [bodyText, setBodyText] = useState(
 `Respected Sir,
@@ -77,32 +80,83 @@ DIOS LIFESCIENCES PVT LTD`
 
   // Status & Progress
   const [isSending, setIsSending] = useState(false);
+  const [isSavingCloud, setIsSavingCloud] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Edit / Add Recipient Modal
+  // Edit Recipient Modal
   const [editingRec, setEditingRec] = useState<RecipientContact | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editRole, setEditRole] = useState('');
 
-  const persistRecipients = (updated: RecipientContact[]) => {
-    setRecipients(updated);
-    try {
-      localStorage.setItem('dios_mail_recipients_v1', JSON.stringify(updated));
-    } catch (e) {}
-  };
+  // 🌟 LOAD FROM CLOUDFLARE KV ON MOUNT (IMMUNE TO BROWSER RELOAD / CACHE CLEAR)
+  useEffect(() => {
+    const loadFromCloud = async () => {
+      try {
+        const res = await fetch(`/api/cloud-storage?key=${encodeURIComponent(KV_SMTP_KEY)}&t=${Date.now()}`, { cache: 'no-store' });
+        const json = await res.json();
+        if (json && json.success && json.data) {
+          const d = json.data;
+          if (d.senderEmail) {
+            setSenderEmail(d.senderEmail);
+            localStorage.setItem('dios_smtp_sender_email', d.senderEmail);
+          }
+          if (d.googleKey) {
+            setGoogleKey(d.googleKey);
+            localStorage.setItem('dios_smtp_google_16_key', d.googleKey);
+          }
+          if (d.recipients && Array.isArray(d.recipients) && d.recipients.length > 0) {
+            setRecipients(d.recipients);
+            localStorage.setItem('dios_mail_recipients_v2', JSON.stringify(d.recipients));
+            if (!singleTargetEmail && d.recipients[0]?.email) {
+              setSingleTargetEmail(d.recipients[0].email);
+            }
+          }
+          setIsCloudSynced(true);
+        }
+      } catch (err) {}
+    };
+    loadFromCloud();
+  }, []);
 
-  const handleSaveCredentials = () => {
+  // 🌟 PERMANENT SAVE TO CLOUDFLARE KV & LOCALSTORAGE
+  const saveAllToCloudflare = async (emailVal = senderEmail, keyVal = googleKey, recList = recipients) => {
+    setIsSavingCloud(true);
     try {
-      localStorage.setItem('dios_smtp_sender_email', senderEmail.trim());
-      localStorage.setItem('dios_smtp_google_16_key', googleKey.trim());
-      setStatusMsg({ type: 'success', text: '💾 Google 16-Digit Key & Sender Email saved securely!' });
-    } catch (e) {}
+      localStorage.setItem('dios_smtp_sender_email', emailVal.trim());
+      localStorage.setItem('dios_smtp_google_16_key', keyVal.trim());
+      localStorage.setItem('dios_mail_recipients_v2', JSON.stringify(recList));
+
+      const payload = {
+        senderEmail: emailVal.trim(),
+        googleKey: keyVal.trim(),
+        recipients: recList,
+        updatedAt: new Date().toISOString()
+      };
+
+      await fetch('/api/cloud-storage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: KV_SMTP_KEY,
+          data: payload,
+          device: 'iPad Safari'
+        })
+      });
+
+      setIsCloudSynced(true);
+      setStatusMsg({ type: 'success', text: '☁️ Cloudflare KV par permanently save ho gaya! Cache clear hone par bhi gayab nahi hoga.' });
+    } catch (e: any) {
+      setStatusMsg({ type: 'error', text: 'Save Error: ' + e.message });
+    } finally {
+      setIsSavingCloud(false);
+    }
   };
 
   const handleToggleRecipient = (id: string) => {
     const updated = recipients.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r);
-    persistRecipients(updated);
+    setRecipients(updated);
+    saveAllToCloudflare(senderEmail, googleKey, updated);
   };
 
   const handleStartEdit = (r: RecipientContact) => {
@@ -115,7 +169,7 @@ DIOS LIFESCIENCES PVT LTD`
   const handleSaveEdit = () => {
     if (!editingRec) return;
     if (!editEmail.trim()) {
-      alert("Email address zaroori hai!");
+      alert("Email address enter karein!");
       return;
     }
     const updated = recipients.map(r => r.id === editingRec.id ? {
@@ -124,13 +178,16 @@ DIOS LIFESCIENCES PVT LTD`
       email: editEmail.trim(),
       role: editRole.trim() || r.role
     } : r);
-    persistRecipients(updated);
+    setRecipients(updated);
     setEditingRec(null);
+    saveAllToCloudflare(senderEmail, googleKey, updated);
   };
 
   const handleDeleteRecipient = (id: string) => {
     if (window.confirm("Kya aap is email slot ko delete karna chahte hain?")) {
-      persistRecipients(recipients.filter(r => r.id !== id));
+      const updated = recipients.filter(r => r.id !== id);
+      setRecipients(updated);
+      saveAllToCloudflare(senderEmail, googleKey, updated);
     }
   };
 
@@ -139,15 +196,16 @@ DIOS LIFESCIENCES PVT LTD`
     const newRec: RecipientContact = {
       id: newId,
       name: 'New Contact',
-      email: 'sir@dioslifesciences.com',
+      email: '',
       role: 'Manager',
       enabled: true
     };
-    persistRecipients([...recipients, newRec]);
+    const updated = [...recipients, newRec];
+    setRecipients(updated);
     handleStartEdit(newRec);
   };
 
-  // 🚀 DISPATCH EMAIL WITH REAL IN-MEMORY ATTACHMENTS (100% SELF-CONTAINED)
+  // 🚀 SEND EMAIL
   const handleDispatchEmail = async () => {
     if (!senderEmail.trim()) {
       alert("Kripya apna Sender Gmail address enter karein!");
@@ -172,7 +230,7 @@ DIOS LIFESCIENCES PVT LTD`
     }
 
     if (targetList.length === 0) {
-      alert("Koi recipient email select nahi hai! Checkbox tick karein.");
+      alert("Koi recipient email select nahi hai! Checkbox tick karein ya address dalein.");
       return;
     }
 
@@ -180,7 +238,6 @@ DIOS LIFESCIENCES PVT LTD`
     setStatusMsg(null);
 
     try {
-      // 1. Compile attachments dynamically
       const attachmentsPayload: Array<{ filename: string; content_base64: string }> = [];
 
       // A. Sheet 14 MSL Schedule (.xlsx)
@@ -193,10 +250,7 @@ DIOS LIFESCIENCES PVT LTD`
         ws14['!rows'] = s14.rows;
         XLSX.utils.book_append_sheet(wb14, ws14, s14.sheetName);
         const b64 = XLSX.write(wb14, { bookType: 'xlsx', type: 'base64' });
-        attachmentsPayload.push({
-          filename: '14_MSL_Schedule_2026.xlsx',
-          content_base64: b64
-        });
+        attachmentsPayload.push({ filename: '14_MSL_Schedule_2026.xlsx', content_base64: b64 });
       }
 
       // B. Sheet 17 Conversion Dr List (.xlsx)
@@ -209,13 +263,10 @@ DIOS LIFESCIENCES PVT LTD`
         ws17['!rows'] = s17.rows;
         XLSX.utils.book_append_sheet(wb17, ws17, s17.sheetName);
         const b64 = XLSX.write(wb17, { bookType: 'xlsx', type: 'base64' });
-        attachmentsPayload.push({
-          filename: '17_Conversion_Dr_List_Udaipur.xlsx',
-          content_base64: b64
-        });
+        attachmentsPayload.push({ filename: '17_Conversion_Dr_List_Udaipur.xlsx', content_base64: b64 });
       }
 
-      // C. Expense Statement Official PDF (.pdf) - Standalone without external row imports
+      // C. Expense Statement PDF
       if (attachExpensePdf) {
         let expenseRows = [];
         try {
@@ -252,13 +303,9 @@ DIOS LIFESCIENCES PVT LTD`
         });
         const pdfUri = pdfRes.doc.output('datauristring');
         const pdfB64 = pdfUri.split(',')[1] || '';
-        attachmentsPayload.push({
-          filename: 'Expense_Statement_Aug_2026_Official.pdf',
-          content_base64: pdfB64
-        });
+        attachmentsPayload.push({ filename: 'Expense_Statement_Aug_2026_Official.pdf', content_base64: pdfB64 });
       }
 
-      // 2. Send via Backend Endpoint
       const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -283,7 +330,7 @@ DIOS LIFESCIENCES PVT LTD`
 
       setStatusMsg({
         type: 'success',
-        text: `🎉 SUCCESS! Email successfully sent with ${attachmentsPayload.length} attachment(s) to: ${targetList.join(', ')}!`
+        text: `🎉 SUCCESS! Email delivered with ${attachmentsPayload.length} attachment(s) to: ${targetList.join(', ')}!`
       });
     } catch (err: any) {
       setStatusMsg({
@@ -307,11 +354,13 @@ DIOS LIFESCIENCES PVT LTD`
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               Direct Mail to Sir &amp; HO (SMTP Engine)
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
-                Google 16-Digit Key Active
-              </span>
+              {isCloudSynced && (
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
+                  <Cloud size={10} /> Cloudflare KV Synced
+                </span>
+              )}
             </h2>
-            <p className="text-xs text-slate-400">1-Click Email Dispatcher &bull; Pre-Fed Recipients &bull; Live Excel/PDF Attachments</p>
+            <p className="text-xs text-slate-400">Permanently Saved on Cloudflare &bull; Google 16-Digit Key &bull; Live Excel/PDF</p>
           </div>
         </div>
 
@@ -331,11 +380,11 @@ DIOS LIFESCIENCES PVT LTD`
             {statusMsg.type === 'success' ? <CheckCircle2 size={18} className="text-emerald-400 shrink-0" /> : <AlertTriangle size={18} className="text-rose-400 shrink-0" />}
             <span className="font-semibold">{statusMsg.text}</span>
           </div>
-          <button onClick={() => setStatusMsg(null)} className="p-1 hover:text-white">✕</button>
+          <button onClick={() => setStatusMsg(null)} className="p-1 hover:text-white cursor-pointer"><X size={16} /></button>
         </div>
       )}
 
-      {/* 🌟 1. GOOGLE 16-DIGIT KEY & SMTP CONFIGURATION BOX (WITH DIRECT KEY LINK) */}
+      {/* 🌟 1. SENDER EMAIL & GOOGLE 16-DIGIT KEY (NO PREFILL, PERMANENT CLOUDFLARE SAVE) */}
       <div className="p-5 bg-slate-900 rounded-2xl border-2 border-cyan-500/50 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2">
@@ -345,7 +394,6 @@ DIOS LIFESCIENCES PVT LTD`
             </h3>
           </div>
 
-          {/* 🌟 DIRECT LINK BUTTON TO GET 16-DIGIT KEY FROM GOOGLE */}
           <a
             href="https://myaccount.google.com/apppasswords"
             target="_blank"
@@ -364,8 +412,12 @@ DIOS LIFESCIENCES PVT LTD`
             <input
               type="email"
               value={senderEmail}
-              onChange={e => setSenderEmail(e.target.value)}
-              placeholder="e.g. banwarimeena.dios@gmail.com"
+              onChange={e => {
+                const val = e.target.value;
+                setSenderEmail(val);
+                localStorage.setItem('dios_smtp_sender_email', val);
+              }}
+              placeholder="Type your Gmail (e.g. your_email@gmail.com)..."
               className="w-full bg-slate-950 border border-slate-700 text-cyan-300 font-mono font-bold rounded-xl px-3 py-2 text-xs focus:border-cyan-400 focus:outline-none"
             />
           </div>
@@ -389,8 +441,12 @@ DIOS LIFESCIENCES PVT LTD`
               <input
                 type={showKey ? 'text' : 'password'}
                 value={googleKey}
-                onChange={e => setGoogleKey(e.target.value)}
-                placeholder="xxxx xxxx xxxx xxxx (16-Digit Key)"
+                onChange={e => {
+                  const val = e.target.value;
+                  setGoogleKey(val);
+                  localStorage.setItem('dios_smtp_google_16_key', val);
+                }}
+                placeholder="xxxx xxxx xxxx xxxx"
                 className="w-full bg-slate-950 border border-yellow-500/60 text-yellow-300 font-mono font-black text-sm rounded-xl px-3 py-2 focus:border-yellow-400 focus:outline-none tracking-widest"
               />
             </div>
@@ -398,13 +454,15 @@ DIOS LIFESCIENCES PVT LTD`
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-          <span>💡 Google account me 2-Step Verification ON hone par upar diye link se 16-digit key banti hai.</span>
+          <span>💡 Yeh details Cloudflare KV par save ho jayengi, reload karne par kabhi gayab nahi hongi.</span>
           <button
             type="button"
-            onClick={handleSaveCredentials}
-            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+            onClick={() => saveAllToCloudflare()}
+            disabled={isSavingCloud}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-xl text-xs transition cursor-pointer shadow"
           >
-            💾 Save Key
+            {isSavingCloud ? <Loader2 size={13} className="animate-spin" /> : <CloudUpload size={13} />}
+            <span>{isSavingCloud ? 'Saving...' : '☁️ Save to Cloudflare Permanently'}</span>
           </button>
         </div>
       </div>
@@ -415,7 +473,7 @@ DIOS LIFESCIENCES PVT LTD`
           <div className="flex items-center gap-2">
             <Users size={18} className="text-cyan-400" />
             <h3 className="text-xs md:text-sm font-bold text-white uppercase tracking-wider">
-              Recipients Directory ({recipients.length} Slots Pre-Fed)
+              Recipients Directory ({recipients.length} Slots)
             </h3>
           </div>
 
@@ -438,7 +496,7 @@ DIOS LIFESCIENCES PVT LTD`
             sendMode === 'ALL_ENABLED' ? 'bg-cyan-600 text-white border-cyan-400 shadow' : 'bg-slate-900 text-slate-400 border-slate-800'
           }`}>
             <input type="radio" name="sendMode" checked={sendMode === 'ALL_ENABLED'} onChange={() => setSendMode('ALL_ENABLED')} className="hidden" />
-            <Users size={14} /> Send to ALL Checked ({recipients.filter(r => r.enabled).length})
+            <Users size={14} /> Send to ALL Checked ({recipients.filter(r => r.enabled && r.email).length})
           </label>
 
           <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border cursor-pointer font-bold transition ${
@@ -456,7 +514,7 @@ DIOS LIFESCIENCES PVT LTD`
             >
               {recipients.map(r => (
                 <option key={r.id} value={r.email} className="bg-slate-900 text-white">
-                  {r.name} ({r.email})
+                  {r.name} {r.email ? `(${r.email})` : '(No email set)'}
                 </option>
               ))}
             </select>
@@ -469,7 +527,7 @@ DIOS LIFESCIENCES PVT LTD`
             <div
               key={r.id}
               className={`p-3 rounded-2xl border transition flex items-center justify-between gap-2 text-xs ${
-                r.enabled ? 'bg-slate-950 border-cyan-500/50' : 'bg-slate-950/40 border-slate-800 opacity-60'
+                r.enabled && r.email ? 'bg-slate-950 border-cyan-500/50' : 'bg-slate-950/40 border-slate-800 opacity-70'
               }`}
             >
               <div className="flex items-center gap-2.5 truncate">
@@ -484,7 +542,9 @@ DIOS LIFESCIENCES PVT LTD`
                 
                 <div className="truncate">
                   <div className="font-bold text-white truncate">{r.name}</div>
-                  <div className="text-[11px] text-cyan-300 font-mono truncate">{r.email}</div>
+                  <div className={`text-[11px] font-mono truncate ${r.email ? 'text-cyan-300' : 'text-rose-400 italic'}`}>
+                    {r.email || 'Click edit to set email'}
+                  </div>
                   <div className="text-[10px] text-slate-500">{r.role}</div>
                 </div>
               </div>
@@ -496,7 +556,7 @@ DIOS LIFESCIENCES PVT LTD`
                   className="p-1.5 text-slate-400 hover:text-cyan-300 rounded-lg hover:bg-slate-900 cursor-pointer"
                   title="Edit Contact"
                 >
-                  <Edit3 size={13} />
+                  <Edit3 size={14} />
                 </button>
                 <button
                   type="button"
@@ -504,7 +564,7 @@ DIOS LIFESCIENCES PVT LTD`
                   className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-900 cursor-pointer"
                   title="Delete Contact"
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={14} />
                 </button>
               </div>
             </div>
@@ -595,7 +655,7 @@ DIOS LIFESCIENCES PVT LTD`
       {/* 🚀 5. FINAL SEND TRIGGER BUTTON */}
       <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="text-xs text-slate-400 font-mono">
-          Ready to dispatch: <b className="text-white">{sendMode === 'SINGLE' ? singleTargetEmail : `${recipients.filter(r => r.enabled).length} Recipients`}</b> &bull; Attachments: <b className="text-cyan-300">{[attachMsl14, attachConversion17, attachExpensePdf].filter(Boolean).length} Files</b>
+          Ready to dispatch: <b className="text-white">{sendMode === 'SINGLE' ? singleTargetEmail : `${recipients.filter(r => r.enabled && r.email).length} Recipients`}</b> &bull; Attachments: <b className="text-cyan-300">{[attachMsl14, attachConversion17, attachExpensePdf].filter(Boolean).length} Files</b>
         </div>
 
         <button
@@ -621,21 +681,21 @@ DIOS LIFESCIENCES PVT LTD`
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block text-slate-400 mb-1">Name / Title:</label>
-                <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2" />
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs" />
               </div>
               <div>
                 <label className="block text-slate-400 mb-1">Email Address *:</label>
-                <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-cyan-300 font-mono rounded-xl px-3 py-2" />
+                <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="e.g. manager@dioslifesciences.com" className="w-full bg-slate-950 border border-slate-700 text-cyan-300 font-mono rounded-xl px-3 py-2 text-xs" />
               </div>
               <div>
                 <label className="block text-slate-400 mb-1">Role / Designation:</label>
-                <input type="text" value={editRole} onChange={e => setEditRole(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2" />
+                <input type="text" value={editRole} onChange={e => setEditRole(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs" />
               </div>
             </div>
 
             <div className="pt-2 border-t border-slate-800 flex justify-end gap-2">
-              <button onClick={() => setEditingRec(null)} className="px-4 py-2 bg-slate-800 text-slate-300 text-xs rounded-xl">Cancel</button>
-              <button onClick={handleSaveEdit} className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-xl shadow">Save Contact</button>
+              <button onClick={() => setEditingRec(null)} className="px-4 py-2 bg-slate-800 text-slate-300 text-xs rounded-xl cursor-pointer">Cancel</button>
+              <button onClick={handleSaveEdit} className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-xl shadow cursor-pointer">Save Contact</button>
             </div>
           </div>
         </div>
