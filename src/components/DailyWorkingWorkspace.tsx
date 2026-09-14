@@ -16,6 +16,7 @@ import {
   normalizeStationName
 } from '../data/dailyWorkingStore';
 import { CloudSyncBar } from './CloudSyncBar';
+import { HandwrittenDiarySlipModal } from './dailyWorking/HandwrittenDiarySlipModal';
 
 interface Props {
   onBack: () => void;
@@ -1196,111 +1197,17 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 🌟 5. AUTHENTIC HANDWRITTEN DAIRY SLIP MODAL & PRINT VIEW */}
-      {showDairySlipModal && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
-          <div className="bg-white text-slate-950 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
-            
-            {/* Modal Actions Bar */}
-            <div className="flex items-center justify-between p-4 bg-slate-100 border-b border-slate-200">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 font-sans">
-                <StickyNote size={15} className="text-amber-600" /> Handwritten Diary Slip
-              </span>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleShareToWhatsApp}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow"
-                >
-                  <MessageCircle size={13} className="fill-white" /> WhatsApp
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow"
-                >
-                  <Printer size={13} /> Print
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDairySlipModal(false)}
-                  className="p-1 hover:bg-slate-200 rounded-full text-slate-500 cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-
-            {/* 📜 AUTHENTIC RULED NOTEBOOK PAPER VIEW */}
-            <div 
-              id="handwritten-slip"
-              className="p-6 md:p-8 flex-1 overflow-y-auto space-y-4 font-sans select-text"
-              style={{
-                backgroundColor: '#FFFDF9',
-                backgroundImage: 'repeating-linear-gradient(#FFFDF9, #FFFDF9 31px, #E2E8F0 32px)',
-                borderLeft: '4px solid #EF4444',
-                lineHeight: '32px'
-              }}
-            >
-              {/* TOP HINDI INVOCATION */}
-              <div className="text-center pb-2">
-                <span className="text-lg md:text-xl font-black text-blue-950 tracking-wider font-serif inline-block border-b-2 border-blue-900 pb-1">
-                  ॐ नमो भगवते वासुदेवाय नमः
-                </span>
-                <div className="text-[11px] font-bold text-slate-500 mt-1">
-                  📅 {selectedDateStr} ({dayOfWeekName}) &bull; {selectedAreas.join(', ')}
-                </div>
-              </div>
-
-              {/* DOCTORS IN ENCIRCLED NUMBER FORMAT */}
-              <div className="space-y-1 text-sm md:text-base font-semibold text-slate-900">
-                {(!currentPlan || currentPlan.plannedCalls.length === 0) ? (
-                  <div className="text-center text-slate-400 py-6 italic">No doctors scheduled for this day.</div>
-                ) : (
-                  currentPlan.plannedCalls.map((c, i) => {
-                    const circleNum = CIRCLE_NUMBERS[i] || `(${i + 1})`;
-                    const actName = c.activityType && c.activityType !== 'REGULAR' ? ` - ${c.activityType}` : '';
-                    const time = c.approxTime ? ` (${c.approxTime})` : '';
-
-                    return (
-                      <div key={c.srNo} className="flex items-baseline justify-between gap-2 border-b border-slate-200/60 pb-0.5">
-                        <span className="font-bold text-blue-950">
-                          <span className="text-base text-slate-700 mr-1.5">{circleNum}</span>
-                          {c.doctorName}{actName}
-                        </span>
-                        <span className="text-xs font-mono font-bold text-slate-600 shrink-0">
-                          {time}
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* REMINDERS SECTION */}
-              {reminders.length > 0 && (
-                <div className="pt-4 border-t-2 border-dashed border-slate-300 space-y-1">
-                  <div className="text-xs font-black text-rose-600 uppercase tracking-wider">
-                    📌 Reminders / Special Notes:
-                  </div>
-                  {reminders.map((r, rIdx) => (
-                    <div key={r.id} className="text-xs text-slate-800 font-medium">
-                      • <b className="text-blue-900">Dr. {r.doctorName}:</b> {r.note}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* FOOTER */}
-              <div className="pt-4 text-right text-[11px] font-mono text-slate-500 border-t border-slate-200">
-                BE: BANWARI LAL MEENA (Udaipur HQ)
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
+      {/* 🌟 5. DEDICATED MODULAR HANDWRITTEN FOUNTAIN PEN DIARY SLIP MODAL */}
+      <HandwrittenDiarySlipModal
+        isOpen={showDairySlipModal}
+        onClose={() => setShowDairySlipModal(false)}
+        dateStr={selectedDateStr}
+        dayOfWeekName={dayOfWeekName}
+        selectedAreas={selectedAreas}
+        plannedCalls={currentPlan?.plannedCalls || []}
+        reminders={reminders}
+        beName="BANWARI LAL MEENA (Udaipur HQ)"
+      />
 
       {/* Clean Touch Clock Modal */}
       {clockTargetDoc && (
