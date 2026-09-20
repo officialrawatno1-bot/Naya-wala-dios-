@@ -66,6 +66,20 @@ const formatDateDDMMYYYY = (d: Date): string => {
   return `${day}/${month}/${year}`;
 };
 
+const parseTimeToMinutes = (timeStr: string): number => {
+  if (!timeStr) return 9999;
+  const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!match) return 9999;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const period = (match[3] || 'AM').toUpperCase();
+
+  if (period === 'PM' && hours < 12) hours += 12;
+  if (period === 'AM' && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+};
+
 const getRecencyTier = (days: number): 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED' => {
   if (days < 15) return 'GREEN';
   if (days <= 30) return 'YELLOW';
@@ -623,12 +637,17 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     dailyWorkingStore.saveDayPlan(updated);
   };
 
-  // WhatsApp Share
+  // 🌟 WHATSAPP SHARE: Chronologically sorted (AM to PM) & No footer
   const handleShareToWhatsApp = () => {
     if (!currentPlan || currentPlan.plannedCalls.length === 0) {
       alert("Pehle aaj ke din ke doctors plan me load karein!");
       return;
     }
+
+    // 🌟 Sort doctors chronologically from morning AM to evening/night PM
+    const sortedCalls = [...currentPlan.plannedCalls].sort((a, b) => {
+      return parseTimeToMinutes(a.approxTime) - parseTimeToMinutes(b.approxTime);
+    });
 
     const lines: string[] = [];
     lines.push(`🕉️ *ॐ नमो भगवते वासुदेवाय नमः* 🕉️`);
@@ -636,7 +655,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     lines.push(`📍 *Route / Areas:* ${selectedAreas.join(' + ')}`);
     lines.push(``);
 
-    currentPlan.plannedCalls.forEach((call, i) => {
+    sortedCalls.forEach((call, i) => {
       const numSymbol = CIRCLE_NUMBERS[i] || `(${i + 1})`;
       const actStr = call.activityType && call.activityType !== 'REGULAR' ? ` - ${call.activityType}` : '';
       const timeStr = call.approxTime ? ` (${call.approxTime})` : '';
@@ -656,9 +675,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
       lines.push(`📝 *DAY REMARKS:*`);
       lines.push(dayRemarks.trim());
     }
-
-    lines.push(``);
-    lines.push(`👤 *Executive:* BANWARI LAL MEENA (Udaipur HQ)`);
 
     const fullMsg = lines.join('\n');
     const encoded = encodeURIComponent(fullMsg);
@@ -1563,7 +1579,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         dateStr={selectedDateStr}
         dayOfWeekName={dayOfWeekName}
         selectedAreas={selectedAreas}
-        plannedCalls={currentPlan?.plannedCalls || []}
+        plannedCalls={[...(currentPlan?.plannedCalls || [])].sort((a, b) => parseTimeToMinutes(a.approxTime) - parseTimeToMinutes(b.approxTime))}
         reminders={reminders}
         dayRemarks={dayRemarks}
         beName="BANWARI LAL MEENA (Udaipur HQ)"
