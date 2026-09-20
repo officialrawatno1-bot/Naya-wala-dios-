@@ -36,7 +36,11 @@ export interface DayReminderItem {
 }
 
 const WEEK_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const CIRCLE_NUMBERS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'];
+const CIRCLE_NUMBERS = [
+  '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', 
+  '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳',
+  '㉑', '㉒', '㉓', '㉔', '㉕', '㉖', '㉗', '㉘', '㉙', '㉚'
+];
 
 const HOLIDAYS_2026: Record<string, string> = {
   '15/08/2026': 'INDEPENDENCE DAY',
@@ -72,7 +76,7 @@ const getRecencyTier = (days: number): 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED' => 
 export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const [activeSubTab, setActiveSubTab] = useState<'DAY_PLAN' | 'MTP_PLACEHOLDER' | 'MASTER_SETUP'>('DAY_PLAN');
   
-  // 🌟 FIX 2: Automatic Real Date Initialization (e.g. today's date)
+  // Real Date Initialization
   const [selectedDateStr, setSelectedDateStr] = useState<string>(() => {
     try {
       const savedDate = localStorage.getItem('dios_last_active_date_v1');
@@ -89,7 +93,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const [calMonth, setCalMonth] = useState<number>(() => parseDateDDMMYYYY(selectedDateStr).getMonth());
   const [calYear, setCalYear] = useState<number>(() => parseDateDDMMYYYY(selectedDateStr).getFullYear());
 
-  // 🌟 FIX 4: Saved Day Plans History Modal State
+  // Saved Day Plans History Modal State
   const [showSavedPlansModal, setShowSavedPlansModal] = useState(false);
 
   // Search & Filter States
@@ -128,7 +132,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const [profiles, setProfiles] = useState<Record<number, DoctorFieldProfile>>(() => dailyWorkingStore.profiles);
   const [currentPlan, setCurrentPlan] = useState<DayPlanRecord | null>(null);
 
-  // Clean Touch Clock Modal
+  // Touch Clock Modal State
   const [clockTargetDoc, setClockTargetDoc] = useState<DoctorFieldProfile | null>(null);
   const [clockMode, setClockMode] = useState<'HOUR' | 'MINUTE'>('HOUR');
   const [clockHour, setClockHour] = useState<number>(8);
@@ -149,12 +153,19 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const is10thDay = selectedDateObj.getDate() === 10;
   const is20thDay = selectedDateObj.getDate() === 20;
 
+  // 🌟 DYNAMIC SHEET 7 SYNC: Reads directly from Sheet 7 (WcfyhSheet) permanent storage
+  const liveSheet7Wcfyh = useMemo(() => {
+    return getLiveWcfyhDoctorsFromSheet7();
+  }, [selectedDateStr, activeSubTab]);
+
+  const isVintelActive = selectedAreas.some(a => a.toUpperCase().includes('WCFYH VINTEL'));
+  const isValrosActive = selectedAreas.some(a => a.toUpperCase().includes('WCFYH VALROS'));
+
   useEffect(() => {
     dailyWorkingStore.syncFromMslSheet();
     setProfiles({ ...dailyWorkingStore.profiles });
   }, []);
 
-  // Sync date change to storage & load remarks/reminders
   useEffect(() => {
     try {
       localStorage.setItem('dios_last_active_date_v1', selectedDateStr);
@@ -199,7 +210,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   useEffect(() => {
     const existing = dailyWorkingStore.getPlanForDate(selectedDateStr);
     if (existing) {
-      // 🌟 Re-evaluate recency dates dynamically using Clean Name matching
       const refreshedCalls = existing.plannedCalls.map(c => {
         const { lastDate, daysAgo } = dailyWorkingStore.getRealLastVisitDate(c.srNo, selectedDateStr, c.doctorName);
         return {
@@ -307,6 +317,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
+  // 🌟 CUMULATIVE PLAN GENERATOR: Preserves WCFYH doctors while adding/removing area doctors!
   const generatePlanForAreas = (areasChoice: string[], dateStr: string) => {
     const dObj = parseDateDDMMYYYY(dateStr);
     const dayName = dObj.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
@@ -329,51 +340,112 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
       return;
     }
 
+    // 1. Separate Campaign Tags vs Regular Hospital Areas
+    const activeVintelTag = areasChoice.find(a => a.toUpperCase().includes('WCFYH VINTEL'));
+    const activeValrosTag = areasChoice.find(a => a.toUpperCase().includes('WCFYH VALROS'));
+    const regularHospitalAreas = areasChoice.filter(a => !a.toUpperCase().includes('WCFYH'));
+
     const allProfilesList = Object.values(profiles);
-    let matchedDoctors: DoctorFieldProfile[] = [];
+    const combinedCalls: PlannedCallItem[] = [];
+    const addedDoctorKeys = new Set<string>();
 
-    const activeExChoice = areasChoice.find(a => EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(a)));
+    // A. Add Vintel Campaign Doctors (if active)
+    if (activeVintelTag) {
+      liveSheet7Wcfyh.vintelDoctors.forEach((tDoc, idx) => {
+        const cleanT = cleanName(tDoc.drName);
+        const p = allProfilesList.find(pr => cleanName(pr.doctorName) === cleanT || cleanName(pr.doctorName).includes(cleanT) || cleanT.includes(cleanName(pr.doctorName)));
+        const docSr = p ? p.srNo : (910 + idx);
+        const { lastDate, daysAgo } = dailyWorkingStore.getRealLastVisitDate(docSr, dateStr, tDoc.drName);
 
-    if (activeExChoice) {
-      const targetNorm = normalizeStationName(activeExChoice);
-      matchedDoctors = allProfilesList.filter(d => normalizeStationName(d.station) === targetNorm && d.isExStation);
-      matchedDoctors.sort((a, b) => a.approxTime.localeCompare(b.approxTime));
-    } else {
-      matchedDoctors = allProfilesList.filter(d => {
-        if (d.isExStation) return false;
-        const matchesPrimary = areasChoice.some(c => (d.primaryHospital || d.area || '').toLowerCase().includes(c.toLowerCase().trim()));
-        return matchesPrimary;
-      });
-
-      matchedDoctors.sort((a, b) => {
-        const aAct = a.activityType && a.activityType !== '-' ? 1 : 0;
-        const bAct = b.activityType && b.activityType !== '-' ? 1 : 0;
-        return bAct - aAct;
+        addedDoctorKeys.add(cleanT);
+        combinedCalls.push({
+          srNo: docSr,
+          doctorName: tDoc.drName,
+          speciality: p?.speciality || tDoc.speciality || 'MD MED',
+          clinicArea: p?.primaryHospital || p?.area || 'Hospital Road',
+          activityType: 'WCFYH VINTEL',
+          approxTime: p?.approxTime || '11:00 AM',
+          otRemarks: `WCFYH VINTEL Campaign (10th)`,
+          visitNumber: 1,
+          totalMonthlyTarget: p?.monthlyTargetVisits || 4,
+          lastVisitDate: lastDate,
+          daysSinceLastVisit: daysAgo,
+          recencyTier: getRecencyTier(daysAgo),
+          status: 'PLANNED',
+          notes: ''
+        });
       });
     }
 
-    // 🌟 FIX 3: Using Clean Doctor Name in getRealLastVisitDate
-    const plannedItems: PlannedCallItem[] = matchedDoctors.map(doc => {
-      const { lastDate, daysAgo } = dailyWorkingStore.getRealLastVisitDate(doc.srNo, dateStr, doc.doctorName);
-      const tier = getRecencyTier(daysAgo);
+    // B. Add Valros Campaign Doctors (if active)
+    if (activeValrosTag) {
+      liveSheet7Wcfyh.valrosDoctors.forEach((tDoc, idx) => {
+        const cleanT = cleanName(tDoc.drName);
+        const p = allProfilesList.find(pr => cleanName(pr.doctorName) === cleanT || cleanName(pr.doctorName).includes(cleanT) || cleanT.includes(cleanName(pr.doctorName)));
+        const docSr = p ? p.srNo : (920 + idx);
+        const { lastDate, daysAgo } = dailyWorkingStore.getRealLastVisitDate(docSr, dateStr, tDoc.drName);
 
-      return {
-        srNo: doc.srNo,
-        doctorName: doc.doctorName,
-        speciality: doc.speciality,
-        clinicArea: doc.primaryHospital || doc.area,
-        activityType: doc.activityType || 'REGULAR',
-        approxTime: doc.approxTime,
-        otRemarks: doc.notes || 'Available',
-        visitNumber: doc.monthlyTargetVisits >= 4 ? 3 : 1,
-        totalMonthlyTarget: doc.monthlyTargetVisits,
-        lastVisitDate: lastDate,
-        daysSinceLastVisit: daysAgo,
-        recencyTier: tier,
-        status: 'PLANNED',
-        notes: ''
-      };
-    });
+        addedDoctorKeys.add(cleanT);
+        combinedCalls.push({
+          srNo: docSr,
+          doctorName: tDoc.drName,
+          speciality: p?.speciality || tDoc.speciality || 'DM CARD.',
+          clinicArea: p?.primaryHospital || p?.area || 'Hospital Road',
+          activityType: 'WCFYH VALROS',
+          approxTime: p?.approxTime || '01:30 PM',
+          otRemarks: `WCFYH VALROS Campaign (20th)`,
+          visitNumber: 1,
+          totalMonthlyTarget: p?.monthlyTargetVisits || 4,
+          lastVisitDate: lastDate,
+          daysSinceLastVisit: daysAgo,
+          recencyTier: getRecencyTier(daysAgo),
+          status: 'PLANNED',
+          notes: ''
+        });
+      });
+    }
+
+    // C. Add Regular Area Doctors (Without duplicating WCFYH doctors!)
+    if (regularHospitalAreas.length > 0) {
+      const activeExChoice = regularHospitalAreas.find(a => EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(a)));
+
+      let areaMatchedDocs: DoctorFieldProfile[] = [];
+      if (activeExChoice) {
+        const targetNorm = normalizeStationName(activeExChoice);
+        areaMatchedDocs = allProfilesList.filter(d => normalizeStationName(d.station) === targetNorm && d.isExStation);
+        areaMatchedDocs.sort((a, b) => a.approxTime.localeCompare(b.approxTime));
+      } else {
+        areaMatchedDocs = allProfilesList.filter(d => {
+          if (d.isExStation) return false;
+          return regularHospitalAreas.some(c => (d.primaryHospital || d.area || '').toLowerCase().includes(c.toLowerCase().trim()));
+        });
+        areaMatchedDocs.sort((a, b) => (b.activityType ? 1 : 0) - (a.activityType ? 1 : 0));
+      }
+
+      areaMatchedDocs.forEach(doc => {
+        const cleanD = cleanName(doc.doctorName);
+        if (!addedDoctorKeys.has(cleanD)) {
+          addedDoctorKeys.add(cleanD);
+          const { lastDate, daysAgo } = dailyWorkingStore.getRealLastVisitDate(doc.srNo, dateStr, doc.doctorName);
+          combinedCalls.push({
+            srNo: doc.srNo,
+            doctorName: doc.doctorName,
+            speciality: doc.speciality,
+            clinicArea: doc.primaryHospital || doc.area,
+            activityType: doc.activityType || 'REGULAR',
+            approxTime: doc.approxTime,
+            otRemarks: doc.notes || 'Available',
+            visitNumber: doc.monthlyTargetVisits >= 4 ? 3 : 1,
+            totalMonthlyTarget: doc.monthlyTargetVisits,
+            lastVisitDate: lastDate,
+            daysSinceLastVisit: daysAgo,
+            recencyTier: getRecencyTier(daysAgo),
+            status: 'PLANNED',
+            notes: ''
+          });
+        }
+      });
+    }
 
     const newPlan: DayPlanRecord = {
       date: dateStr,
@@ -381,7 +453,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
       selectedAreas: areasChoice,
       isSunday: false,
       isHoliday: false,
-      plannedCalls: plannedItems,
+      plannedCalls: combinedCalls,
       savedAt: new Date().toISOString()
     };
 
@@ -389,18 +461,28 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     dailyWorkingStore.saveDayPlan(newPlan);
   };
 
+  // 🌟 CUMULATIVE AREA TOGGLER: Never wipes out WCFYH Campaign Doctors!
   const handleToggleArea = (areaName: string) => {
     let updated: string[] = [];
 
+    // Keep active WCFYH campaign tags intact
+    const activeWcfyhTags = selectedAreas.filter(a => a.toUpperCase().includes('WCFYH'));
+
     if (EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(areaName))) {
-      updated = [areaName];
+      // Ex-station tour takes over regular areas, but preserves WCFYH tags if desired
+      updated = [...activeWcfyhTags, areaName];
     } else {
-      const withoutEx = selectedAreas.filter(a => !EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(a)));
-      if (withoutEx.includes(areaName)) {
-        updated = withoutEx.filter(a => a !== areaName);
-        if (updated.length === 0) updated = ['Geetanjali Hospital'];
+      const regularAreas = selectedAreas.filter(a => !a.toUpperCase().includes('WCFYH') && !EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(a)));
+
+      if (regularAreas.includes(areaName)) {
+        const remainingReg = regularAreas.filter(a => a !== areaName);
+        if (remainingReg.length === 0 && activeWcfyhTags.length === 0) {
+          updated = ['Geetanjali Hospital'];
+        } else {
+          updated = [...activeWcfyhTags, ...remainingReg];
+        }
       } else {
-        updated = [...withoutEx, areaName];
+        updated = [...activeWcfyhTags, ...regularAreas, areaName];
       }
     }
 
@@ -408,73 +490,27 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     generatePlanForAreas(updated, selectedDateStr);
   };
 
-  // 🌟 FEATURE 5: 1-CLICK WCFYH CAMPAIGN DOCTOR LOADERS (10th Vintel / 20th Valros)
-  // 🌟 DYNAMIC SHEET 7 SYNC: Reads directly from Sheet 7 (WcfyhSheet) permanent storage
-  const liveSheet7Wcfyh = useMemo(() => {
-    return getLiveWcfyhDoctorsFromSheet7();
-  }, [selectedDateStr, activeSubTab]);
-
+  // 🌟 CUMULATIVE 1-CLICK WCFYH TOGGLER: Merges cleanly with selected areas!
   const handleLoadWcfyhCampaign = (campaignType: 'VINTEL' | 'VALROS') => {
-    const liveTargetList = campaignType === 'VINTEL' 
-      ? liveSheet7Wcfyh.vintelDoctors 
-      : liveSheet7Wcfyh.valrosDoctors;
+    const campaignTag = `WCFYH ${campaignType} (${campaignType === 'VINTEL' ? '10th' : '20th'})`;
+    const isCurrentlyActive = selectedAreas.includes(campaignTag);
 
-    if (liveTargetList.length === 0) {
-      alert(`Sheet 7 me ${campaignType} ke liye koi doctor nahi mila! Sheet 7 me jakar add karein.`);
-      return;
+    let updatedAreas: string[] = [];
+
+    if (isCurrentlyActive) {
+      // Toggle OFF this campaign
+      updatedAreas = selectedAreas.filter(a => a !== campaignTag);
+      if (updatedAreas.length === 0) updatedAreas = ['Hospital Road'];
+      setStatusMsg(`ℹ️ WCFYH ${campaignType} Campaign turned off.`);
+    } else {
+      // Toggle ON: Add this campaign alongside existing areas!
+      updatedAreas = [...selectedAreas, campaignTag];
+      setStatusMsg(`🎉 SUCCESS! WCFYH ${campaignType} added to today's route plan!`);
     }
 
-    const allProfilesList = Object.values(profiles);
-    const newCalls: PlannedCallItem[] = [];
-
-    liveTargetList.forEach((targetItem, idx) => {
-      const cleanT = cleanName(targetItem.drName);
-      const matchedProfile = allProfilesList.find(p => cleanName(p.doctorName) === cleanT || cleanName(p.doctorName).includes(cleanT) || cleanT.includes(cleanName(p.doctorName)));
-
-      const docSrNo = matchedProfile ? matchedProfile.srNo : (900 + idx);
-      const spec = matchedProfile?.speciality || targetItem.speciality || (campaignType === 'VINTEL' ? 'MD MED' : 'DM CARD.');
-      const clinic = matchedProfile?.primaryHospital || matchedProfile?.area || 'Hospital Road';
-      const approxTime = matchedProfile?.approxTime || (campaignType === 'VINTEL' ? '11:00 AM' : '01:30 PM');
-      
-      const { lastDate, daysAgo } = dailyWorkingStore.getRealLastVisitDate(docSrNo, selectedDateStr, targetItem.drName);
-      const tier = getRecencyTier(daysAgo);
-
-      newCalls.push({
-        srNo: docSrNo,
-        doctorName: targetItem.drName,
-        speciality: spec,
-        clinicArea: clinic,
-        activityType: `WCFYH ${campaignType}`,
-        approxTime: approxTime,
-        otRemarks: `WCFYH ${campaignType} (${targetItem.dateOfCampaign || (campaignType === 'VINTEL' ? '10th' : '20th')})`,
-        visitNumber: 1,
-        totalMonthlyTarget: matchedProfile?.monthlyTargetVisits || 4,
-        lastVisitDate: lastDate,
-        daysSinceLastVisit: daysAgo,
-        recencyTier: tier,
-        status: 'PLANNED',
-        notes: ''
-      });
-    });
-
-    const campaignAreaTag = `WCFYH ${campaignType} (${campaignType === 'VINTEL' ? '10th' : '20th'})`;
-    const updatedAreas = [campaignAreaTag];
     setSelectedAreas(updatedAreas);
-
-    const newPlan: DayPlanRecord = {
-      date: selectedDateStr,
-      dayOfWeek: dayOfWeekName,
-      selectedAreas: updatedAreas,
-      isSunday: false,
-      isHoliday: false,
-      plannedCalls: newCalls,
-      savedAt: new Date().toISOString()
-    };
-
-    setCurrentPlan(newPlan);
-    dailyWorkingStore.saveDayPlan(newPlan);
-    setStatusMsg(`🎉 SUCCESS! Sheet 7 se live synced WCFYH ${campaignType} (${newCalls.length} Doctors) load ho gaye!`);
-    setTimeout(() => setStatusMsg(null), 3500);
+    generatePlanForAreas(updatedAreas, selectedDateStr);
+    setTimeout(() => setStatusMsg(null), 3000);
   };
 
   const handleSyncFromMsl = () => {
@@ -489,24 +525,24 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
   const remainingDoctorsInArea = useMemo(() => {
     if (!currentPlan) return [];
-    const plannedSrNos = new Set(currentPlan.plannedCalls.map(p => p.srNo));
+    const plannedDoctorNames = new Set(currentPlan.plannedCalls.map(p => cleanName(p.doctorName)));
     const allProfiles = Object.values(profiles);
 
-    const activeExChoice = selectedAreas.find(a => EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(a)));
+    const regularAreas = selectedAreas.filter(a => !a.toUpperCase().includes('WCFYH'));
+    const activeExChoice = regularAreas.find(a => EX_STATIONS_MASTER.some(ex => normalizeStationName(ex) === normalizeStationName(a)));
 
     let areaDocs: DoctorFieldProfile[] = [];
     if (activeExChoice) {
       const targetNorm = normalizeStationName(activeExChoice);
       areaDocs = allProfiles.filter(d => normalizeStationName(d.station) === targetNorm && d.isExStation);
-    } else {
+    } else if (regularAreas.length > 0) {
       areaDocs = allProfiles.filter(d => {
         if (d.isExStation) return false;
-        const inArea = selectedAreas.some(c => (d.primaryHospital || d.area || '').toLowerCase().includes(c.toLowerCase().trim()));
-        return inArea;
+        return regularAreas.some(c => (d.primaryHospital || d.area || '').toLowerCase().includes(c.toLowerCase().trim()));
       });
     }
 
-    return areaDocs.filter(d => !plannedSrNos.has(d.srNo)).map(doc => {
+    return areaDocs.filter(d => !plannedDoctorNames.has(cleanName(d.doctorName))).map(doc => {
       const { lastDate, daysAgo } = dailyWorkingStore.getRealLastVisitDate(doc.srNo, selectedDateStr, doc.doctorName);
       const tier = getRecencyTier(daysAgo);
 
@@ -522,10 +558,10 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   const globalMatchingDoctors = useMemo(() => {
     if (!globalDocSearch.trim()) return [];
     const q = globalDocSearch.toLowerCase();
-    const plannedSrNos = new Set(currentPlan?.plannedCalls.map(p => p.srNo) || []);
+    const plannedNames = new Set(currentPlan?.plannedCalls.map(p => cleanName(p.doctorName)) || []);
 
     return Object.values(profiles)
-      .filter(d => !plannedSrNos.has(d.srNo))
+      .filter(d => !plannedNames.has(cleanName(d.doctorName)))
       .filter(d => d.doctorName.toLowerCase().includes(q) || (d.speciality || '').toLowerCase().includes(q) || (d.area || '').toLowerCase().includes(q) || String(d.srNo).includes(q))
       .slice(0, 10);
   }, [profiles, globalDocSearch, currentPlan]);
@@ -540,9 +576,11 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
   const handleAddDoctorToTodayPlan = (doc: DoctorFieldProfile, lastDate?: string, daysDiff?: number, tier?: any) => {
     if (!currentPlan) return;
-    if (currentPlan.plannedCalls.some(p => p.srNo === doc.srNo)) return;
+    if (currentPlan.plannedCalls.some(p => cleanName(p.doctorName) === cleanName(doc.doctorName))) return;
 
-    const realLast = lastDate !== undefined && daysDiff !== undefined ? { lastDate, daysAgo: daysDiff } : dailyWorkingStore.getRealLastVisitDate(doc.srNo, selectedDateStr, doc.doctorName);
+    const realLast = lastDate !== undefined && daysDiff !== undefined 
+      ? { lastDate, daysAgo: daysDiff } 
+      : dailyWorkingStore.getRealLastVisitDate(doc.srNo, selectedDateStr, doc.doctorName);
     const resolvedTier = tier || getRecencyTier(realLast.daysAgo);
 
     const newItem: PlannedCallItem = {
@@ -595,7 +633,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     const lines: string[] = [];
     lines.push(`🕉️ *ॐ नमो भगवते वासुदेवाय नमः* 🕉️`);
     lines.push(`📅 *DAY WORKING PLAN - ${selectedDateStr} (${dayOfWeekName})*`);
-    lines.push(`📍 *Route / Areas:* ${selectedAreas.join(', ')}`);
+    lines.push(`📍 *Route / Areas:* ${selectedAreas.join(' + ')}`);
     lines.push(``);
 
     currentPlan.plannedCalls.forEach((call, i) => {
@@ -627,11 +665,10 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
     window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
   };
 
-  // 🌟 FIX 1: FILTER LOGIC FOR 19 HOSPITALS MASTER TABLE (Screenshot 1)
+  // Filter Logic for 19 Hospitals Master Table
   const filteredSetupDoctors = useMemo(() => {
     const q = setupSearch.toLowerCase().trim();
     return Object.values(profiles).filter(doc => {
-      // 1. Search Query Filter (Doctor name, speciality, hospital, notes)
       if (q) {
         const matchName = doc.doctorName.toLowerCase().includes(q);
         const matchSpec = (doc.speciality || '').toLowerCase().includes(q);
@@ -641,18 +678,15 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         if (!matchName && !matchSpec && !matchHosp && !matchNotes && !matchSr) return false;
       }
 
-      // 2. Area Filter
       if (masterAreaFilter !== 'ALL') {
         const targetNorm = normalizeStationName(masterAreaFilter);
         const docStationNorm = normalizeStationName(doc.station);
         const docArea = (doc.primaryHospital || doc.area || '').toLowerCase();
         const filterArea = masterAreaFilter.toLowerCase();
-
         const matchArea = docArea.includes(filterArea) || (doc.isExStation && docStationNorm === targetNorm);
         if (!matchArea) return false;
       }
 
-      // 3. Activity Filter
       if (masterActivityFilter !== 'ALL') {
         const docAct = (doc.activityType || '').toUpperCase();
         if (!docAct.includes(masterActivityFilter.toUpperCase())) return false;
@@ -696,10 +730,10 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
             <h1 className="text-base md:text-lg font-bold text-white flex items-center gap-2">
               📋 DAILY WORKING &amp; ROUTE INTELLIGENCE
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-mono font-bold">
-                {Object.keys(profiles).length} MSL Doctors Active
+                {Object.keys(profiles).length} MSL Doctors Live
               </span>
             </h1>
-            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA &bull; HQ: UDAIPUR &bull; 1-Click WhatsApp Share &bull; Handwritten Dairy Slip</p>
+            <p className="text-xs text-slate-400">BE: BANWARI LAL MEENA &bull; HQ: UDAIPUR &bull; WCFYH + Area Combo Support &bull; Handwritten Dairy Slip</p>
           </div>
         </div>
 
@@ -836,7 +870,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 📅 Today (Aaj)
               </button>
 
-              {/* 🌟 FIX 4: ALL SAVED PLANS HISTORY BUTTON */}
+              {/* All Saved Plans History Button */}
               <button
                 type="button"
                 onClick={() => setShowSavedPlansModal(true)}
@@ -851,8 +885,8 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               <div className="flex items-center gap-2 bg-slate-900 px-3.5 py-2 rounded-xl border border-slate-800">
                 <MapPin size={15} className="text-amber-400" />
                 <span className="text-slate-400">Active Area:</span>
-                <span className="text-amber-300 font-bold font-mono truncate max-w-[220px]">
-                  {selectedAreas.join(', ')}
+                <span className="text-amber-300 font-bold font-mono truncate max-w-[280px]">
+                  {selectedAreas.join(' + ')}
                 </span>
               </div>
             </div>
@@ -892,7 +926,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* MULTI-AREA SELECTION HUB + 🌟 WCFYH 10TH/20TH CAMPAIGN BUTTONS */}
+          {/* MULTI-AREA SELECTION HUB + 🌟 CUMULATIVE WCFYH CAMPAIGN BUTTONS */}
           <div className="p-4 bg-slate-950 rounded-2xl border-2 border-amber-500/60 shadow-xl space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -901,7 +935,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider">
                     "Aaj Kahan Working Karni Hai?" &bull; Multi-Area Hub
                   </h3>
-                  <p className="text-[11px] text-slate-400">Select any hospital or station to load scheduled doctors!</p>
+                  <p className="text-[11px] text-slate-400">Select WCFYH and/or any hospital to plan together!</p>
                 </div>
               </div>
 
@@ -917,43 +951,43 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
 
-            {/* 🌟 1. SPECIAL WCFYH 1-CLICK CAMPAIGN BUTTONS (10th Vintel / 20th Valros) */}
+            {/* 🌟 1. SPECIAL WCFYH 1-CLICK CAMPAIGN BUTTONS (CUMULATIVE TOGGLE) */}
             <div className="p-2.5 bg-slate-900/90 rounded-xl border border-pink-500/40 flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex items-center gap-2">
                 <HeartPulse size={16} className="text-pink-400" />
                 <span className="text-xs font-bold text-white uppercase tracking-wider">
-                  WCFYH Campaign 1-Click Loaders:
+                  WCFYH Campaign 1-Click Loaders (Combine with any area):
                 </span>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {/* 10th VINTEL (DYNAMIC SHEET 7 COUNT) */}
+                {/* 10th VINTEL */}
                 <button
                   type="button"
                   onClick={() => handleLoadWcfyhCampaign('VINTEL')}
                   className={`px-3.5 py-1.5 rounded-xl border text-xs font-black transition cursor-pointer flex items-center gap-1.5 shadow-md ${
-                    is10thDay
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-cyan-400 animate-pulse shadow-cyan-950'
+                    isVintelActive
+                      ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-cyan-400 shadow-cyan-950 scale-105'
                       : 'bg-blue-950/80 hover:bg-blue-900 text-blue-300 border-blue-500/50'
                   }`}
                   title={`Live from Sheet 7: ${liveSheet7Wcfyh.vintelDoctors.map(d => d.drName).join(', ')}`}
                 >
-                  <span>💙 WCFYH Vintel (10th) • {liveSheet7Wcfyh.vintelDoctors.length} Drs</span>
+                  <span>{isVintelActive ? '✓ 💙 WCFYH Vintel (10th) Active' : '💙 WCFYH Vintel (10th) • ' + liveSheet7Wcfyh.vintelDoctors.length + ' Drs'}</span>
                   {is10thDay && <span className="text-[9px] bg-white text-blue-900 px-1.5 rounded-full font-mono font-black">TODAY!</span>}
                 </button>
 
-                {/* 20th VALROS (DYNAMIC SHEET 7 COUNT) */}
+                {/* 20th VALROS */}
                 <button
                   type="button"
                   onClick={() => handleLoadWcfyhCampaign('VALROS')}
                   className={`px-3.5 py-1.5 rounded-xl border text-xs font-black transition cursor-pointer flex items-center gap-1.5 shadow-md ${
-                    is20thDay
-                      ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white border-pink-400 animate-pulse shadow-rose-950'
+                    isValrosActive
+                      ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white border-pink-400 shadow-rose-950 scale-105'
                       : 'bg-rose-950/80 hover:bg-rose-900 text-rose-300 border-rose-500/50'
                   }`}
                   title={`Live from Sheet 7: ${liveSheet7Wcfyh.valrosDoctors.map(d => d.drName).join(', ')}`}
                 >
-                  <span>❤️ WCFYH Valros (20th) • {liveSheet7Wcfyh.valrosDoctors.length} Drs</span>
+                  <span>{isValrosActive ? '✓ ❤️ WCFYH Valros (20th) Active' : '❤️ WCFYH Valros (20th) • ' + liveSheet7Wcfyh.valrosDoctors.length + ' Drs'}</span>
                   {is20thDay && <span className="text-[9px] bg-white text-rose-900 px-1.5 rounded-full font-mono font-black">TODAY!</span>}
                 </button>
               </div>
@@ -1029,7 +1063,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
             </div>
           )}
 
-          {/* TODAY'S ACTION TABLE (WITH REAL MSL VISIT DATES) */}
+          {/* TODAY'S ACTION TABLE (WITH DISTINCT COLOR CODING FOR WCFYH DOCTORS) */}
           <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 shadow-xl space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <div className="flex items-center gap-2">
@@ -1053,13 +1087,13 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                     <th style={{ width: '44px', minWidth: '44px', left: 0 }} className="p-2.5 text-center bg-slate-950 border-b border-r border-slate-800 sticky z-40 text-slate-400">
                       #
                     </th>
-                    <th style={{ width: '200px', minWidth: '200px', left: '44px' }} className="p-2.5 bg-slate-950 border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-white">
+                    <th style={{ width: '220px', minWidth: '220px', left: '44px' }} className="p-2.5 bg-slate-950 border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-40 text-white">
                       Doctor Name
                     </th>
                     <th className="p-2.5 text-center w-36 text-purple-300 border-b border-r border-slate-800">⏰ Meeting Clock</th>
                     <th className="p-2.5 min-w-[120px] text-cyan-300 border-b border-r border-slate-800">Speciality</th>
                     <th className="p-2.5 min-w-[160px] border-b border-r border-slate-800">Hospital / Station Area</th>
-                    <th className="p-2.5 text-center w-24 text-purple-300 border-b border-r border-slate-800">Activity</th>
+                    <th className="p-2.5 text-center w-32 text-purple-300 border-b border-r border-slate-800">Activity</th>
                     <th className="p-2.5 text-center w-20 text-emerald-400 border-b border-r border-slate-800">Visit #</th>
                     <th className="p-2.5 text-center w-36 border-b border-r border-slate-800 text-cyan-300 font-bold">Last Visit (Recency)</th>
                     <th className="p-2.5 min-w-[160px] text-amber-400 border-b border-r border-slate-800">Sitting Days &amp; Timings</th>
@@ -1077,15 +1111,43 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   ) : (
                     currentPlan.plannedCalls.map((item, idx) => {
                       const profile = profiles[item.srNo];
+                      
+                      // 🌟 DISTINCT COLOR HIGHLIGHTING FOR WCFYH DOCTORS
+                      const isWcfyhVintel = (item.activityType || '').toUpperCase().includes('VINTEL');
+                      const isWcfyhValros = (item.activityType || '').toUpperCase().includes('VALROS');
+
+                      let rowClass = "hover:bg-slate-800/60 transition group";
+                      if (isWcfyhVintel) {
+                        rowClass = "bg-cyan-950/40 hover:bg-cyan-950/60 border-l-4 border-cyan-400 transition group";
+                      } else if (isWcfyhValros) {
+                        rowClass = "bg-rose-950/40 hover:bg-rose-950/60 border-l-4 border-rose-500 transition group";
+                      }
 
                       return (
-                        <tr key={item.srNo} className="hover:bg-slate-800/60 transition group">
-                          <td style={{ width: '44px', minWidth: '44px', left: 0 }} className="p-2.5 text-center text-slate-500 border-b border-r border-slate-800/80 sticky z-20 bg-slate-900 group-hover:bg-slate-800">
+                        <tr key={`${item.srNo}_${idx}`} className={rowClass}>
+                          <td style={{ width: '44px', minWidth: '44px', left: 0 }} className={`p-2.5 text-center font-mono border-b border-r border-slate-800/80 sticky z-20 ${isWcfyhVintel ? 'bg-cyan-950 text-cyan-300 font-bold' : isWcfyhValros ? 'bg-rose-950 text-rose-300 font-bold' : 'bg-slate-900 text-slate-500 group-hover:bg-slate-800'}`}>
                             {idx + 1}
                           </td>
 
-                          <td style={{ width: '200px', minWidth: '200px', left: '44px' }} className="p-2.5 font-sans font-bold text-white border-b border-r-2 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] sticky z-20 bg-slate-900 group-hover:bg-slate-800 truncate">
-                            Dr. {item.doctorName}
+                          {/* Doctor Name with distinctive tag */}
+                          <td style={{ width: '220px', minWidth: '220px', left: '44px' }} className={`p-2.5 font-sans font-bold border-b border-r-2 sticky z-20 truncate ${
+                            isWcfyhVintel ? 'text-cyan-200 bg-cyan-950 border-cyan-400 shadow-[3px_0_10px_rgba(6,182,212,0.3)]' :
+                            isWcfyhValros ? 'text-rose-200 bg-rose-950 border-rose-400 shadow-[3px_0_10px_rgba(244,63,94,0.3)]' :
+                            'text-white bg-slate-900 border-purple-500 shadow-[3px_0_10px_rgba(0,0,0,0.5)] group-hover:bg-slate-800'
+                          }`}>
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="truncate">Dr. {item.doctorName}</span>
+                              {isWcfyhVintel && (
+                                <span className="text-[9px] bg-cyan-500 text-slate-950 font-black px-1.5 py-0.2 rounded uppercase shrink-0">
+                                  💙 VINTEL
+                                </span>
+                              )}
+                              {isWcfyhValros && (
+                                <span className="text-[9px] bg-rose-500 text-white font-black px-1.5 py-0.2 rounded uppercase shrink-0">
+                                  ❤️ VALROS
+                                </span>
+                              )}
+                            </div>
                           </td>
 
                           <td className="p-1.5 text-center border-b border-r border-slate-800/80">
@@ -1101,16 +1163,22 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
                           <td className="p-2.5 text-cyan-300 font-sans border-b border-r border-slate-800/80">{item.speciality}</td>
                           <td className="p-2.5 text-slate-300 font-sans border-b border-r border-slate-800/80">{item.clinicArea}</td>
+                          
+                          {/* Activity Tag */}
                           <td className="p-2.5 text-center border-b border-r border-slate-800/80">
-                            <span className="bg-purple-950 text-purple-300 px-2 py-0.5 rounded text-[10px] font-bold border border-purple-500/30">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              isWcfyhVintel ? 'bg-cyan-900 text-cyan-200 border-cyan-400 shadow-sm' :
+                              isWcfyhValros ? 'bg-rose-900 text-rose-200 border-rose-400 shadow-sm' :
+                              'bg-purple-950 text-purple-300 border-purple-500/30'
+                            }`}>
                               {item.activityType}
                             </span>
                           </td>
+
                           <td className="p-2.5 text-center font-black text-emerald-400 border-b border-r border-slate-800/80">
                             {item.visitNumber}/{item.totalMonthlyTarget}
                           </td>
                           
-                          {/* 🌟 EXACT MSL RECENCY VISIT DATES */}
                           <td className="p-2.5 text-center border-b border-r border-slate-800/80">
                             <span className={`px-2 py-1 rounded-lg font-mono font-bold text-[10px] border flex items-center justify-center gap-1 ${
                               item.recencyTier === 'GREEN' 
@@ -1277,7 +1345,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               <div className="flex items-center gap-2">
                 <Building2 size={16} className="text-cyan-400" />
                 <h3 className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
-                  Remaining Doctors in {selectedAreas.join(', ')} ({remainingDoctorsInArea.length} Backlog)
+                  Remaining Doctors in {selectedAreas.join(' + ')} ({remainingDoctorsInArea.length} Backlog)
                 </h3>
               </div>
               <span className="text-[10px] text-slate-400">
@@ -1385,7 +1453,6 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                 </select>
               </div>
 
-              {/* 🌟 SEARCH BAR (NOW 100% WORKING!) */}
               <div className="relative w-52">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
@@ -1477,7 +1544,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 🌟 5. ALL SAVED PLANS MODAL (FILE SEPARATION RULE COMPLIANT) */}
+      {/* ALL SAVED PLANS MODAL */}
       <SavedDayPlansModal
         isOpen={showSavedPlansModal}
         onClose={() => setShowSavedPlansModal(false)}
@@ -1489,7 +1556,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         currentActiveDate={selectedDateStr}
       />
 
-      {/* 6. HANDWRITTEN FOUNTAIN PEN DIARY SLIP MODAL */}
+      {/* HANDWRITTEN FOUNTAIN PEN DIARY SLIP MODAL */}
       <HandwrittenDiarySlipModal
         isOpen={showDairySlipModal}
         onClose={() => setShowDairySlipModal(false)}
@@ -1502,7 +1569,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         beName="BANWARI LAL MEENA (Udaipur HQ)"
       />
 
-      {/* 7. TOUCH CLOCK MODAL */}
+      {/* TOUCH CLOCK MODAL */}
       {clockTargetDoc && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
           <div className="bg-white text-slate-900 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl flex flex-col p-6 space-y-4">
@@ -1703,7 +1770,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* 8. CALENDAR POPUP */}
+      {/* CALENDAR POPUP */}
       {showCalendarModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
           <div className="bg-slate-900 border-2 border-purple-500/70 rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl flex flex-col md:flex-row">
@@ -1725,7 +1792,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                   {selectedDateStr}
                 </div>
                 <div className="text-xs font-bold text-amber-300">
-                  {dayOfWeekName} &bull; {selectedAreas.join(', ')}
+                  {dayOfWeekName} &bull; {selectedAreas.join(' + ')}
                 </div>
               </div>
             </div>
