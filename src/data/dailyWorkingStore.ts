@@ -32,6 +32,23 @@ export const EX_STATIONS_MASTER = [
   'Banswara'
 ];
 
+// 🌟 WCFYH CAMPAIGN CONSTANTS (10th & 20th of every month)
+export const WCFYH_VINTEL_NAMES = [
+  'PRIYANKA MINOCHA',
+  'MONA DHINGRA',
+  'UDAY BHOMIK'
+];
+
+export const WCFYH_VALROS_NAMES = [
+  'DEEPAK AAMETHA',
+  'MUKESH SHARMA',
+  'CPPUROHIT',
+  'RAMESH PATEL',
+  'SANJAY GANDHI',
+  'RAVIRAJ SINGH AHADA',
+  'DILIP JAIN'
+];
+
 export const TIME_SLOTS_MASTER = [
   '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM',
   '12:30 PM', '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM', '03:00 PM',
@@ -39,7 +56,10 @@ export const TIME_SLOTS_MASTER = [
   '06:30 PM', '07:00 PM', '07:30 PM', '08:00 PM', '08:10 PM', '08:30 PM'
 ];
 
-// 🌟 UNIVERSAL STATION NORMALIZER (Solves Rajasmand/Rajsamand, Chitor/Chittorgarh, Banswada/Banswara variations)
+export const cleanName = (s: string) => 
+  (s || '').toUpperCase().replace(/^(DR\.?|DR\s+)/i, '').replace(/[^A-Z]/g, '').trim();
+
+// 🌟 UNIVERSAL STATION NORMALIZER
 export const normalizeStationName = (st: string): 'UDAIPUR' | 'BANSWARA' | 'DUNGARPUR' | 'CHITTORGARH' | 'RAJASMAND' => {
   const s = (st || '').toUpperCase().replace(/[^A-Z]/g, '');
   if (s.includes('RAJAS') || s.includes('RAJSAM') || s.includes('KANKROLI') || s.includes('NATHDWARA')) return 'RAJASMAND';
@@ -98,8 +118,6 @@ export interface DayPlanRecord {
 const PROFILES_STORAGE_KEY = 'dios_doctor_field_profiles_v11';
 const DAY_PLANS_STORAGE_KEY = 'dios_daily_plans_v11';
 
-const cleanName = (s: string) => (s || '').toUpperCase().replace(/^(DR\.?|DR\s+)/i, '').replace(/[^A-Z]/g, '');
-
 const MONTH_KEYS_ORDER = [
   { key: 'apr', monthIdx: 3, year: 2026 },
   { key: 'may', monthIdx: 4, year: 2026 },
@@ -124,13 +142,14 @@ export class DailyWorkingStore {
     this.dayPlans = this.loadDayPlans();
   }
 
-  public getRealLastVisitDate(docSrNo: number, targetDateStr: string): { lastDate: string; daysAgo: number } {
+  // 🌟 FIX: Doctor Recency Matching using Normalized Doctor Name (Not mismatched SrNo!)
+  public getRealLastVisitDate(docSrNo: number, targetDateStr: string, doctorName?: string): { lastDate: string; daysAgo: number } {
     let targetTime: number;
     try {
       const parts = targetDateStr.split('/').map(Number);
       targetTime = new Date(parts[2], parts[1] - 1, parts[0]).getTime();
     } catch {
-      targetTime = new Date(2026, 7, 18).getTime();
+      targetTime = new Date().getTime();
     }
 
     let allMsl: any[] = [];
@@ -141,13 +160,24 @@ export class DailyWorkingStore {
       }
     } catch (e) {}
 
-    const doc = allMsl.find(d => d.srNo === docSrNo);
+    // 1. Primary match by Clean Doctor Name!
+    const targetClean = cleanName(doctorName || (this.profiles[docSrNo] ? this.profiles[docSrNo].doctorName : ''));
+    
+    let doc = allMsl.find(d => cleanName(d.doctorName) === targetClean);
+    if (!doc && targetClean.length > 3) {
+      doc = allMsl.find(d => cleanName(d.doctorName).includes(targetClean) || targetClean.includes(cleanName(d.doctorName)));
+    }
+    // Fallback if name is absent
+    if (!doc) {
+      doc = allMsl.find(d => d.srNo === docSrNo);
+    }
+
     const foundDates: Date[] = [];
 
     if (doc) {
       MONTH_KEYS_ORDER.forEach(mCfg => {
         const rawVal = String(doc[mCfg.key] || '');
-        if (rawVal && rawVal.trim().length > 0 && rawVal !== '-' && rawVal !== 'na') {
+        if (rawVal && rawVal.trim().length > 0 && rawVal !== '-' && rawVal.toLowerCase() !== 'na') {
           const matches = rawVal.match(/\b([1-9]|[12]\d|3[01])\b/g);
           if (matches) {
             matches.forEach(mStr => {
@@ -164,15 +194,15 @@ export class DailyWorkingStore {
       });
     }
 
+    // Secondary: Check DCR Call status calls
     try {
-      if (typeof window !== 'undefined' && doc) {
+      if (typeof window !== 'undefined' && targetClean) {
         const rawCalls = localStorage.getItem('dios_call_status_master_doctors_v4');
         if (rawCalls) {
           const parsedCalls = JSON.parse(rawCalls);
           if (Array.isArray(parsedCalls)) {
-            const cleanDoc = cleanName(doc.doctorName);
             parsedCalls.forEach((call: any) => {
-              if (call.docName && cleanName(call.docName) === cleanDoc && call.date && call.date.includes('/')) {
+              if (call.docName && cleanName(call.docName) === targetClean && call.date && call.date.includes('/')) {
                 const p = call.date.split('/').map(Number);
                 if (p.length === 3) {
                   const callDate = new Date(p[2], p[1] - 1, p[0]);
@@ -213,10 +243,10 @@ export class DailyWorkingStore {
     let availableDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     let notes = doc.clinicAddress || 'Sitting';
 
-    // 🚌 EX-HQ STATIONS: Explicitly set station and area to normalized station name
+    // Ex-HQ Stations
     if (isEx) {
       const stationDisplay = normStation.charAt(0) + normStation.slice(1).toLowerCase();
-      area = stationDisplay; // 'Rajsamand', 'Chittorgarh', 'Dungarpur', 'Banswara'
+      area = stationDisplay;
       
       const baseHour = 10 + Math.floor((exIndex * 25) / 60);
       const baseMin = (exIndex * 25) % 60;
@@ -227,9 +257,9 @@ export class DailyWorkingStore {
       minute = baseMin;
       period = isPm ? 'PM' : 'AM';
       approxTime = `${String(displayHour).padStart(2, '0')}:${String(baseMin).padStart(2, '0')} ${period}`;
-      notes = `${stationDisplay} Ex-Station Day &bull; ${doc.clinicAddress || 'Clinic'}`;
+      notes = `${stationDisplay} Ex-Station Day • ${doc.clinicAddress || 'Clinic'}`;
     } 
-    // 🏥 UDAIPUR HOSPITALS
+    // Udaipur Hospitals
     else {
       if (
         c.includes('ABHIJEETBASU') || c.includes('LALITSHREEMALI') || c.includes('RAVIMANGLIYA') || c.includes('RAVIMANGALIA') ||
@@ -352,7 +382,7 @@ export class DailyWorkingStore {
         savedProfiles[doc.srNo] = this.buildProfileForDoctor(doc, exIdx);
       } else {
         const isEx = normStation !== 'UDAIPUR';
-        const displayStation = normStation.charAt(0) + normStation.slice(1).toLowerCase();
+        const displayStation = isEx ? (normStation.charAt(0) + normStation.slice(1).toLowerCase()) : 'UDAIPUR';
         savedProfiles[doc.srNo].doctorName = doc.doctorName;
         savedProfiles[doc.srNo].station = isEx ? displayStation : 'UDAIPUR';
         savedProfiles[doc.srNo].isExStation = isEx;
@@ -368,7 +398,7 @@ export class DailyWorkingStore {
     return savedProfiles;
   }
 
-  private loadDayPlans(): Record<string, DayPlanRecord> {
+  public loadDayPlans(): Record<string, DayPlanRecord> {
     try {
       if (typeof window !== 'undefined') {
         const raw = localStorage.getItem(DAY_PLANS_STORAGE_KEY);
@@ -376,6 +406,17 @@ export class DailyWorkingStore {
       }
     } catch (e) {}
     return {};
+  }
+
+  public getAllSavedPlansList(): DayPlanRecord[] {
+    const plans = Object.values(this.dayPlans);
+    return plans.sort((a, b) => {
+      const pA = a.date.split('/').map(Number);
+      const pB = b.date.split('/').map(Number);
+      const tA = new Date(pA[2], pA[1] - 1, pA[0]).getTime();
+      const tB = new Date(pB[2], pB[1] - 1, pB[0]).getTime();
+      return tB - tA; // latest date first
+    });
   }
 
   public saveProfiles(updated: Record<number, DoctorFieldProfile>) {
@@ -392,6 +433,21 @@ export class DailyWorkingStore {
     try {
       if (typeof window !== 'undefined') {
         localStorage.setItem(DAY_PLANS_STORAGE_KEY, JSON.stringify(this.dayPlans));
+        // 🌟 Auto-sync to Cloudflare KV in background
+        fetch('/api/cloud-storage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key: 'field/daily_working_system_v9',
+            data: {
+              profiles: this.profiles,
+              dayPlans: this.dayPlans,
+              selectedDateStr: plan.date,
+              selectedAreas: plan.selectedAreas
+            },
+            device: 'iPad Safari AutoSync'
+          })
+        }).catch(() => {});
       }
     } catch (e) {}
   }
@@ -400,35 +456,37 @@ export class DailyWorkingStore {
     return this.dayPlans[dateStr];
   }
 
+  public deleteDayPlan(dateStr: string) {
+    delete this.dayPlans[dateStr];
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(DAY_PLANS_STORAGE_KEY, JSON.stringify(this.dayPlans));
+      }
+    } catch (e) {}
+  }
+
+  // 🌟 FIX: Pulls actual MSL schedule data and syncs doctor names & activities
   public syncFromMslSheet(): { synced: number; added: number; total: number } {
     let synced = 0;
     let added = 0;
-    const exCounts: Record<string, number> = { DUNGARPUR: 0, BANSWARA: 0, CHITTORGARH: 0, RAJSAMAND: 0 };
 
-    CBO_MASTER_130_DOCTORS.forEach(doc => {
-      const normStation = normalizeStationName(doc.station);
-      let exIdx = 0;
-      if (normStation !== 'UDAIPUR') {
-        exIdx = exCounts[normStation] || 0;
-        exCounts[normStation] = exIdx + 1;
+    let allMsl: any[] = [];
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('dios_msl_schedule_permanent_v5');
+        if (saved) allMsl = JSON.parse(saved);
       }
+    } catch (e) {}
 
-      const isEx = normStation !== 'UDAIPUR';
-      const displayStation = normStation.charAt(0) + normStation.slice(1).toLowerCase();
+    const mslNameMap = new Map<string, any>();
+    allMsl.forEach(d => mslNameMap.set(cleanName(d.doctorName), d));
 
-      if (this.profiles[doc.srNo]) {
-        this.profiles[doc.srNo].doctorName = doc.doctorName;
-        this.profiles[doc.srNo].station = isEx ? displayStation : 'UDAIPUR';
-        this.profiles[doc.srNo].isExStation = isEx;
-        if (isEx) {
-          this.profiles[doc.srNo].area = displayStation;
-          this.profiles[doc.srNo].primaryHospital = displayStation;
-        }
-        this.profiles[doc.srNo].speciality = doc.speciality;
+    Object.values(this.profiles).forEach(p => {
+      const match = mslNameMap.get(cleanName(p.doctorName));
+      if (match) {
+        if (match.activityType) p.activityType = match.activityType;
+        if (match.speciality) p.speciality = match.speciality;
         synced++;
-      } else {
-        this.profiles[doc.srNo] = this.buildProfileForDoctor(doc, exIdx);
-        added++;
       }
     });
 
