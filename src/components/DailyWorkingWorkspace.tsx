@@ -16,6 +16,8 @@ import {
   EX_STATIONS_MASTER,
   WCFYH_VINTEL_NAMES,
   WCFYH_VALROS_NAMES,
+  getLiveWcfyhDoctorsFromSheet7,
+  LiveWcfyhDoctorItem,
   cleanName,
   normalizeStationName
 } from '../data/dailyWorkingStore';
@@ -407,44 +409,52 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
   };
 
   // 🌟 FEATURE 5: 1-CLICK WCFYH CAMPAIGN DOCTOR LOADERS (10th Vintel / 20th Valros)
+  // 🌟 DYNAMIC SHEET 7 SYNC: Reads directly from Sheet 7 (WcfyhSheet) permanent storage
+  const liveSheet7Wcfyh = useMemo(() => {
+    return getLiveWcfyhDoctorsFromSheet7();
+  }, [selectedDateStr, activeSubTab]);
+
   const handleLoadWcfyhCampaign = (campaignType: 'VINTEL' | 'VALROS') => {
-    const targetNames = campaignType === 'VINTEL' ? WCFYH_VINTEL_NAMES : WCFYH_VALROS_NAMES;
-    const allProfilesList = Object.values(profiles);
-    const campaignDocs: DoctorFieldProfile[] = [];
+    const liveTargetList = campaignType === 'VINTEL' 
+      ? liveSheet7Wcfyh.vintelDoctors 
+      : liveSheet7Wcfyh.valrosDoctors;
 
-    targetNames.forEach(tName => {
-      const cleanT = cleanName(tName);
-      const found = allProfilesList.find(p => cleanName(p.doctorName).includes(cleanT) || cleanT.includes(cleanName(p.doctorName)));
-      if (found && !campaignDocs.some(d => d.srNo === found.srNo)) {
-        campaignDocs.push(found);
-      }
-    });
-
-    if (campaignDocs.length === 0) {
-      alert(`Koi ${campaignType} WCFYH doctor list me nahi mila!`);
+    if (liveTargetList.length === 0) {
+      alert(`Sheet 7 me ${campaignType} ke liye koi doctor nahi mila! Sheet 7 me jakar add karein.`);
       return;
     }
 
-    const newCalls: PlannedCallItem[] = campaignDocs.map(doc => {
-      const { lastDate, daysAgo } = dailyWorkingStore.getRealLastVisitDate(doc.srNo, selectedDateStr, doc.doctorName);
+    const allProfilesList = Object.values(profiles);
+    const newCalls: PlannedCallItem[] = [];
+
+    liveTargetList.forEach((targetItem, idx) => {
+      const cleanT = cleanName(targetItem.drName);
+      const matchedProfile = allProfilesList.find(p => cleanName(p.doctorName) === cleanT || cleanName(p.doctorName).includes(cleanT) || cleanT.includes(cleanName(p.doctorName)));
+
+      const docSrNo = matchedProfile ? matchedProfile.srNo : (900 + idx);
+      const spec = matchedProfile?.speciality || targetItem.speciality || (campaignType === 'VINTEL' ? 'MD MED' : 'DM CARD.');
+      const clinic = matchedProfile?.primaryHospital || matchedProfile?.area || 'Hospital Road';
+      const approxTime = matchedProfile?.approxTime || (campaignType === 'VINTEL' ? '11:00 AM' : '01:30 PM');
+      
+      const { lastDate, daysAgo } = dailyWorkingStore.getRealLastVisitDate(docSrNo, selectedDateStr, targetItem.drName);
       const tier = getRecencyTier(daysAgo);
 
-      return {
-        srNo: doc.srNo,
-        doctorName: doc.doctorName,
-        speciality: doc.speciality,
-        clinicArea: doc.primaryHospital || doc.area,
+      newCalls.push({
+        srNo: docSrNo,
+        doctorName: targetItem.drName,
+        speciality: spec,
+        clinicArea: clinic,
         activityType: `WCFYH ${campaignType}`,
-        approxTime: doc.approxTime || (campaignType === 'VINTEL' ? '11:00 AM' : '01:30 PM'),
-        otRemarks: `WCFYH ${campaignType} Campaign (${campaignType === 'VINTEL' ? '10th' : '20th'})`,
+        approxTime: approxTime,
+        otRemarks: `WCFYH ${campaignType} (${targetItem.dateOfCampaign || (campaignType === 'VINTEL' ? '10th' : '20th')})`,
         visitNumber: 1,
-        totalMonthlyTarget: doc.monthlyTargetVisits,
+        totalMonthlyTarget: matchedProfile?.monthlyTargetVisits || 4,
         lastVisitDate: lastDate,
         daysSinceLastVisit: daysAgo,
         recencyTier: tier,
         status: 'PLANNED',
         notes: ''
-      };
+      });
     });
 
     const campaignAreaTag = `WCFYH ${campaignType} (${campaignType === 'VINTEL' ? '10th' : '20th'})`;
@@ -463,7 +473,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
 
     setCurrentPlan(newPlan);
     dailyWorkingStore.saveDayPlan(newPlan);
-    setStatusMsg(`🎉 SUCCESS! WCFYH ${campaignType} (${campaignDocs.length} Doctors) aaj ke plan me 1-click load ho gaye!`);
+    setStatusMsg(`🎉 SUCCESS! Sheet 7 se live synced WCFYH ${campaignType} (${newCalls.length} Doctors) load ho gaye!`);
     setTimeout(() => setStatusMsg(null), 3500);
   };
 
@@ -917,7 +927,7 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {/* 10th VINTEL (3 DRS) */}
+                {/* 10th VINTEL (DYNAMIC SHEET 7 COUNT) */}
                 <button
                   type="button"
                   onClick={() => handleLoadWcfyhCampaign('VINTEL')}
@@ -926,13 +936,13 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                       ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-cyan-400 animate-pulse shadow-cyan-950'
                       : 'bg-blue-950/80 hover:bg-blue-900 text-blue-300 border-blue-500/50'
                   }`}
-                  title="Load Dr. Priyanka Minocha, Dr. Mona Dhingra, Dr. Uday Bhomik (10th WCFYH)"
+                  title={`Live from Sheet 7: ${liveSheet7Wcfyh.vintelDoctors.map(d => d.drName).join(', ')}`}
                 >
-                  <span>💙 WCFYH Vintel (10th) • 3 Drs</span>
+                  <span>💙 WCFYH Vintel (10th) • {liveSheet7Wcfyh.vintelDoctors.length} Drs</span>
                   {is10thDay && <span className="text-[9px] bg-white text-blue-900 px-1.5 rounded-full font-mono font-black">TODAY!</span>}
                 </button>
 
-                {/* 20th VALROS (7 DRS) */}
+                {/* 20th VALROS (DYNAMIC SHEET 7 COUNT) */}
                 <button
                   type="button"
                   onClick={() => handleLoadWcfyhCampaign('VALROS')}
@@ -941,9 +951,9 @@ export const DailyWorkingWorkspace: React.FC<Props> = ({ onBack }) => {
                       ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white border-pink-400 animate-pulse shadow-rose-950'
                       : 'bg-rose-950/80 hover:bg-rose-900 text-rose-300 border-rose-500/50'
                   }`}
-                  title="Load Dr. Deepak Aametha, Dr. Mukesh Sharma, Dr. CP Purohit, Dr. Ramesh Patel, Dr. Sanjay Gandhi, Dr. Raviraj Singh Ahada, Dr. Dilip Jain (20th WCFYH)"
+                  title={`Live from Sheet 7: ${liveSheet7Wcfyh.valrosDoctors.map(d => d.drName).join(', ')}`}
                 >
-                  <span>❤️ WCFYH Valros (20th) • 7 Drs</span>
+                  <span>❤️ WCFYH Valros (20th) • {liveSheet7Wcfyh.valrosDoctors.length} Drs</span>
                   {is20thDay && <span className="text-[9px] bg-white text-rose-900 px-1.5 rounded-full font-mono font-black">TODAY!</span>}
                 </button>
               </div>

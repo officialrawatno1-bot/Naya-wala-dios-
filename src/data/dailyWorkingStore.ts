@@ -39,6 +39,69 @@ export const WCFYH_VINTEL_NAMES = [
   'UDAY BHOMIK'
 ];
 
+// 🌟 DYNAMIC BRIDGE: Read live doctors directly from Sheet 7 (WCFYH Campaign)
+export interface LiveWcfyhDoctorItem {
+  drName: string;
+  brand: 'VINTEL' | 'VALROS';
+  speciality?: string;
+  dateOfCampaign?: string;
+}
+
+export const getLiveWcfyhDoctorsFromSheet7 = (): { 
+  vintelDoctors: LiveWcfyhDoctorItem[]; 
+  valrosDoctors: LiveWcfyhDoctorItem[];
+} => {
+  try {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dios_wcfyh_campaign_permanent_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const vList: LiveWcfyhDoctorItem[] = [];
+          const valList: LiveWcfyhDoctorItem[] = [];
+
+          parsed.forEach((r: any) => {
+            if (r.drName && r.drName.trim().length > 0) {
+              const brandUpper = (r.brand || '').toUpperCase().trim();
+              const item: LiveWcfyhDoctorItem = {
+                drName: r.drName.trim(),
+                brand: brandUpper === 'VINTEL' ? 'VINTEL' : 'VALROS',
+                speciality: r.speciality,
+                dateOfCampaign: r.dateOfCampaign
+              };
+              if (item.brand === 'VINTEL') {
+                vList.push(item);
+              } else {
+                valList.push(item);
+              }
+            }
+          });
+
+          return { vintelDoctors: vList, valrosDoctors: valList };
+        }
+      }
+    }
+  } catch (e) {}
+
+  // Safe fallback if Sheet 7 is not yet initialized
+  return {
+    vintelDoctors: [
+      { drName: 'PRIYANKA MINOCHA', brand: 'VINTEL', speciality: 'MD MBBS, NEUROLOGY', dateOfCampaign: '10TH OF EVERY MONTH' },
+      { drName: 'Mona dingra', brand: 'VINTEL', speciality: 'DM ENDOCRINOLOGIST', dateOfCampaign: '10TH OF EVERY MONTH' },
+      { drName: 'UDAY BHOMIK', brand: 'VINTEL', speciality: 'MCH NEUROSURGERY', dateOfCampaign: '10TH OF EVERY MONTH' }
+    ],
+    valrosDoctors: [
+      { drName: 'DEEPAK AAMETHA', brand: 'VALROS', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH' },
+      { drName: 'MUKESH SHARMA', brand: 'VALROS', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH' },
+      { drName: 'CPPUROHIT', brand: 'VALROS', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH' },
+      { drName: 'RAMESH PATEL', brand: 'VALROS', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH' },
+      { drName: 'Sanjay Gandhi', brand: 'VALROS', speciality: 'MS, MCH, CARDIOLOGY', dateOfCampaign: '20TH OF EVERY MONTH' },
+      { drName: 'RAVIRAJ SINGH AHADA', brand: 'VALROS', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH' },
+      { drName: 'Dilip jain', brand: 'VALROS', speciality: 'DM CARD.', dateOfCampaign: '20TH OF EVERY MONTH' }
+    ]
+  };
+};
+
 export const WCFYH_VALROS_NAMES = [
   'DEEPAK AAMETHA',
   'MUKESH SHARMA',
