@@ -238,7 +238,16 @@ export const ConversionDrListSheet: React.FC = () => {
       nov: { call: "", reminder: "" }
     };
 
-    persistRows([...rows, newRow]);
+    // Insert right below Banwari / Udaipur's last doctor
+    const isUdaipurRow = (r: any) => (r.beName || "").toUpperCase().includes("BANWARI") || (r.hq || "").toUpperCase().includes("UDAIPUR");
+    const lastUdaipurIdx = rows.map(isUdaipurRow).lastIndexOf(true);
+    if (lastUdaipurIdx !== -1) {
+      const copy = [...rows];
+      copy.splice(lastUdaipurIdx + 1, 0, newRow);
+      persistRows(copy);
+    } else {
+      persistRows([...rows, newRow]);
+    }
     setShowAddModal(false);
     setNewDocForm({ beName: "Banwari Meena", hq: "Udaipur", drName: "", julyCall: "", julyRem: "", augCall: "", augRem: "" });
     setStatusMsg(`🎉 Dr. ${newRow.drName} successfully added to Conversion Dr List!`);

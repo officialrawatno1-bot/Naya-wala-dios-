@@ -183,10 +183,7 @@ def clear_terminal_logs():
             f.write(f"[{time.strftime('%H:%M:%S')}] 🧹 Terminal log cleared.\n")
     return {"success": True}
 
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+
 
 @app.post("/api/fetch-expense")
 def api_fetch_expense(req: MonthRequest):
@@ -197,3 +194,8 @@ from email_engine import send_dios_email
 @app.post("/api/send-email")
 def api_send_email(req: dict):
     return send_dios_email(req)
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
