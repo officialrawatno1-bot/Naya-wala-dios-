@@ -394,7 +394,7 @@ export const DiosWorkspaceV2: React.FC<{ onBack: () => void }> = ({ onBack }) =>
 
         <div className="flex items-center gap-3">
           <span className="text-[11px] bg-cyan-950 text-cyan-300 border border-cyan-500/40 px-3 py-1 rounded-full font-mono font-bold flex items-center gap-1.5 shadow-lg shadow-cyan-950/50">
-            <Sparkles size={13} className="text-cyan-400 animate-pulse" /> AGGREGATOR V2 &bull; ZERO-LOSS MONTH PERSISTENCE
+            <Sparkles size={13} className="text-cyan-400 animate-pulse" /> AGGREGATOR &bull; ZERO-LOSS MONTH PERSISTENCE
           </span>
           <span className="text-xs text-slate-400 font-medium">Month:</span>
           <select
@@ -416,7 +416,7 @@ export const DiosWorkspaceV2: React.FC<{ onBack: () => void }> = ({ onBack }) =>
             <span className="p-2.5 bg-gradient-to-tr from-cyan-600 to-blue-600 rounded-xl text-white shadow-lg shadow-cyan-500/20">
               <FileSpreadsheet size={24} />
             </span>
-            DIOS Statement Aggregator V2
+            DIOS Statement Aggregator
           </h1>
           <p className="text-slate-400 text-xs md:text-sm mt-1">
             Month-Wise Cloud Storage &bull; Live KV Availability Strip &bull; Zero-Loss Data Hub Sync

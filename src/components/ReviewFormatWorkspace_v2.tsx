@@ -35,7 +35,7 @@ const REVIEW_NAV = [
   { id: '1', title: '1. Effort Level', short: 'Effort Level', icon: Activity },
   { id: '2', title: '2. Month FW Progress', short: 'FW Progress', icon: Calendar },
   { id: '3', title: '3. Sales Performance', short: 'Performance', icon: TrendingUp },
-  { id: '4', title: '4. Un. Sales Prog', short: 'Un. Sales Prog V2', icon: Table2 },
+  { id: '4', title: '4. Un. Sales Prog', short: 'Un. Sales Prog', icon: Table2 },
   { id: '5', title: '5. Near By Expiry', short: 'Expiry', icon: AlertTriangle },
   { id: '6', title: '6. Commitment', short: 'Commitment', icon: CheckCircle2 },
   { id: '7', title: '7. WCFYH', short: 'WCFYH', icon: HeartPulse },
@@ -52,7 +52,7 @@ const REVIEW_NAV = [
 ];
 
 export const ReviewFormatWorkspaceV2: React.FC<Props> = ({ onBack }) => {
-  const [activeTab, setActiveTab] = useState('4'); // Defaults directly to Sheet 4 for fast verification
+  const [activeTab, setActiveTab] = useState('1'); // Defaults directly to Sheet 4 for fast verification
 
   const renderSheetContent = () => {
     switch (activeTab) {
@@ -89,7 +89,7 @@ export const ReviewFormatWorkspaceV2: React.FC<Props> = ({ onBack }) => {
 
         <div className="flex items-center gap-3">
           <span className="text-[11px] bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-full font-mono font-bold flex items-center gap-1.5 shadow-lg shadow-emerald-950/50">
-            <Sparkles size={13} className="text-emerald-400 animate-pulse" /> DIOS REVIEW HUB (V2 DEEP-MERGE ACTIVE)
+            <Sparkles size={13} className="text-emerald-400 animate-pulse" /> DIOS REVIEW HUB (17 SHEETS)
           </span>
         </div>
       </div>
@@ -99,7 +99,7 @@ export const ReviewFormatWorkspaceV2: React.FC<Props> = ({ onBack }) => {
           <span className="p-2.5 bg-gradient-to-tr from-emerald-600 to-teal-600 rounded-xl text-white shadow-lg shadow-emerald-500/20">
             <FileText size={24} />
           </span>
-          Monthly Performance Review Format V2
+          Monthly Performance Review Format
         </h1>
         <p className="text-slate-400 text-xs md:text-sm mt-1">
           Sheet 4 upgraded with Atomic Deep-Merge &bull; Multi-Month Protection Active.

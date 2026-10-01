@@ -28,7 +28,7 @@ export const UnSalesProgSheetV2: React.FC = () => {
   
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  // 🌟 LIVE MONTH DATA DETECTOR (Checks which months have recorded units)
+  // 🌟 LIVE MONTH DATA DETECTOR
   const availableMonthsMap = useMemo(() => {
     const map: Record<string, boolean> = {};
     MONTH_CODES.forEach(m => {
@@ -128,7 +128,7 @@ export const UnSalesProgSheetV2: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `4_UN_SALES_PROG_HQ_TOTAL_V2.csv`);
+    link.setAttribute('download', `4_UN_SALES_PROG_HQ_TOTAL.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -145,12 +145,12 @@ export const UnSalesProgSheetV2: React.FC = () => {
           </span>
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
-              4. UNIT SALES PROGRESSION V2 (HQ TOTAL)
+              4. UNIT SALES PROGRESSION (HQ TOTAL)
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
-                <Sparkles size={11} /> ATOMIC DEEP-MERGE ENGINE ACTIVE
+                <Sparkles size={11} /> 12-MONTH DEEP-MERGE ENGINE
               </span>
             </h2>
-            <p className="text-xs text-slate-400">All 12 Months Protected &bull; August &amp; September Safe Co-existence &bull; Cloud KV Bridge</p>
+            <p className="text-xs text-slate-400">All 12 Months Protected &bull; August &amp; September Co-existing &bull; All 5 Calculation Rows Active</p>
           </div>
         </div>
 
@@ -203,7 +203,7 @@ export const UnSalesProgSheetV2: React.FC = () => {
         </div>
       </div>
 
-      {/* 🌟 2. SAFE CLOUD SYNC BAR (FIXED: NO HARDCODED BROKEN RESET CALLS) */}
+      {/* 2. CLOUD SYNC BAR */}
       <CloudSyncBar
         storageKey="review/sheet_04_un_sales_progression"
         sheetTitle="4. Unit Sales Progression (HQ Total)"
@@ -214,7 +214,6 @@ export const UnSalesProgSheetV2: React.FC = () => {
         onLoadData={(cloudData: any) => {
           if (!cloudData) return;
           if (cloudData.progressionData) {
-            // 🌟 FIXED: Hydrates full 12 months safely into store
             unProgressionStoreV2.hydrateFromCloud(cloudData.progressionData);
             setGridData({ ...unProgressionStoreV2.getData() });
           }
@@ -234,7 +233,7 @@ export const UnSalesProgSheetV2: React.FC = () => {
         </div>
       )}
 
-      {/* 🌟 3. LIVE MONTH AVAILABILITY RIBBON */}
+      {/* 3. MONTH AVAILABILITY RIBBON */}
       <div className="p-2.5 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between gap-2 overflow-x-auto text-xs">
         <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1 shrink-0">
           <Database size={12} className="text-cyan-400" />
@@ -271,7 +270,7 @@ export const UnSalesProgSheetV2: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. SEARCH & INFO */}
+      {/* 4. SEARCH */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative w-full sm:w-80">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -289,7 +288,7 @@ export const UnSalesProgSheetV2: React.FC = () => {
         </div>
       </div>
 
-      {/* 5. 73 PRODUCTS TABLE */}
+      {/* 5. 73 PRODUCTS TABLE WITH COMPLETE 5 FOOTER ROWS */}
       <div className="overflow-x-auto max-h-[620px] border border-slate-800 rounded-xl">
         <table className="w-full text-left text-xs border-collapse">
           <thead className="sticky top-0 bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800 z-30">
@@ -386,8 +385,9 @@ export const UnSalesProgSheetV2: React.FC = () => {
             })}
           </tbody>
 
-          {/* TOTALS FOOTER */}
+          {/* 🌟 COMPLETE ALL 5 FOOTER ROWS RESTORED */}
           <tfoot className="sticky bottom-0 bg-slate-950 border-t-2 border-cyan-500/40 font-bold z-30 shadow-2xl text-[11px]">
+            {/* ROW 1: TOTAL UNITS */}
             <tr>
               <td className="p-2.5 text-center text-cyan-400 font-mono border-r border-slate-800 sticky left-0 bg-slate-950 z-40">Σ</td>
               <td className="p-2.5 text-white border-r border-slate-800 sticky left-10 bg-slate-950 z-40">TOTAL UNITS</td>
@@ -414,7 +414,46 @@ export const UnSalesProgSheetV2: React.FC = () => {
               <td className="p-2 text-right font-mono text-emerald-300 bg-emerald-950/40">-</td>
             </tr>
 
-            {/* SECONDARY VALUE */}
+            {/* ROW 2: PRIMARY VALUE (Calculated Units × PTS) */}
+            <tr>
+              <td className="p-2.5 text-center text-blue-400 font-mono border-r border-slate-800 sticky left-0 bg-slate-950 z-40">Pri 1</td>
+              <td className="p-2.5 text-blue-300 border-r border-slate-800 sticky left-10 bg-slate-950 z-40">PRIMARY VALUE (Calculated Units × PTS)</td>
+              <td className="p-2.5 text-right font-mono text-slate-500 border-r border-slate-800 sticky left-[240px] bg-slate-950 z-40">₹</td>
+              {MONTH_CODES.map(m => {
+                let priValSum = 0;
+                MASTER_PRODUCTS.forEach(p => {
+                  const it = gridData[m]?.[p.sn];
+                  if (it) {
+                    priValSum += (it.netPri || 0) * p.pts;
+                  }
+                });
+                return (
+                  <td key={m} colSpan={3} className="p-2 text-center font-mono text-blue-300 bg-blue-950/20 border-r border-slate-800">
+                    {priValSum > 0 ? `₹${(priValSum / 100000).toFixed(2)}L` : '-'}
+                  </td>
+                );
+              })}
+              <td colSpan={4} className="p-2 text-center text-blue-300 font-mono bg-blue-950/30">Calc Pri Total</td>
+            </tr>
+
+            {/* ROW 3: PRIMARY VALUE (Sales Performance Section Sync) */}
+            <tr>
+              <td className="p-2.5 text-center text-indigo-400 font-mono border-r border-slate-800 sticky left-0 bg-slate-950 z-40">Pri 2</td>
+              <td className="p-2.5 text-indigo-300 border-r border-slate-800 sticky left-10 bg-slate-950 z-40">PRIMARY VALUE (Sales Performance Section Sync)</td>
+              <td className="p-2.5 text-right font-mono text-slate-500 border-r border-slate-800 sticky left-[240px] bg-slate-950 z-40">₹</td>
+              {MONTH_CODES.map(m => {
+                const perfMap = memoryStore.salesPerformanceData?.primary_curr || INITIAL_BASE_PRIMARY;
+                const lacsVal = parseFloat(perfMap[m] || '0') || 0;
+                return (
+                  <td key={m} colSpan={3} className="p-2 text-center font-mono text-indigo-300 bg-indigo-950/20 border-r border-slate-800">
+                    {lacsVal > 0 ? `₹${lacsVal}L` : '-'}
+                  </td>
+                );
+              })}
+              <td colSpan={4} className="p-2 text-center text-indigo-300 font-mono bg-indigo-950/30">Section Sync Total</td>
+            </tr>
+
+            {/* ROW 4: SECONDARY VALUE (Sec × PTS) */}
             <tr>
               <td className="p-2.5 text-center text-cyan-400 font-mono border-r border-slate-800 sticky left-0 bg-slate-950 z-40">Sec</td>
               <td className="p-2.5 text-cyan-300 border-r border-slate-800 sticky left-10 bg-slate-950 z-40">SECONDARY VALUE (Sec × PTS)</td>
@@ -434,6 +473,28 @@ export const UnSalesProgSheetV2: React.FC = () => {
                 );
               })}
               <td colSpan={4} className="p-2 text-center text-cyan-300 font-mono bg-cyan-950/30">Total Sec Value</td>
+            </tr>
+
+            {/* ROW 5: CLOSING VALUE (Closing × PTS) */}
+            <tr>
+              <td className="p-2.5 text-center text-emerald-400 font-mono border-r border-slate-800 sticky left-0 bg-slate-950 z-40">Cl</td>
+              <td className="p-2.5 text-emerald-300 border-r border-slate-800 sticky left-10 bg-slate-950 z-40">CLOSING VALUE (Closing × PTS)</td>
+              <td className="p-2.5 text-right font-mono text-slate-500 border-r border-slate-800 sticky left-[240px] bg-slate-950 z-40">₹</td>
+              {MONTH_CODES.map(m => {
+                let clValSum = 0;
+                MASTER_PRODUCTS.forEach(p => {
+                  const it = gridData[m]?.[p.sn];
+                  if (it) {
+                    clValSum += (it.closing || 0) * p.pts;
+                  }
+                });
+                return (
+                  <td key={m} colSpan={3} className="p-2 text-center font-mono text-emerald-300 bg-emerald-950/20 border-r border-slate-800">
+                    {clValSum > 0 ? `₹${(clValSum / 100000).toFixed(2)}L` : '-'}
+                  </td>
+                );
+              })}
+              <td colSpan={4} className="p-2 text-center text-emerald-300 font-mono bg-emerald-950/30">Total Closing Value</td>
             </tr>
           </tfoot>
         </table>
